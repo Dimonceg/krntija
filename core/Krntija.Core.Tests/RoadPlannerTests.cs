@@ -52,6 +52,7 @@ public class RoadPlannerTests
             var plan = RoadPlanner.Generate(seed, totalMeters: 4000);
 
             Assert.NotNull(plan.FirstWithFeature(RoadFeature.GasStation));
+            Assert.NotNull(plan.FirstWithFeature(RoadFeature.Checkpoint));
             Assert.True(plan.Features.Count() >= 3, $"seed {seed}: мало точек интереса");
         }
     }

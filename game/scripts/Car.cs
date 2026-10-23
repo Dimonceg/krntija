@@ -19,10 +19,10 @@ public partial class Car : RigidBody3D
 
     private static readonly Vector3[] Anchors =
     {
-        new(-0.82f, 0f, -1.35f), // перед лево
-        new(0.82f, 0f, -1.35f),  // перед право
-        new(-0.82f, 0f, 1.35f),  // зад лево
-        new(0.82f, 0f, 1.35f),   // зад право
+        new(-0.86f, 0f, -1.35f), // перед лево
+        new(0.86f, 0f, -1.35f),  // перед право
+        new(-0.86f, 0f, 1.35f),  // зад лево
+        new(0.86f, 0f, 1.35f),   // зад право
     };
 
     private readonly MeshInstance3D[] _wheels = new MeshInstance3D[4];
@@ -78,7 +78,7 @@ public partial class Car : RigidBody3D
     {
         AddChild(new CollisionShape3D
         {
-            Shape = new BoxShape3D { Size = new Vector3(1.8f, 0.5f, 4.2f) },
+            Shape = new BoxShape3D { Size = new Vector3(1.5f, 0.5f, 4.2f) },
             Position = new Vector3(0, 0.10f, 0),
         });
 
@@ -86,7 +86,7 @@ public partial class Car : RigidBody3D
 
         var body = new MeshInstance3D
         {
-            Mesh = new BoxMesh { Size = new Vector3(1.8f, 0.5f, 4.2f) },
+            Mesh = new BoxMesh { Size = new Vector3(1.5f, 0.5f, 4.2f) },
             Position = new Vector3(0, 0.10f, 0),
             MaterialOverride = paint,
         };
@@ -94,23 +94,33 @@ public partial class Car : RigidBody3D
 
         var cabin = new MeshInstance3D
         {
-            Mesh = new BoxMesh { Size = new Vector3(1.6f, 0.55f, 1.9f) },
+            Mesh = new BoxMesh { Size = new Vector3(1.34f, 0.55f, 1.9f) },
             Position = new Vector3(0, 0.58f, 0.15f),
             MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.55f, 0.38f, 0.2f), Roughness = 0.8f },
         };
         AddChild(cabin);
 
-        var rubber = new StandardMaterial3D { AlbedoColor = new Color(0.07f, 0.07f, 0.08f), Roughness = 1.0f };
+        var rubber = new StandardMaterial3D { AlbedoColor = new Color(0.3f, 0.29f, 0.28f), Roughness = 1.0f };
+        var hubMaterial = new StandardMaterial3D { AlbedoColor = new Color(0.6f, 0.6f, 0.58f), Metallic = 0.5f, Roughness = 0.55f };
+
         for (int i = 0; i < Anchors.Length; i++)
         {
             var wheel = new MeshInstance3D
             {
-                Mesh = new CylinderMesh { Height = 0.26f, TopRadius = WheelRadius, BottomRadius = WheelRadius },
+                Mesh = new CylinderMesh { Height = 0.24f, TopRadius = WheelRadius, BottomRadius = WheelRadius },
                 MaterialOverride = rubber,
                 Position = Anchors[i] - Vector3.Up * RestLength,
                 Rotation = new Vector3(0, 0, Mathf.Pi / 2),
             };
             AddChild(wheel);
+
+            // Колпак чуть шире шины, чтобы колесо читалось в тени.
+            wheel.AddChild(new MeshInstance3D
+            {
+                Mesh = new CylinderMesh { Height = 0.26f, TopRadius = 0.17f, BottomRadius = 0.17f },
+                MaterialOverride = hubMaterial,
+            });
+
             _wheels[i] = wheel;
         }
     }
@@ -121,6 +131,7 @@ public partial class Car : RigidBody3D
 
         float dt = (float)delta;
         _physicsFrames++;
+
         var input = Autopilot
             ? new DriveInput(Ignition: true, Throttle: 1.0)
             : ReadInput();

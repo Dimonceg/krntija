@@ -68,7 +68,7 @@ public static class RoadPlanner
         double start = 0;
         int index = 0;
         double nextFeatureAt = 450;
-        bool gasStationPlaced = false;
+        int featuresPlaced = 0;
 
         while (start < totalMeters)
         {
@@ -77,7 +77,7 @@ public static class RoadPlanner
 
             if (start >= nextFeatureAt)
             {
-                (feature, title) = PickFeature(ref gasStationPlaced, rng);
+                (feature, title) = PickFeature(ref featuresPlaced, rng);
                 nextFeatureAt = start + rng.Range(420, 720);
             }
 
@@ -95,13 +95,14 @@ public static class RoadPlanner
         return new RoadPlan(segments);
     }
 
-    private static (RoadFeature Feature, string Title) PickFeature(ref bool gasStationPlaced, Pcg32 rng)
+    private static (RoadFeature Feature, string Title) PickFeature(ref int placed, Pcg32 rng)
     {
-        if (!gasStationPlaced)
-        {
-            gasStationPlaced = true;
-            return (RoadFeature.GasStation, "Бензинска пумпа");
-        }
+        placed++;
+
+        // Первые две точки всегда одинаковые: сначала заправка, потом блокпост.
+        // Так игрок гарантированно встречает и экономику, и шлагбаум.
+        if (placed == 1) return (RoadFeature.GasStation, "Бензинска пумпа");
+        if (placed == 2) return (RoadFeature.Checkpoint, "Блокпост");
 
         var options = new (RoadFeature Feature, string Title)[]
         {

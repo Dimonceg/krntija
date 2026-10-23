@@ -212,7 +212,20 @@ public partial class Hud : CanvasLayer
             sb.AppendLine($"    {item.Definition.Name} ×{item.Count}");
 
         sb.AppendLine();
-        sb.AppendLine("[color=#8a8578][1..6] купить   [J] закрыть[/color]");
+        sb.AppendLine("[b]СДАТЬ ДЕТАЛИ[/b]");
+        var carried = session.Inventory.Items.Where(i => PartCatalog.All.ContainsKey(i.DefId)).ToList();
+        if (carried.Count == 0)
+        {
+            sb.AppendLine("    нечего сдавать");
+        }
+        else
+        {
+            foreach (var item in carried)
+                sb.AppendLine($"    {item.Definition.Name} — {PartCatalog.All[item.DefId].Price * 0.5:F0} €");
+        }
+
+        sb.AppendLine();
+        sb.AppendLine("[color=#8a8578][1..6] купить   [S] сдать деталь   [J] закрыть[/color]");
         return sb.ToString();
     }
 

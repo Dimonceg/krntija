@@ -5,6 +5,14 @@ using Krntija.Core.World;
 
 namespace Krntija.Game;
 
+/// <summary>Что построили: точки интереса и центральная линия дороги.</summary>
+public sealed class RoadBuildResult
+{
+    public List<RoadMeshBuilder.PointOfInterest> Points { get; } = new();
+    public List<Vector3> Centerline { get; } = new();
+    public List<float> Headings { get; } = new();
+}
+
 /// <summary>
 /// Строит дорогу по плану из ядра: ленту с поворотами, коллизию и столбики.
 /// Никаких ассетов — только геометрия, чтобы можно было ездить уже сейчас.
@@ -16,10 +24,10 @@ public static class RoadMeshBuilder
 
     public sealed record PointOfInterest(RoadSegment Segment, Vector3 Position, float Heading);
 
-    public static List<PointOfInterest> Build(RoadPlan plan, Node3D parent)
+    public static RoadBuildResult Build(RoadPlan plan, Node3D parent)
     {
-        var points = new List<Vector3>();
-        var headings = new List<float>();
+        var centers = new List<Vector3>();
+        var headingsAll = new List<float>();
 
         double distance = 0;
         float theta = 0;
@@ -30,8 +38,8 @@ public static class RoadMeshBuilder
             double segmentEnd = segment.StartM + segment.LengthM;
             while (distance < segmentEnd - 0.001)
             {
-                points.Add(position);
-                headings.Add(theta);
+                centers.Add(position);
+                headingsAll.Add(theta);
 
                 theta += (float)(RoadPlanner.RadiansPerMeter(segment.Curvature) * StepMeters);
                 position += new Vector3(Mathf.Sin(theta), 0, -Mathf.Cos(theta)) * StepMeters;
@@ -39,9 +47,13 @@ public static class RoadMeshBuilder
             }
         }
 
-        if (points.Count < 2) return new List<PointOfInterest>();
+        var result = new RoadBuildResult();
+        if (centers.Count < 2) return result;
 
-        var mesh = BuildRibbon(points, headings);
+        result.Centerline.AddRange(centers);
+        result.Headings.AddRange(headingsAll);
+
+        var mesh = BuildRibbon(centers, headingsAll);
         var body = new StaticBody3D();
         body.AddChild(new MeshInstance3D
         {
@@ -53,17 +65,16 @@ public static class RoadMeshBuilder
                 CullMode = BaseMaterial3D.CullModeEnum.Disabled,
             },
         });
-        body.AddChild(BuildCollision(points, headings));
+        body.AddChild(BuildCollision(centers, headingsAll));
         parent.AddChild(body);
 
-        AddRoadsidePosts(points, headings, parent);
+        AddRoadsidePosts(centers, headingsAll, parent);
 
         // Точки интереса ставим у начала своего сегмента.
-        var result = new List<PointOfInterest>();
         foreach (var segment in plan.Features)
         {
-            int index = Mathf.Clamp((int)Math.Round(segment.StartM / StepMeters), 0, points.Count - 1);
-            result.Add(new PointOfInterest(segment, points[index], headings[index]));
+            int index = Mathf.Clamp((int)Math.Round(segment.StartM / StepMeters), 0, centers.Count - 1);
+            result.Points.Add(new PointOfInterest(segment, centers[index], headingsAll[index]));
         }
 
         return result;
@@ -132,7 +143,7 @@ public static class RoadMeshBuilder
 
         for (int i = 8; i < points.Count; i += 12)
         {
-            Vector3 right = new Vector3(Mathf.Cos(headings[i]), 0, Mathf.Sin(headings[i]));
+            Vector3 right = new(Mathf.Cos(headings[i]), 0, Mathf.Sin(headings[i]));
             float side = (i / 12) % 2 == 0 ? 1 : -1;
             var post = new MeshInstance3D
             {

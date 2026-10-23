@@ -33,12 +33,13 @@ public partial class Main : Node3D
     {
         Pump,
         Shop,
+        Gate,
     }
 
-    private sealed record InteractionPoint(Vector3 Position, InteractionKind Kind, float Radius);
+    private sealed record InteractionPoint(Vector3 Position, InteractionKind Kind, float Radius, CheckpointGate? Gate = null);
 
     private readonly List<InteractionPoint> _interactions = new();
-    private InteractionPoint? _shotSpot;
+    private RoadBuildResult? _road;
 
     public override void _Ready()
     {
@@ -63,16 +64,14 @@ public partial class Main : Node3D
         _shot = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot") >= 0;
         _car.Autopilot = _smoke || _selfTest;
 
-        if (_shot)
+        if (_shot && _road is { Centerline.Count: > 90 })
         {
-            var pump = _interactions.FirstOrDefault(p => p.Kind == InteractionKind.Pump);
-            _shotSpot = pump;
+            var road = _road;
+            int index = 80;
 
-            if (pump is not null)
-            {
-                _car.GlobalPosition = pump.Position + new Vector3(12f, 0.6f, 10f);
-                _camera.GlobalPosition = _car.GlobalPosition + new Vector3(4, 4, 4);
-            }
+            _car.GlobalPosition = road.Centerline[index] + Vector3.Up * 0.6f;
+            _car.Rotation = new Vector3(0, -road.Headings[index] + 0.35f, 0);
+            _camera.GlobalPosition = _car.GlobalPosition + _car.GlobalBasis.Z * 9f + Vector3.Up * 4f;
         }
 
         GD.Print($"[Krntija] старт. smoke={_smoke}, selftest={_selfTest}, машина: {session.Vehicle.Spec.Name}");
@@ -83,14 +82,6 @@ public partial class Main : Node3D
         if (!(_smoke || _selfTest || _shot) || _smokeDone) return;
 
         _frames++;
-
-        if (_shot && _frames == 110 && _shotSpot is not null)
-        {
-            _car.LinearVelocity = Vector3.Zero;
-            ExitCar();
-            _player!.Teleport(_shotSpot.Position + new Vector3(2.2f, 0.3f, 2.2f));
-            _player.Yaw = 0.78f;
-        }
 
         if (_shot && _frames >= 180)
         {
@@ -148,6 +139,12 @@ public partial class Main : Node3D
             return;
         }
 
+        if (_hud.Screen == HudScreen.Shop && key.Keycode == Key.S)
+        {
+            SellCarriedPart();
+            return;
+        }
+
         switch (key.Keycode)
         {
             case Key.Escape:
@@ -187,22 +184,26 @@ public partial class Main : Node3D
     {
         if (_hud.Screen != HudScreen.None) return string.Empty;
 
+        var point = NearestInteraction();
+
         if (_onFoot && _player is not null)
         {
             if (DistanceToCar() < 3.5f) return "[E] сесть в машину";
-
-            var point = NearestInteraction();
-            if (point is not null)
-                return point.Kind == InteractionKind.Shop ? "[E] зайти в лавку" : "[E] заправить";
-
+            if (point is not null) return PromptFor(point);
             return "W/S — идти, A/D — поворот, Shift — бежать";
         }
 
-        if (NearestInteraction()?.Kind == InteractionKind.Pump && _car.SpeedMps < 2f)
-            return "[E] заправить";
+        if (point is not null && _car.SpeedMps < 2f) return PromptFor(point);
 
         return _car.SpeedMps < 2f ? "[E] выйти из машины" : string.Empty;
     }
+
+    private static string PromptFor(InteractionPoint point) => point.Kind switch
+    {
+        InteractionKind.Shop => "[E] зайти в лавку",
+        InteractionKind.Gate => point.Gate is { IsOpen: true } ? "[E] шлагбаум открыт" : "[E] заплатить 15 € за проезд",
+        _ => "[E] заправить",
+    };
 
     private void Interact()
     {
@@ -221,17 +222,15 @@ public partial class Main : Node3D
             }
 
             var point = NearestInteraction();
-            if (point is null) return;
-
-            if (point.Kind == InteractionKind.Shop) _hud.Screen = HudScreen.Shop;
-            else RefuelAtPump();
+            if (point is not null) Use(point);
 
             return;
         }
 
-        if (NearestInteraction()?.Kind == InteractionKind.Pump && _car.SpeedMps < 2f)
+        var inCar = NearestInteraction();
+        if (inCar is not null && _car.SpeedMps < 2f && inCar.Kind != InteractionKind.Shop)
         {
-            RefuelAtPump();
+            Use(inCar);
             return;
         }
 
@@ -242,6 +241,45 @@ public partial class Main : Node3D
         }
 
         ExitCar();
+    }
+
+    private void Use(InteractionPoint point)
+    {
+        switch (point.Kind)
+        {
+            case InteractionKind.Shop:
+                _hud.Screen = HudScreen.Shop;
+                break;
+
+            case InteractionKind.Gate:
+                PayForGate(point.Gate);
+                break;
+
+            default:
+                RefuelAtPump();
+                break;
+        }
+    }
+
+    private void PayForGate(CheckpointGate? gate)
+    {
+        if (gate is null) return;
+
+        if (gate.IsOpen)
+        {
+            _hud.Toast("Проезд уже оплачен");
+            return;
+        }
+
+        if (_car.Session.Wallet.TrySpend(15))
+        {
+            gate.Open();
+            _hud.Toast("Проезд оплачен: 15 €");
+        }
+        else
+        {
+            _hud.Toast("Нет 15 € на проезд");
+        }
     }
 
     private void ExitCar()
@@ -326,6 +364,26 @@ public partial class Main : Node3D
             : "Не хватает денег или места");
     }
 
+    /// <summary>Сдать первую попавшуюся деталь из сумки за половину цены.</summary>
+    private void SellCarriedPart()
+    {
+        var session = _car.Session;
+        var item = session.Inventory.Items.FirstOrDefault(i => PartCatalog.All.ContainsKey(i.DefId));
+
+        if (item is null)
+        {
+            _hud.Toast("Нечего сдавать");
+            return;
+        }
+
+        string name = item.Definition.Name;
+        double price = PartCatalog.All[item.DefId].Price * 0.5;
+
+        _hud.Toast(TradeService.TrySellPart(session.Inventory, session.Wallet, item.DefId)
+            ? $"Сдано: {name} за {price:F0} €"
+            : "Не получилось сдать");
+    }
+
     // ---------- самопроверка M1 ----------
 
     /// <summary>
@@ -385,6 +443,14 @@ public partial class Main : Node3D
 
             EnterCar();
             Check(!_onFoot && _car.Driven && _player is null, "возвращение за руль");
+
+            var gatePoint = _interactions.FirstOrDefault(p => p.Kind == InteractionKind.Gate);
+            if (gatePoint?.Gate is not null)
+            {
+                double before = _car.Session.Wallet.Money;
+                PayForGate(gatePoint.Gate);
+                Check(gatePoint.Gate.IsOpen && _car.Session.Wallet.Money < before, "шлагбаум за деньги");
+            }
 
             GD.Print("[selftest] пройден");
         }
@@ -533,23 +599,27 @@ public partial class Main : Node3D
         BuildRoad();
     }
 
-    /// <summary>Дорога из плана ядра: лента, коллизия и точки интереса по обочинам.</summary>
+    /// <summary>Дорога из плана ядра: лента, коллизия, точки интереса и обочины.</summary>
     private void BuildRoad()
     {
         var plan = RoadPlanner.Generate(seed: 20261023, totalMeters: 2500);
-        var pois = RoadMeshBuilder.Build(plan, this);
+        var road = RoadMeshBuilder.Build(plan, this);
+        _road = road;
 
-        foreach (var poi in pois)
+        foreach (var poi in road.Points)
         {
             var right = new Vector3(Mathf.Cos(poi.Heading), 0, Mathf.Sin(poi.Heading));
             Vector3 spot = poi.Position - right * 16f; // левая обочина
-            AddLandmark(poi.Segment.Feature, spot, poi.Heading);
+            AddLandmark(poi.Segment.Feature, spot, poi.Heading, poi.Position);
         }
 
-        GD.Print($"[road] {plan.Segments.Count} сегментов, {plan.TotalMeters:F0} м, точек интереса: {pois.Count}");
+        WorldScatter.ScatterTrees(road.Centerline, road.Headings, this, seed: 20261023);
+        WorldScatter.ScatterPowerLine(road.Centerline, road.Headings, this, seed: 20261023);
+
+        GD.Print($"[road] {plan.Segments.Count} сегментов, {plan.TotalMeters:F0} м, точек интереса: {road.Points.Count}");
     }
 
-    private void AddLandmark(RoadFeature feature, Vector3 position, float heading)
+    private void AddLandmark(RoadFeature feature, Vector3 position, float heading, Vector3 roadPoint)
     {
         switch (feature)
         {
@@ -557,7 +627,7 @@ public partial class Main : Node3D
             case RoadFeature.Village: AddVillage(position, heading); break;
             case RoadFeature.Ruins: AddRuins(position, heading); break;
             case RoadFeature.Farm: AddFarm(position, heading); break;
-            case RoadFeature.Checkpoint: AddCheckpoint(position, heading); break;
+            case RoadFeature.Checkpoint: AddCheckpoint(position, heading, roadPoint); break;
         }
     }
 
@@ -618,14 +688,21 @@ public partial class Main : Node3D
         farm.AddChild(silo);
     }
 
-    private void AddCheckpoint(Vector3 position, float heading)
+    private void AddCheckpoint(Vector3 position, float heading, Vector3 roadPoint)
     {
         var checkpoint = new Node3D { Position = position, Rotation = new Vector3(0, -heading, 0) };
         AddChild(checkpoint);
 
-        Box(checkpoint, new Vector3(2.4f, 2.6f, 2.4f), new Vector3(-3, 1.3f, 0), new Color(0.72f, 0.7f, 0.6f));
-        Box(checkpoint, new Vector3(0.2f, 0.2f, 8), new Vector3(2, 1.1f, 4), new Color(0.85f, 0.75f, 0.3f));
-        Box(checkpoint, new Vector3(0.15f, 1.1f, 0.15f), new Vector3(2, 0.55f, 0), new Color(0.5f, 0.5f, 0.5f));
+        // Будка смотрителя и пара фонарей на обочине.
+        Box(checkpoint, new Vector3(2.4f, 2.6f, 2.4f), new Vector3(0, 1.3f, 0), new Color(0.72f, 0.7f, 0.6f));
+        Box(checkpoint, new Vector3(3.0f, 0.2f, 3.0f), new Vector3(0, 2.7f, 0), new Color(0.4f, 0.38f, 0.34f));
+
+        // Сам шлагбаум стоит поперёк дороги.
+        var gate = CheckpointGate.Create(roadPoint, heading);
+        AddChild(gate);
+
+        _interactions.Add(new InteractionPoint(
+            roadPoint + new Vector3(0, 1.2f, 0), InteractionKind.Gate, 9f, gate));
     }
 
     /// <summary>Заправка: навес, колонка и магазинчик у дороги.</summary>
