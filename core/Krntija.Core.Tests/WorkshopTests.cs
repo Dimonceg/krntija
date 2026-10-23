@@ -100,4 +100,45 @@ public class WorkshopTests
 
         Assert.Equal(PartSlot.BrakesRear, VehicleService.WorstPart(car)!.Slot);
     }
+
+    [Fact]
+    public void Wheel_GoesIntoTheRequestedSlot()
+    {
+        var car = VehicleState.CreateDefault();
+        car.Get(PartSlot.WheelRearRight)!.SetCondition(0.1);
+
+        var bag = BigBag();
+        bag.TryAdd("wheel_steel");
+
+        bool ok = VehicleService.TryReplacePart(car, bag, "wheel_steel", PartSlot.WheelRearRight, out _);
+
+        Assert.True(ok);
+        Assert.Equal(1.0, car.Get(PartSlot.WheelRearRight)!.Condition, 3);
+        Assert.Equal(0.1, bag.Items.Single(i => i.DefId == "wheel_steel").Condition, 3);
+    }
+
+    [Fact]
+    public void WrongPartForSlot_IsRejected()
+    {
+        var car = VehicleState.CreateDefault();
+        var bag = BigBag();
+        bag.TryAdd("radiator_std");
+
+        bool ok = VehicleService.TryReplacePart(car, bag, "radiator_std", PartSlot.Engine, out _);
+
+        Assert.False(ok);
+        Assert.Equal(1, bag.Count("radiator_std")); // деталь осталась в сумке
+    }
+
+    [Fact]
+    public void FindPartInBag_MatchesSlot_AndWheelsAreInterchangeable()
+    {
+        var bag = BigBag();
+        bag.TryAdd("wheel_steel");
+        bag.TryAdd("radiator_std");
+
+        Assert.Equal("wheel_steel", VehicleService.FindPartInBag(bag, PartSlot.WheelRearLeft));
+        Assert.Equal("radiator_std", VehicleService.FindPartInBag(bag, PartSlot.Radiator));
+        Assert.Null(VehicleService.FindPartInBag(bag, PartSlot.Engine));
+    }
 }

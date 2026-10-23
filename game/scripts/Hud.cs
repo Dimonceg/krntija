@@ -26,6 +26,14 @@ public partial class Hud : CanvasLayer
     private Label _toast = null!;
     private float _toastLeft;
 
+    private static readonly PartSlot[] SlotOrder = Enum.GetValues<PartSlot>();
+    private int _selected;
+
+    public PartSlot SelectedSlot => SlotOrder[Mathf.Clamp(_selected, 0, SlotOrder.Length - 1)];
+
+    public void MoveSelection(int delta) =>
+        _selected = (_selected + delta + SlotOrder.Length) % SlotOrder.Length;
+
     public override void _Ready()
     {
         _status = new Label { Position = new Vector2(20, 16) };
@@ -113,7 +121,7 @@ public partial class Hud : CanvasLayer
             _journal.Text = BuildJournal(session);
     }
 
-    private static string BuildJournal(GameSession session)
+    private string BuildJournal(GameSession session)
     {
         var sb = new System.Text.StringBuilder();
         var vehicle = session.Vehicle;
@@ -124,7 +132,8 @@ public partial class Hud : CanvasLayer
         sb.AppendLine();
 
         sb.AppendLine("[b]ДЕТАЛИ[/b]");
-        foreach (var slot in Enum.GetValues<PartSlot>())
+        int index = 0;
+        foreach (var slot in SlotOrder)
         {
             if (!vehicle.Parts.TryGetValue(slot, out var part)) continue;
 
@@ -135,7 +144,12 @@ public partial class Hud : CanvasLayer
                 _ => "#9ac46a",
             };
 
-            sb.AppendLine($"{part.Name,-20} [color={color}]{Bar(part.Condition)}[/color] {part.Condition * 100,3:F0}%");
+            bool selected = index == _selected;
+            string marker = selected ? "[color=#e8d9a8]>[/color] " : "  ";
+            string name = selected ? $"[b]{part.Name}[/b]" : part.Name;
+
+            sb.AppendLine($"{marker}{name,-22}[color={color}]{Bar(part.Condition)}[/color] {part.Condition * 100,3:F0}%");
+            index++;
         }
 
         sb.AppendLine();
@@ -153,7 +167,7 @@ public partial class Hud : CanvasLayer
         sb.AppendLine($"[b]СОСТОЯНИЕ[/b]  здоровье {survival.Health * 100:F0}%, голод {survival.Hunger * 100:F0}%, " +
                       $"жажда {survival.Thirst * 100:F0}%, сон {survival.Fatigue * 100:F0}%");
         sb.AppendLine();
-        sb.AppendLine("[color=#8a8578][R] подмотать худшую деталь изолентой   [F] залить из канистры   [J] закрыть[/color]");
+        sb.AppendLine("[color=#8a8578][↑/↓] выбрать деталь   [T] поставить из сумки   [R] изолента   [F] канистра   [J] закрыть[/color]");
 
         return sb.ToString();
     }

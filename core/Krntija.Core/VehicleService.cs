@@ -12,19 +12,38 @@ namespace Krntija.Core.Workshop;
 public static class VehicleService
 {
     /// <summary>Ставит новую деталь из инвентаря. Старая уезжает обратно в сумку.</summary>
-    public static bool TryReplacePart(VehicleState car, Inventory bag, string partDefId, out Part? replaced)
+    public static bool TryReplacePart(VehicleState car, Inventory bag, string partDefId, out Part? replaced) =>
+        TryReplacePart(car, bag, partDefId, null, out replaced);
+
+    /// <summary>
+    /// То же, но с явным слотом: нужно для колёс, у которых один каталог на все
+    /// четыре позиции. Без слота деталь встанет в «свой» слот по каталогу.
+    /// </summary>
+    public static bool TryReplacePart(
+        VehicleState car,
+        Inventory bag,
+        string partDefId,
+        PartSlot? targetSlot,
+        out Part? replaced)
     {
         replaced = null;
 
         if (!PartCatalog.All.TryGetValue(partDefId, out var def))
             return false;
 
+        var slot = targetSlot ?? def.Slot;
+
+        // Кривая деталь в чужой слот не встанет: только колёса взаимозаменяемы.
+        bool compatible = def.Slot == slot || (IsWheel(def.Slot) && IsWheel(slot));
+        if (!compatible)
+            return false;
+
         // Деталь должна физически лежать в инвентаре.
         if (!bag.Remove(partDefId, 1))
             return false;
 
-        replaced = car.Get(def.Slot);
-        car.Install(PartCatalog.Create(partDefId, def.Slot));
+        replaced = car.Get(slot);
+        car.Install(PartCatalog.Create(partDefId, slot));
 
         // Старую деталь забираем, если влезает по весу; иначе она остаётся на дороге.
         if (replaced is not null)
@@ -32,6 +51,16 @@ public static class VehicleService
 
         return true;
     }
+
+    /// <summary>Первая подходящая деталь в сумке — для журнала и «поставить».</summary>
+    public static string? FindPartInBag(Inventory bag, PartSlot slot) =>
+        bag.Items
+            .Select(i => i.DefId)
+            .FirstOrDefault(id => PartCatalog.All.TryGetValue(id, out var def) && (def.Slot == slot || (IsWheel(def.Slot) && IsWheel(slot))));
+
+    private static bool IsWheel(PartSlot slot) =>
+        slot is PartSlot.WheelFrontLeft or PartSlot.WheelFrontRight
+             or PartSlot.WheelRearLeft or PartSlot.WheelRearRight;
 
     /// <summary>Подмотнуть изолентой: +20% состояния за моток.</summary>
     public static bool TryRepair(VehicleState car, Inventory bag, PartSlot slot, double amount = 0.2)
