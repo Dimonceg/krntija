@@ -14,9 +14,7 @@ public partial class Car : RigidBody3D
     private const float RestLength = 0.40f;
     private const float SpringStiffness = 26000f;
     private const float SpringDamping = 3000f;
-    private const float MaxDriveForce = 7200f;
     private const float MaxBrakeForce = 11000f;
-    private const float MaxSpeedMps = 42f;
     private const float MaxSteerRad = 0.55f;
 
     private static readonly Vector3[] Anchors =
@@ -154,6 +152,12 @@ public partial class Car : RigidBody3D
         float throttle = (float)input.Throttle * (float)Session.Systems.PowerFactor;
         float brake = (float)input.Brake * (float)Session.Systems.BrakeFactor;
 
+        // Мощность берём из модели: «Запорожец» и «шестёрка» едут по-разному.
+        var spec = Session.Vehicle.Spec;
+        float maxSpeed = (float)spec.TopSpeedMps;
+        float powerW = (float)(spec.PowerKw * 1000);
+        float driveForce = Mathf.Min(powerW / Mathf.Max(SpeedMps, 4f), 8000f);
+
         for (int i = 0; i < Anchors.Length; i++)
         {
             Vector3 anchor = ToGlobal(Anchors[i]);
@@ -192,9 +196,9 @@ public partial class Car : RigidBody3D
             ApplyForce(wheelRight * lateralForce, point - com);
 
             // Тяга — на заднюю ось, но без пары сил: иначе машина встаёт на дыбы.
-            if (i >= 2 && throttle > 0.01f && SpeedMps < MaxSpeedMps)
+            if (i >= 2 && throttle > 0.01f && SpeedMps < maxSpeed)
             {
-                ApplyForce(forward * throttle * MaxDriveForce);
+                ApplyForce(forward * throttle * driveForce);
             }
 
             // Тормоз — на все колёса.

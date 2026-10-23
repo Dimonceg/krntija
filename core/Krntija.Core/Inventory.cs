@@ -1,4 +1,18 @@
+using Krntija.Core.Parts;
+
 namespace Krntija.Core.Items;
+
+public static class ItemIds
+{
+    public const string Wrench = "wrench";
+    public const string DuctTape = "duct_tape";
+    public const string JerryCan = "jerry_can";
+    public const string Bread = "bread";
+    public const string Water = "water";
+
+    /// <summary>Деталь лежит в инвентаре под тем же id, что и в каталоге деталей.</summary>
+    public static string Part(string partDefId) => partDefId;
+}
 
 public sealed record ItemDef(
     string Id,
@@ -9,8 +23,8 @@ public sealed record ItemDef(
 
 public static class ItemCatalog
 {
-    public static readonly IReadOnlyDictionary<string, ItemDef> All =
-        new Dictionary<string, ItemDef>(StringComparer.OrdinalIgnoreCase)
+    private static readonly Dictionary<string, ItemDef> Items =
+        new(StringComparer.OrdinalIgnoreCase)
         {
             ["wrench"] = new("wrench", "Ключ", 1.2, false),
             ["duct_tape"] = new("duct_tape", "Изолента", 0.3, true, 3),
@@ -25,12 +39,21 @@ public static class ItemCatalog
             ["map"] = new("map", "Карта", 0.2, false),
         };
 
+    static ItemCatalog()
+    {
+        // Любую деталь можно держать в руках и нести — она становится предметом.
+        foreach (var part in Parts.PartCatalog.All.Values)
+            Items[part.Id] = new ItemDef(part.Id, part.Name, part.MassKg, Stackable: false);
+    }
+
+    public static IReadOnlyDictionary<string, ItemDef> All => Items;
+
     public static ItemDef Get(string id) =>
-        All.TryGetValue(id, out var def)
+        Items.TryGetValue(id, out var def)
             ? def
             : throw new ArgumentException($"Неизвестный предмет: {id}", nameof(id));
 
-    public static bool TryGet(string id, out ItemDef def) => All.TryGetValue(id, out def!);
+    public static bool TryGet(string id, out ItemDef def) => Items.TryGetValue(id, out def!);
 }
 
 public sealed class ItemStack

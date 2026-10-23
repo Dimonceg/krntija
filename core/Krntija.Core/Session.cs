@@ -23,6 +23,7 @@ public sealed class GameSession
     {
         Vehicle = vehicle;
         Systems = new VehicleSystems(vehicle);
+        DriveTrain = new DriveTrain(vehicle.Spec);
         Survival = survival;
         Inventory = inventory;
         Clock = clock;
@@ -31,23 +32,24 @@ public sealed class GameSession
 
     public VehicleState Vehicle { get; }
     public VehicleSystems Systems { get; }
+    public DriveTrain DriveTrain { get; }
     public SurvivalState Survival { get; }
     public Inventory Inventory { get; }
     public GameClock Clock { get; }
     public Pcg32 Rng { get; }
 
-    public static GameSession NewGame(ulong seed = 20261023)
+    public static GameSession NewGame(ulong seed = 20261023, CarSpec? car = null)
     {
         var inventory = new Inventory();
-        inventory.TryAdd("wrench");
-        inventory.TryAdd("duct_tape", 2);
+        inventory.TryAdd(ItemIds.Wrench);
+        inventory.TryAdd(ItemIds.DuctTape, 2);
         inventory.TryAdd("spark_plug", 2);
-        inventory.TryAdd("bread", 2);
-        inventory.TryAdd("water", 2);
-        inventory.TryAdd("jerry_can");
+        inventory.TryAdd(ItemIds.Bread, 2);
+        inventory.TryAdd(ItemIds.Water, 2);
+        inventory.TryAdd(ItemIds.JerryCan, 1, liters: 15);
 
         return new GameSession(
-            VehicleState.CreateDefault(),
+            VehicleState.CreateDefault(car),
             new SurvivalState(),
             inventory,
             new GameClock(),
@@ -60,6 +62,7 @@ public sealed class GameSession
 
         Clock.Advance(dt);
         Systems.Step(dt, sample, input);
+        DriveTrain.Update(sample.SpeedMps, input.Throttle, dt);
         Survival.Step(dt * Clock.TimeScale / 3600.0, sample.AmbientC);
     }
 
@@ -69,6 +72,7 @@ public sealed class GameSession
     {
         Version = SaveData.CurrentVersion,
         SavedAtUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+        SpecId = Vehicle.Spec.Id,
         ClockMinutes = Clock.TotalMinutes,
         FuelLiters = Vehicle.Fuel.Liters,
         FuelCapacityLiters = Vehicle.Fuel.CapacityLiters,
@@ -94,7 +98,8 @@ public sealed class GameSession
     {
         var vehicle = new VehicleState
         {
-            Fuel = new FuelTank(data.FuelCapacityLiters <= 0 ? 45 : data.FuelCapacityLiters, data.FuelLiters),
+            Spec = CarCatalog.Get(data.SpecId),
+            Fuel = new FuelTank(data.FuelCapacityLiters <= 0 ? 36 : data.FuelCapacityLiters, data.FuelLiters),
             BatteryCharge = data.BatteryCharge,
             EngineRunning = data.EngineRunning,
             EngineTempC = data.EngineTempC,
@@ -138,9 +143,10 @@ public sealed class SaveData
 
     public int Version { get; set; } = CurrentVersion;
     public long SavedAtUnix { get; set; }
+    public string SpecId { get; set; } = CarCatalog.Zastava101.Id;
     public double ClockMinutes { get; set; }
     public double FuelLiters { get; set; }
-    public double FuelCapacityLiters { get; set; } = 45;
+    public double FuelCapacityLiters { get; set; } = 36;
     public double BatteryCharge { get; set; }
     public double EngineTempC { get; set; }
     public bool EngineRunning { get; set; }

@@ -69,21 +69,29 @@ public sealed class VehicleTuning
 
 public sealed class VehicleState
 {
-    public const double ChassisMassKg = 1150;
+    /// <summary>Модель: масса, мощность, бак, передаточные числа.</summary>
+    public CarSpec Spec { get; init; } = CarCatalog.Zastava101;
 
     public Dictionary<PartSlot, Part> Parts { get; } = new();
-    public FuelTank Fuel { get; init; } = new(45, 30);
+    public FuelTank Fuel { get; init; } = new(36, 24);
     public double BatteryCharge { get; set; } = 0.9;
     public bool EngineRunning { get; set; }
     public double EngineTempC { get; set; } = 20;
     public double OdometerKm { get; set; }
     public double OilLevel { get; set; } = 1.0;
 
-    public static VehicleState CreateDefault()
+    public static VehicleState CreateDefault(CarSpec? spec = null)
     {
-        var state = new VehicleState();
+        spec ??= CarCatalog.Zastava101;
+        var state = new VehicleState
+        {
+            Spec = spec,
+            Fuel = new FuelTank(spec.FuelCapacityL, spec.FuelStartL),
+        };
+
         foreach (var (id, slot) in PartCatalog.StandardBuild)
             state.Install(PartCatalog.Create(id, slot));
+
         return state;
     }
 
@@ -93,7 +101,7 @@ public sealed class VehicleState
 
     public double Condition(PartSlot slot) => Get(slot)?.Condition ?? 0;
 
-    public double TotalMassKg => ChassisMassKg + Fuel.Liters * 0.75 + Parts.Values.Sum(p => p.MassKg);
+    public double TotalMassKg => Spec.ChassisMassKg + Fuel.Liters * 0.75 + Parts.Values.Sum(p => p.MassKg);
 
     /// <summary>Средний износ колёс — от него зависит сцепление.</summary>
     public double WheelCondition
