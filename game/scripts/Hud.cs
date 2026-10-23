@@ -24,6 +24,8 @@ public partial class Hud : CanvasLayer
 
     public HudScreen Screen { get; set; } = HudScreen.None;
 
+    public string Objective { get; set; } = string.Empty;
+
     public string Prompt
     {
         get => _prompt.Text;
@@ -147,6 +149,8 @@ public partial class Hud : CanvasLayer
 
         sb.AppendLine($"[b]ЖУРНАЛ — {vehicle.Spec.Name}[/b]");
         sb.AppendLine($"{session.Clock}   пробег {vehicle.OdometerKm:F1} км   денег {session.Wallet.Money:F0} €");
+        if (!string.IsNullOrEmpty(Objective))
+            sb.AppendLine($"[color=#e8d9a8]Задача: {Objective}[/color]");
         sb.AppendLine();
 
         sb.AppendLine("[b]ДЕТАЛИ[/b]");

@@ -38,6 +38,9 @@ public partial class Car : RigidBody3D
     public bool DebugForces { get; set; }
 
     private int _physicsFrames;
+    private SpotLight3D? _headlightLeft;
+    private SpotLight3D? _headlightRight;
+    private EngineAudio? _audio;
 
     public float Kmh => LinearVelocity.Length() * 3.6f;
     public float SpeedMps => LinearVelocity.Length();
@@ -123,6 +126,39 @@ public partial class Car : RigidBody3D
 
             _wheels[i] = wheel;
         }
+
+        AddHeadlights();
+
+        _audio = new EngineAudio();
+        AddChild(_audio);
+    }
+
+    private void AddHeadlights()
+    {
+        _headlightLeft = CreateHeadlight(new Vector3(-0.52f, 0.42f, -2.02f));
+        _headlightRight = CreateHeadlight(new Vector3(0.52f, 0.42f, -2.02f));
+    }
+
+    private SpotLight3D CreateHeadlight(Vector3 position)
+    {
+        var light = new SpotLight3D
+        {
+            Position = position,
+            RotationDegrees = new Vector3(-3, 0, 0),
+            SpotRange = 70,
+            SpotAngle = 42,
+            LightEnergy = 0,
+            LightColor = new Color(1f, 0.93f, 0.72f),
+        };
+        AddChild(light);
+        return light;
+    }
+
+    private void UpdateHeadlights()
+    {
+        float energy = Session.Clock.IsNight ? 8f : 0f;
+        if (_headlightLeft is not null) _headlightLeft.LightEnergy = energy;
+        if (_headlightRight is not null) _headlightRight.LightEnergy = energy;
     }
 
     public override void _PhysicsProcess(double delta)
@@ -138,6 +174,14 @@ public partial class Car : RigidBody3D
 
         var sample = new VehicleSample(LinearVelocity.Length(), AmbientC: 20);
         Session.Step(dt, sample, input);
+        UpdateHeadlights();
+
+        if (_audio is not null)
+        {
+            _audio.Rpm = Session.DriveTrain.Rpm;
+            _audio.SpeedMps = SpeedMps;
+            _audio.Running = Session.Vehicle.EngineRunning;
+        }
 
         ApplyForces(dt, input);
         SpinWheels(dt);

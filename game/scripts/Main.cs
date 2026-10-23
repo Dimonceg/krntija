@@ -40,6 +40,11 @@ public partial class Main : Node3D
 
     private readonly List<InteractionPoint> _interactions = new();
     private RoadBuildResult? _road;
+    private DirectionalLight3D? _sun;
+    private Godot.Environment? _environment;
+    private Vector3? _objectivePosition;
+    private string _objectiveTitle = "";
+    private bool _objectiveDone;
 
     public override void _Ready()
     {
@@ -72,6 +77,7 @@ public partial class Main : Node3D
             _car.GlobalPosition = road.Centerline[index] + Vector3.Up * 0.6f;
             _car.Rotation = new Vector3(0, -road.Headings[index] + 0.35f, 0);
             _camera.GlobalPosition = _car.GlobalPosition + _car.GlobalBasis.Z * 9f + Vector3.Up * 4f;
+            _car.Session.Clock.SetTotalMinutes(18.75 * 60);
         }
 
         GD.Print($"[Krntija] старт. smoke={_smoke}, selftest={_selfTest}, машина: {session.Vehicle.Spec.Name}");
@@ -125,7 +131,40 @@ public partial class Main : Node3D
     public override void _Process(double delta)
     {
         if (_hud is null || _car is null) return;
+
         _hud.Prompt = BuildPrompt();
+        UpdateSky();
+
+        if (_objectiveDone || _objectivePosition is null) return;
+
+        _hud.Objective = $"Добраться до: {_objectiveTitle}  (+80 €)";
+
+        if (_car.GlobalPosition.DistanceTo(_objectivePosition.Value) > 30f) return;
+
+        _objectiveDone = true;
+        _car.Session.Wallet.Earn(80);
+        _hud.Objective = string.Empty;
+        _hud.Toast($"Задача выполнена: {_objectiveTitle}. +80 €");
+    }
+
+    /// <summary>Солнце по игровым часам: рассвет, полдень, закат, ночь.</summary>
+    private void UpdateSky()
+    {
+        if (_sun is null || _environment is null) return;
+
+        double hour = _car.Session.Clock.HourOfDay;
+
+        // 5:30 — рассвет, 12:00 — зенит, 18:30 — закат.
+        float daylight = Mathf.Clamp(Mathf.Sin((float)((hour - 5.5) / 13.0 * Math.PI)), 0f, 1f);
+
+        float pitch = -(float)((hour - 5.5) / 13.0 * 180.0);
+        _sun.RotationDegrees = new Vector3(pitch, -35, 0);
+
+        _sun.LightEnergy = 0.05f + 1.25f * daylight;
+        _sun.LightColor = new Color(1f, 0.72f, 0.45f).Lerp(Colors.White, daylight);
+
+        _environment.AmbientLightEnergy = 0.14f + 0.56f * daylight;
+        _environment.FogLightColor = new Color(0.08f, 0.1f, 0.16f).Lerp(new Color(0.7f, 0.68f, 0.6f), daylight);
     }
 
     public override void _UnhandledInput(InputEvent @event)
@@ -569,23 +608,21 @@ public partial class Main : Node3D
             GroundHorizonColor = new Color(0.45f, 0.42f, 0.33f),
         };
 
-        AddChild(new WorldEnvironment
+        _environment = new Godot.Environment
         {
-            Environment = new Godot.Environment
-            {
-                BackgroundMode = Godot.Environment.BGMode.Sky,
-                Sky = new Sky { SkyMaterial = skyMaterial },
-                AmbientLightSource = Godot.Environment.AmbientSource.Sky,
-                AmbientLightEnergy = 0.7f,
-                FogEnabled = true,
-                FogLightColor = new Color(0.7f, 0.68f, 0.6f),
-                FogDensity = 0.0015f,
-            },
-        });
+            BackgroundMode = Godot.Environment.BGMode.Sky,
+            Sky = new Sky { SkyMaterial = skyMaterial },
+            AmbientLightSource = Godot.Environment.AmbientSource.Sky,
+            AmbientLightEnergy = 0.7f,
+            FogEnabled = true,
+            FogLightColor = new Color(0.7f, 0.68f, 0.6f),
+            FogDensity = 0.0015f,
+        };
+        AddChild(new WorldEnvironment { Environment = _environment });
 
-        var sun = new DirectionalLight3D { LightEnergy = 1.3f, ShadowEnabled = true };
-        sun.RotationDegrees = new Vector3(-48, -35, 0);
-        AddChild(sun);
+        _sun = new DirectionalLight3D { LightEnergy = 1.3f, ShadowEnabled = true };
+        _sun.RotationDegrees = new Vector3(-48, -35, 0);
+        AddChild(_sun);
 
         var ground = new StaticBody3D { Position = new Vector3(0, -1, 0) };
         ground.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = new Vector3(2000, 2, 2000) } });
@@ -615,6 +652,14 @@ public partial class Main : Node3D
 
         WorldScatter.ScatterTrees(road.Centerline, road.Headings, this, seed: 20261023);
         WorldScatter.ScatterPowerLine(road.Centerline, road.Headings, this, seed: 20261023);
+        WorldScatter.AddKilometerPosts(road.Centerline, road.Headings, this);
+
+        var target = road.Points.Count > 0 ? road.Points[^1] : null;
+        if (target is not null)
+        {
+            _objectivePosition = target.Position;
+            _objectiveTitle = target.Segment.Title;
+        }
 
         GD.Print($"[road] {plan.Segments.Count} сегментов, {plan.TotalMeters:F0} м, точек интереса: {road.Points.Count}");
     }

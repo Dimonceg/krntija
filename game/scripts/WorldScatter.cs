@@ -100,6 +100,37 @@ public static class WorldScatter
         }
     }
 
+    /// <summary>Километровые столбики с цифрами: по ним видно, сколько проехал.</summary>
+    public static void AddKilometerPosts(List<Vector3> centerline, List<float> headings, Node3D parent)
+    {
+        const int everyPoints = 50; // 50 * 4 м = 200 м
+        var material = new StandardMaterial3D { AlbedoColor = new Color(0.88f, 0.87f, 0.82f), Roughness = 0.9f };
+
+        for (int i = everyPoints; i < centerline.Count; i += everyPoints)
+        {
+            Vector3 right = new Vector3(Mathf.Cos(headings[i]), 0, Mathf.Sin(headings[i]));
+            Vector3 position = centerline[i] + right * (RoadMeshBuilder.Width * 0.5f + 1.1f);
+
+            parent.AddChild(new MeshInstance3D
+            {
+                Mesh = new BoxMesh { Size = new Vector3(0.18f, 1.1f, 0.18f) },
+                Position = position + Vector3.Up * 0.55f,
+                MaterialOverride = material,
+            });
+
+            parent.AddChild(new Label3D
+            {
+                Text = $"{i * 4 / 1000.0:F1}",
+                FontSize = 72,
+                PixelSize = 0.0032f,
+                Position = position + Vector3.Up * 1.25f,
+                Billboard = BaseMaterial3D.BillboardModeEnum.Enabled,
+                Modulate = new Color(0.95f, 0.94f, 0.88f),
+                OutlineSize = 6,
+            });
+        }
+    }
+
     private static void AddWire(Node3D parent, Vector3 from, Vector3 to, Material material)
     {
         float length = from.DistanceTo(to);

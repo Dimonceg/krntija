@@ -14,7 +14,7 @@ public sealed class GameClock
 
     public double HourOfDay => TotalMinutes % MinutesPerDay / 60.0;
 
-    public bool IsNight => HourOfDay < 6 || HourOfDay >= 21;
+    public bool IsNight => HourOfDay < 6.5 || HourOfDay >= 18.5;
 
     public void Advance(double realSeconds)
     {
