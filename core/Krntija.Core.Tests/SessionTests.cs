@@ -51,6 +51,7 @@ public class SessionTests
         Nearly(session.Survival.Hunger, restored.Survival.Hunger);
         Assert.Equal(session.Inventory.Count("bread"), restored.Inventory.Count("bread"));
         Assert.Equal(session.Rng.State, restored.Rng.State);
+        Assert.Equal(session.Wallet.Money, restored.Wallet.Money, 6);
         Assert.Equal(session.Vehicle.Parts.Count, restored.Vehicle.Parts.Count);
     }
 

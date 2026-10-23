@@ -30,6 +30,9 @@ public partial class Car : RigidBody3D
     public GameSession Session { get; private set; } = null!;
     public bool Autopilot { get; set; }
 
+    /// <summary>За рулём ли игрок. Когда вышел — машина просто стоит и молотит на холостых.</summary>
+    public bool Driven { get; set; } = true;
+
     public int GroundedWheels { get; private set; }
 
     public bool DebugForces { get; set; }
@@ -129,12 +132,14 @@ public partial class Car : RigidBody3D
         SpinWheels(dt);
     }
 
-    private static DriveInput ReadInput() => new(
-        Ignition: Input.IsActionJustPressed("ignition"),
-        Throttle: Input.GetActionStrength("accelerate"),
-        Brake: Input.GetActionStrength("brake"),
-        Steer: Input.GetAxis("steer_left", "steer_right"),
-        Handbrake: Input.IsActionPressed("handbrake"));
+    private DriveInput ReadInput() => Driven
+        ? new DriveInput(
+            Ignition: Input.IsActionJustPressed("ignition"),
+            Throttle: Input.GetActionStrength("accelerate"),
+            Brake: Input.GetActionStrength("brake"),
+            Steer: Input.GetAxis("steer_left", "steer_right"),
+            Handbrake: Input.IsActionPressed("handbrake"))
+        : default;
 
     private void ApplyForces(float dt, in DriveInput input)
     {

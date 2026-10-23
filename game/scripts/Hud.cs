@@ -2,27 +2,38 @@ using System;
 using System.Linq;
 using Godot;
 using Krntija.Core;
+using Krntija.Core.Economy;
+using Krntija.Core.Items;
 using Krntija.Core.Parts;
 
 namespace Krntija.Game;
 
+public enum HudScreen
+{
+    None,
+    Journal,
+    Shop,
+}
+
 /// <summary>
-/// HUD: строка состояния всегда на экране, журнал (J) — поверх,
-/// с деталями, инвентарём и подсказками.
+/// HUD: строка состояния, подсказка взаимодействия, журнал (J) и лавка.
 /// </summary>
 public partial class Hud : CanvasLayer
 {
     public Car? Car { get; set; }
 
-    public bool JournalVisible
+    public HudScreen Screen { get; set; } = HudScreen.None;
+
+    public string Prompt
     {
-        get => _journalPanel.Visible;
-        set => _journalPanel.Visible = value;
+        get => _prompt.Text;
+        set => _prompt.Text = value;
     }
 
     private Label _status = null!;
-    private Panel _journalPanel = null!;
-    private RichTextLabel _journal = null!;
+    private Label _prompt = null!;
+    private Panel _panel = null!;
+    private RichTextLabel _panelText = null!;
     private Label _toast = null!;
     private float _toastLeft;
 
@@ -43,13 +54,13 @@ public partial class Hud : CanvasLayer
         _status.AddThemeConstantOverride("outline_size", 5);
         AddChild(_status);
 
-        _journalPanel = new Panel
+        _panel = new Panel
         {
             Visible = false,
-            Position = new Vector2(20, 120),
-            Size = new Vector2(560, 560),
+            Position = new Vector2(20, 130),
+            Size = new Vector2(560, 540),
         };
-        var style = new StyleBoxFlat
+        _panel.AddThemeStyleboxOverride("panel", new StyleBoxFlat
         {
             BgColor = new Color(0.06f, 0.06f, 0.055f, 0.92f),
             BorderColor = new Color(0.45f, 0.36f, 0.2f),
@@ -57,27 +68,28 @@ public partial class Hud : CanvasLayer
             BorderWidthTop = 2,
             BorderWidthLeft = 2,
             BorderWidthRight = 2,
-            ContentMarginLeft = 16,
-            ContentMarginTop = 12,
-            ContentMarginRight = 16,
-            ContentMarginBottom = 12,
-        };
-        _journalPanel.AddThemeStyleboxOverride("panel", style);
-        AddChild(_journalPanel);
+        });
+        AddChild(_panel);
 
-        _journal = new RichTextLabel
+        _panelText = new RichTextLabel
         {
             BbcodeEnabled = true,
-            FitContent = false,
             ScrollActive = true,
             Position = new Vector2(16, 12),
-            Size = new Vector2(528, 536),
+            Size = new Vector2(528, 516),
         };
-        _journal.AddThemeFontSizeOverride("normal_font_size", 15);
-        _journal.AddThemeFontSizeOverride("bold_font_size", 15);
-        _journalPanel.AddChild(_journal);
+        _panelText.AddThemeFontSizeOverride("normal_font_size", 15);
+        _panelText.AddThemeFontSizeOverride("bold_font_size", 15);
+        _panel.AddChild(_panelText);
 
-        _toast = new Label { Position = new Vector2(20, 90) };
+        _prompt = new Label { HorizontalAlignment = HorizontalAlignment.Center };
+        _prompt.AddThemeFontSizeOverride("font_size", 19);
+        _prompt.AddThemeColorOverride("font_color", new Color(0.98f, 0.9f, 0.65f));
+        _prompt.AddThemeColorOverride("font_outline_color", new Color(0, 0, 0, 0.9f));
+        _prompt.AddThemeConstantOverride("outline_size", 5);
+        AddChild(_prompt);
+
+        _toast = new Label { Position = new Vector2(20, 104) };
         _toast.AddThemeFontSizeOverride("font_size", 16);
         _toast.AddThemeColorOverride("font_color", new Color(0.95f, 0.82f, 0.45f));
         _toast.AddThemeColorOverride("font_outline_color", new Color(0, 0, 0, 0.9f));
@@ -94,6 +106,10 @@ public partial class Hud : CanvasLayer
     public override void _Process(double delta)
     {
         if (Car is null) return;
+
+        Vector2 viewport = GetViewport().GetVisibleRect().Size;
+        _prompt.Size = new Vector2(viewport.X, 30);
+        _prompt.Position = new Vector2(0, viewport.Y - 74);
 
         if (_toastLeft > 0)
         {
@@ -112,13 +128,15 @@ public partial class Hud : CanvasLayer
 
         _status.Text =
             $"{Car.Kmh,5:F0} км/ч   {train.Gear} передача   {train.Rpm,4:F0} об/мин   двигатель {ignition}{heat}\n" +
-            $"Топливо {vehicle.Fuel.Liters,5:F1} / {vehicle.Fuel.CapacityLiters:F0} л   " +
-            $"температура {vehicle.EngineTempC,4:F0} °C   {vehicle.Spec.Name}\n" +
-            $"Здоровье {survival.Health * 100,3:F0}%   голод {survival.Hunger * 100,3:F0}%   жажда {survival.Thirst * 100,3:F0}%\n" +
-            $"{session.Clock}   [W/S/A/D] [V] зажигание [J] журнал [F5] сохранить [F9] загрузить";
+            $"{vehicle.Spec.Name}   топливо {vehicle.Fuel.Liters,5:F1} / {vehicle.Fuel.CapacityLiters:F0} л   " +
+            $"температура {vehicle.EngineTempC,4:F0} °C\n" +
+            $"Здоровье {survival.Health * 100,3:F0}%   голод {survival.Hunger * 100,3:F0}%   " +
+            $"жажда {survival.Thirst * 100,3:F0}%   {session.Wallet.Money:F0} €\n" +
+            $"{session.Clock}   [W/S/A/D] [V] зажигание [E] выйти/сесть [J] журнал [F5/F9] сейв";
 
-        if (_journalPanel.Visible)
-            _journal.Text = BuildJournal(session);
+        _panel.Visible = Screen != HudScreen.None;
+        if (Screen != HudScreen.None)
+            _panelText.Text = Screen == HudScreen.Journal ? BuildJournal(session) : BuildShop(session);
     }
 
     private string BuildJournal(GameSession session)
@@ -128,7 +146,7 @@ public partial class Hud : CanvasLayer
         var survival = session.Survival;
 
         sb.AppendLine($"[b]ЖУРНАЛ — {vehicle.Spec.Name}[/b]");
-        sb.AppendLine($"{session.Clock}    пробег {vehicle.OdometerKm:F1} км    топливо {vehicle.Fuel.Fraction * 100:F0}%");
+        sb.AppendLine($"{session.Clock}   пробег {vehicle.OdometerKm:F1} км   денег {session.Wallet.Money:F0} €");
         sb.AppendLine();
 
         sb.AppendLine("[b]ДЕТАЛИ[/b]");
@@ -167,8 +185,34 @@ public partial class Hud : CanvasLayer
         sb.AppendLine($"[b]СОСТОЯНИЕ[/b]  здоровье {survival.Health * 100:F0}%, голод {survival.Hunger * 100:F0}%, " +
                       $"жажда {survival.Thirst * 100:F0}%, сон {survival.Fatigue * 100:F0}%");
         sb.AppendLine();
-        sb.AppendLine("[color=#8a8578][↑/↓] выбрать деталь   [T] поставить из сумки   [R] изолента   [F] канистра   [J] закрыть[/color]");
+        sb.AppendLine("[color=#8a8578][↑/↓] выбрать   [T] поставить из сумки   [R] изолента   [F] канистра   [J] закрыть[/color]");
 
+        return sb.ToString();
+    }
+
+    private static string BuildShop(GameSession session)
+    {
+        var sb = new System.Text.StringBuilder();
+
+        sb.AppendLine("[b]ЛАВКА У ДОРОГИ[/b]");
+        sb.AppendLine($"Денег в кармане: [b]{session.Wallet.Money:F0} €[/b]");
+        sb.AppendLine();
+
+        int index = 1;
+        foreach (var entry in TradeService.Shop)
+        {
+            var def = ItemCatalog.Get(entry.ItemId);
+            sb.AppendLine($"[b]{index}[/b]   {def.Name,-18} {entry.Price,4:F0} €   ({def.WeightKg:F1} кг)");
+            index++;
+        }
+
+        sb.AppendLine();
+        sb.AppendLine("[b]У ТЕБЯ[/b]");
+        foreach (var item in session.Inventory.Items)
+            sb.AppendLine($"    {item.Definition.Name} ×{item.Count}");
+
+        sb.AppendLine();
+        sb.AppendLine("[color=#8a8578][1..6] купить   [J] закрыть[/color]");
         return sb.ToString();
     }
 

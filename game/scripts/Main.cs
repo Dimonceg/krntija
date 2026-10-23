@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Godot;
 using Krntija.Core;
+using Krntija.Core.Economy;
 using Krntija.Core.Items;
 using Krntija.Core.Parts;
 using Krntija.Core.Workshop;
@@ -8,7 +11,7 @@ using Krntija.Core.World;
 
 namespace Krntija.Game;
 
-/// <summary>Точка входа M1: полигон, машина, журнал, ремонт, сейвы и headless-прогон.</summary>
+/// <summary>Точка входа: дорога, машина, пешеход, магазины, сейвы и headless-прогоны.</summary>
 public partial class Main : Node3D
 {
     private const string SavePath = "user://save.json";
@@ -16,6 +19,8 @@ public partial class Main : Node3D
     private Car _car = null!;
     private ChaseCamera _camera = null!;
     private Hud _hud = null!;
+    private Player? _player;
+    private bool _onFoot;
     private bool _smoke;
     private bool _smokeDone;
     private bool _selfTest;
@@ -23,6 +28,17 @@ public partial class Main : Node3D
     private bool _selfTestOk;
     private bool _shot;
     private int _frames;
+
+    private enum InteractionKind
+    {
+        Pump,
+        Shop,
+    }
+
+    private sealed record InteractionPoint(Vector3 Position, InteractionKind Kind, float Radius);
+
+    private readonly List<InteractionPoint> _interactions = new();
+    private InteractionPoint? _shotSpot;
 
     public override void _Ready()
     {
@@ -49,8 +65,14 @@ public partial class Main : Node3D
 
         if (_shot)
         {
-            _car.GlobalPosition = new Vector3(0, 0.6f, -40);
-            _camera.GlobalPosition = new Vector3(5, 6, -26);
+            var pump = _interactions.FirstOrDefault(p => p.Kind == InteractionKind.Pump);
+            _shotSpot = pump;
+
+            if (pump is not null)
+            {
+                _car.GlobalPosition = pump.Position + new Vector3(12f, 0.6f, 10f);
+                _camera.GlobalPosition = _car.GlobalPosition + new Vector3(4, 4, 4);
+            }
         }
 
         GD.Print($"[Krntija] старт. smoke={_smoke}, selftest={_selfTest}, машина: {session.Vehicle.Spec.Name}");
@@ -61,6 +83,14 @@ public partial class Main : Node3D
         if (!(_smoke || _selfTest || _shot) || _smokeDone) return;
 
         _frames++;
+
+        if (_shot && _frames == 110 && _shotSpot is not null)
+        {
+            _car.LinearVelocity = Vector3.Zero;
+            ExitCar();
+            _player!.Teleport(_shotSpot.Position + new Vector3(2.2f, 0.3f, 2.2f));
+            _player.Yaw = 0.78f;
+        }
 
         if (_shot && _frames >= 180)
         {
@@ -101,41 +131,199 @@ public partial class Main : Node3D
         GetTree().Quit(speed > 5f ? 0 : 1);
     }
 
+    public override void _Process(double delta)
+    {
+        if (_hud is null || _car is null) return;
+        _hud.Prompt = BuildPrompt();
+    }
+
     public override void _UnhandledInput(InputEvent @event)
     {
         if (@event is not InputEventKey { Pressed: true, Echo: false } key)
             return;
+
+        if (_hud.Screen == HudScreen.Shop && key.Keycode >= Key.Key1 && key.Keycode <= Key.Key6)
+        {
+            BuyShopItem((int)key.Keycode - (int)Key.Key1);
+            return;
+        }
 
         switch (key.Keycode)
         {
             case Key.Escape:
                 GetTree().Quit(0);
                 break;
-            case Key.J:
-                _hud.JournalVisible = !_hud.JournalVisible;
+            case Key.E:
+                Interact();
                 break;
+            case Key.J: _hud.Screen = _hud.Screen == HudScreen.None ? HudScreen.Journal : HudScreen.None; break;
             case Key.F5:
                 SaveGame();
                 break;
             case Key.F9:
                 LoadGame();
                 break;
-            case Key.Up when _hud.JournalVisible:
+            case Key.Up when _hud.Screen == HudScreen.Journal:
                 _hud.MoveSelection(-1);
                 break;
-            case Key.Down when _hud.JournalVisible:
+            case Key.Down when _hud.Screen == HudScreen.Journal:
                 _hud.MoveSelection(1);
                 break;
-            case Key.T when _hud.JournalVisible:
+            case Key.T when _hud.Screen == HudScreen.Journal:
                 InstallSelectedPart();
                 break;
-            case Key.R when _hud.JournalVisible:
+            case Key.R when _hud.Screen == HudScreen.Journal:
                 RepairSelectedPart();
                 break;
-            case Key.F when _hud.JournalVisible:
+            case Key.F when _hud.Screen == HudScreen.Journal:
                 RefuelFromCan();
                 break;
         }
+    }
+
+    // ---------- пешеход и взаимодействия ----------
+
+    private string BuildPrompt()
+    {
+        if (_hud.Screen != HudScreen.None) return string.Empty;
+
+        if (_onFoot && _player is not null)
+        {
+            if (DistanceToCar() < 3.5f) return "[E] сесть в машину";
+
+            var point = NearestInteraction();
+            if (point is not null)
+                return point.Kind == InteractionKind.Shop ? "[E] зайти в лавку" : "[E] заправить";
+
+            return "W/S — идти, A/D — поворот, Shift — бежать";
+        }
+
+        if (NearestInteraction()?.Kind == InteractionKind.Pump && _car.SpeedMps < 2f)
+            return "[E] заправить";
+
+        return _car.SpeedMps < 2f ? "[E] выйти из машины" : string.Empty;
+    }
+
+    private void Interact()
+    {
+        if (_hud.Screen != HudScreen.None)
+        {
+            _hud.Screen = HudScreen.None;
+            return;
+        }
+
+        if (_onFoot)
+        {
+            if (DistanceToCar() < 3.5f)
+            {
+                EnterCar();
+                return;
+            }
+
+            var point = NearestInteraction();
+            if (point is null) return;
+
+            if (point.Kind == InteractionKind.Shop) _hud.Screen = HudScreen.Shop;
+            else RefuelAtPump();
+
+            return;
+        }
+
+        if (NearestInteraction()?.Kind == InteractionKind.Pump && _car.SpeedMps < 2f)
+        {
+            RefuelAtPump();
+            return;
+        }
+
+        if (_car.SpeedMps >= 2f)
+        {
+            _hud.Toast("Сначала остановись");
+            return;
+        }
+
+        ExitCar();
+    }
+
+    private void ExitCar()
+    {
+        Vector3 side = -_car.GlobalBasis.X.Normalized() * 1.5f;
+        Vector3 spawn = _car.GlobalPosition + side + Vector3.Up * 0.4f;
+
+        _player = new Player { Yaw = _car.Rotation.Y };
+        AddChild(_player);
+        _player.Teleport(spawn);
+
+        _onFoot = true;
+        _car.Driven = false;
+
+        _camera.Target = _player;
+        _camera.Distance = 4.6f;
+        _camera.Height = 2.4f;
+        _camera.LookHeight = 1.4f;
+
+        _hud.Toast("Вышел из машины");
+    }
+
+    private void EnterCar()
+    {
+        _player?.QueueFree();
+        _player = null;
+        _onFoot = false;
+        _car.Driven = true;
+
+        _camera.Target = _car;
+        _camera.Distance = 7.5f;
+        _camera.Height = 3.2f;
+        _camera.LookHeight = 0.9f;
+
+        _hud.Toast("За рулём");
+    }
+
+    private float DistanceToCar() =>
+        _player is null ? float.MaxValue : _player.GlobalPosition.DistanceTo(_car.GlobalPosition);
+
+    private InteractionPoint? NearestInteraction()
+    {
+        Vector3 from = _onFoot && _player is not null ? _player.GlobalPosition : _car.GlobalPosition;
+
+        InteractionPoint? best = null;
+        float bestDistance = float.MaxValue;
+
+        foreach (var point in _interactions)
+        {
+            float distance = from.DistanceTo(point.Position);
+            if (distance > point.Radius || distance >= bestDistance) continue;
+
+            best = point;
+            bestDistance = distance;
+        }
+
+        return best;
+    }
+
+    private void RefuelAtPump()
+    {
+        var session = _car.Session;
+        double need = session.Vehicle.Fuel.CapacityLiters - session.Vehicle.Fuel.Liters;
+        var (liters, cost) = TradeService.RefuelAtPump(session.Vehicle, session.Wallet, need);
+
+        _hud.Toast(liters > 0.01
+            ? $"Залито {liters:F1} л за {cost:F0} €"
+            : session.Wallet.Money < TradeService.FuelPricePerLiter * need
+                ? "Не хватает денег"
+                : "Бак полный");
+    }
+
+    private void BuyShopItem(int index)
+    {
+        if (index < 0 || index >= TradeService.Shop.Count) return;
+
+        var entry = TradeService.Shop[index];
+        bool ok = TradeService.TryBuy(_car.Session.Inventory, _car.Session.Wallet, entry.ItemId);
+
+        _hud.Toast(ok
+            ? $"Куплено: {ItemCatalog.Get(entry.ItemId).Name}"
+            : "Не хватает денег или места");
     }
 
     // ---------- самопроверка M1 ----------
@@ -165,18 +353,38 @@ public partial class Main : Node3D
             Check(installed && session.Vehicle.Get(PartSlot.Radiator)!.Condition > 0.99, "замена детали из сумки");
 
             session.Vehicle.Fuel.SetLiters(5);
+
+            var walletBefore = session.Wallet.Money;
+            var (poured, spent) = TradeService.RefuelAtPump(session.Vehicle, session.Wallet, 20);
+            Check(poured > 0.1 && spent > 0.1 && session.Wallet.Money < walletBefore, "заправка за деньги");
+
+            Check(TradeService.TryBuy(session.Inventory, session.Wallet, "bread"), "покупка в лавке");
+
+            double moneyAtSave = session.Wallet.Money;
             SaveGame();
 
             session.Vehicle.Fuel.SetLiters(30);
             engine.SetCondition(0.9);
             LoadGame();
 
-            Check(Math.Abs(_car.Session.Vehicle.Fuel.Liters - 5) < 0.05, "топливо восстановлено из сейва");
+            Check(Math.Abs(_car.Session.Vehicle.Fuel.Liters - 5 - poured) < 0.05, "топливо восстановлено из сейва");
             Check(Math.Abs(_car.Session.Vehicle.Get(PartSlot.Engine)!.Condition - 0.60) < 0.01, "износ восстановлен");
             Check(_car.Session.Vehicle.Spec.Id == "zastava_101", "модель машины восстановлена");
+            Check(Math.Abs(_car.Session.Wallet.Money - moneyAtSave) < 0.01, "деньги восстановлены");
 
-            _hud.JournalVisible = true;
-            Check(_hud.JournalVisible, "журнал открывается");
+            _hud.Screen = HudScreen.Journal;
+            Check(_hud.Screen == HudScreen.Journal, "журнал открывается");
+            _hud.Screen = HudScreen.None;
+
+            _car.Autopilot = false;
+            _car.LinearVelocity = Vector3.Zero;
+            _car.AngularVelocity = Vector3.Zero;
+            ExitCar();
+            Check(_onFoot && _player is not null && !_car.Driven, "выход из машины");
+            Check(_player!.GlobalPosition.DistanceTo(_car.GlobalPosition) < 3f, "пешеход рядом с машиной");
+
+            EnterCar();
+            Check(!_onFoot && _car.Driven && _player is null, "возвращение за руль");
 
             GD.Print("[selftest] пройден");
         }
@@ -467,6 +675,12 @@ public partial class Main : Node3D
             MaterialOverride = concrete,
         });
         station.AddChild(shop);
+
+        // Точки взаимодействия: колонка и вход в лавку (снаружи, у стены).
+        _interactions.Add(new InteractionPoint(
+            station.ToGlobal(new Vector3(0, 1f, 0)), InteractionKind.Pump, 4.5f));
+        _interactions.Add(new InteractionPoint(
+            station.ToGlobal(new Vector3(0, 1.6f, -6.4f)), InteractionKind.Shop, 4.5f));
     }
 
     // ---------- ввод ----------

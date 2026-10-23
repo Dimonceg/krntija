@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Krntija.Core.Economy;
 using Krntija.Core.Items;
 using Krntija.Core.Parts;
 using Krntija.Core.Survival;
@@ -19,7 +20,8 @@ public sealed class GameSession
         SurvivalState survival,
         Inventory inventory,
         GameClock clock,
-        Pcg32 rng)
+        Pcg32 rng,
+        Wallet? wallet = null)
     {
         Vehicle = vehicle;
         Systems = new VehicleSystems(vehicle);
@@ -28,6 +30,7 @@ public sealed class GameSession
         Inventory = inventory;
         Clock = clock;
         Rng = rng;
+        Wallet = wallet ?? new Wallet();
     }
 
     public VehicleState Vehicle { get; }
@@ -37,6 +40,7 @@ public sealed class GameSession
     public Inventory Inventory { get; }
     public GameClock Clock { get; }
     public Pcg32 Rng { get; }
+    public Wallet Wallet { get; }
 
     public static GameSession NewGame(ulong seed = 20261023, CarSpec? car = null)
     {
@@ -53,7 +57,8 @@ public sealed class GameSession
             new SurvivalState(),
             inventory,
             new GameClock(),
-            new Pcg32(seed));
+            new Pcg32(seed),
+            new Wallet(120));
     }
 
     public void Step(double dt, in VehicleSample sample, in DriveInput input)
@@ -73,6 +78,7 @@ public sealed class GameSession
         Version = SaveData.CurrentVersion,
         SavedAtUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
         SpecId = Vehicle.Spec.Id,
+        Money = Wallet.Money,
         ClockMinutes = Clock.TotalMinutes,
         FuelLiters = Vehicle.Fuel.Liters,
         FuelCapacityLiters = Vehicle.Fuel.CapacityLiters,
@@ -133,7 +139,7 @@ public sealed class GameSession
         var rng = new Pcg32(1);
         rng.State = data.RngState;
 
-        return new GameSession(vehicle, survival, inventory, clock, rng);
+        return new GameSession(vehicle, survival, inventory, clock, rng, new Wallet(data.Money));
     }
 }
 
@@ -144,6 +150,7 @@ public sealed class SaveData
     public int Version { get; set; } = CurrentVersion;
     public long SavedAtUnix { get; set; }
     public string SpecId { get; set; } = CarCatalog.Zastava101.Id;
+    public double Money { get; set; } = 120;
     public double ClockMinutes { get; set; }
     public double FuelLiters { get; set; }
     public double FuelCapacityLiters { get; set; } = 36;
