@@ -1,0 +1,21 @@
+; Настройки проекта Godot. Правятся руками — файл текстовый и диффится в git.
+
+config_version=5
+
+[application]
+
+config/name="Krntija"
+run/main_scene="res://scenes/Main.tscn"
+config/features=PackedStringArray("4.7", "C#", "Forward Plus")
+
+[dotnet]
+
+project/assembly_name="Krntija.Game"
+
+[physics]
+
+common/physics_ticks_per_second=60
+
+[rendering]
+
+renderer/rendering_method="forward_plus"

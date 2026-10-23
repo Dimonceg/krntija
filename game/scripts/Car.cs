@@ -1,0 +1,225 @@
+using Godot;
+using Krntija.Core;
+using Krntija.Core.Vehicle;
+
+namespace Krntija.Game;
+
+/// <summary>
+/// Машина на raycast-подвеске. Физику твёрдого тела считает Godot,
+/// а всё «железо» (расход, нагрев, износ) — Krntija.Core.
+/// </summary>
+public partial class Car : RigidBody3D
+{
+    private const float WheelRadius = 0.34f;
+    private const float RestLength = 0.40f;
+    private const float SpringStiffness = 26000f;
+    private const float SpringDamping = 3000f;
+    private const float MaxDriveForce = 7200f;
+    private const float MaxBrakeForce = 11000f;
+    private const float MaxSpeedMps = 42f;
+    private const float MaxSteerRad = 0.55f;
+
+    private static readonly Vector3[] Anchors =
+    {
+        new(-0.82f, 0f, -1.35f), // перед лево
+        new(0.82f, 0f, -1.35f),  // перед право
+        new(-0.82f, 0f, 1.35f),  // зад лево
+        new(0.82f, 0f, 1.35f),   // зад право
+    };
+
+    private readonly MeshInstance3D[] _wheels = new MeshInstance3D[4];
+
+    public GameSession Session { get; private set; } = null!;
+    public bool Autopilot { get; set; }
+
+    public int GroundedWheels { get; private set; }
+
+    public bool DebugForces { get; set; }
+
+    private int _physicsFrames;
+
+    public float Kmh => LinearVelocity.Length() * 3.6f;
+    public float SpeedMps => LinearVelocity.Length();
+
+    public string GearLabel
+    {
+        get
+        {
+            float kmh = Kmh;
+            if (kmh < 1) return "N";
+            if (kmh < 25) return "1";
+            if (kmh < 50) return "2";
+            if (kmh < 80) return "3";
+            return "4";
+        }
+    }
+
+    public static Car Build(GameSession session)
+    {
+        var car = new Car
+        {
+            Session = session,
+            Mass = (float)session.Vehicle.TotalMassKg,
+            CenterOfMassMode = CenterOfMassModeEnum.Custom,
+            CenterOfMass = new Vector3(0, -0.45f, 0),
+            LinearDamp = 0.02f,
+            AngularDamp = 3.5f,
+            ContinuousCd = true,
+            ContactMonitor = true,
+            MaxContactsReported = 8,
+        };
+
+        car.BuildBody();
+        return car;
+    }
+
+    private void BuildBody()
+    {
+        AddChild(new CollisionShape3D
+        {
+            Shape = new BoxShape3D { Size = new Vector3(1.8f, 0.5f, 4.2f) },
+            Position = new Vector3(0, 0.10f, 0),
+        });
+
+        var paint = new StandardMaterial3D { AlbedoColor = new Color(0.62f, 0.42f, 0.22f), Roughness = 0.75f };
+
+        var body = new MeshInstance3D
+        {
+            Mesh = new BoxMesh { Size = new Vector3(1.8f, 0.5f, 4.2f) },
+            Position = new Vector3(0, 0.10f, 0),
+            MaterialOverride = paint,
+        };
+        AddChild(body);
+
+        var cabin = new MeshInstance3D
+        {
+            Mesh = new BoxMesh { Size = new Vector3(1.6f, 0.55f, 1.9f) },
+            Position = new Vector3(0, 0.58f, 0.15f),
+            MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.55f, 0.38f, 0.2f), Roughness = 0.8f },
+        };
+        AddChild(cabin);
+
+        var rubber = new StandardMaterial3D { AlbedoColor = new Color(0.07f, 0.07f, 0.08f), Roughness = 1.0f };
+        for (int i = 0; i < Anchors.Length; i++)
+        {
+            var wheel = new MeshInstance3D
+            {
+                Mesh = new CylinderMesh { Height = 0.26f, TopRadius = WheelRadius, BottomRadius = WheelRadius },
+                MaterialOverride = rubber,
+                Position = Anchors[i] - Vector3.Up * RestLength,
+                Rotation = new Vector3(0, 0, Mathf.Pi / 2),
+            };
+            AddChild(wheel);
+            _wheels[i] = wheel;
+        }
+    }
+
+    public override void _PhysicsProcess(double delta)
+    {
+        if (Session is null) return;
+
+        float dt = (float)delta;
+        _physicsFrames++;
+        var input = Autopilot
+            ? new DriveInput(Ignition: true, Throttle: 1.0)
+            : ReadInput();
+
+        var sample = new VehicleSample(LinearVelocity.Length(), AmbientC: 20);
+        Session.Step(dt, sample, input);
+
+        ApplyForces(dt, input);
+        SpinWheels(dt);
+    }
+
+    private static DriveInput ReadInput() => new(
+        Ignition: Input.IsActionJustPressed("ignition"),
+        Throttle: Input.GetActionStrength("accelerate"),
+        Brake: Input.GetActionStrength("brake"),
+        Steer: Input.GetAxis("steer_left", "steer_right"),
+        Handbrake: Input.IsActionPressed("handbrake"));
+
+    private void ApplyForces(float dt, in DriveInput input)
+    {
+        Vector3 up = GlobalBasis.Y.Normalized();
+        Vector3 forward = -GlobalBasis.Z.Normalized();
+        Vector3 right = GlobalBasis.X.Normalized();
+        Vector3 com = GlobalPosition;
+
+        float mass = Mass;
+        float grip = 10f * (float)Session.Systems.GripFactor;
+        int contacts = 0;
+
+        var space = GetWorld3D().DirectSpaceState;
+        float steer = (float)input.Steer * MaxSteerRad;
+        float throttle = (float)input.Throttle * (float)Session.Systems.PowerFactor;
+        float brake = (float)input.Brake * (float)Session.Systems.BrakeFactor;
+
+        for (int i = 0; i < Anchors.Length; i++)
+        {
+            Vector3 anchor = ToGlobal(Anchors[i]);
+            var query = PhysicsRayQueryParameters3D.Create(anchor, anchor - up * (RestLength + WheelRadius));
+            query.Exclude = new Godot.Collections.Array<Rid> { GetRid() };
+            var hit = space.IntersectRay(query);
+
+            if (hit.Count == 0)
+            {
+                _wheels[i].Position = Anchors[i] - Vector3.Up * RestLength;
+                continue;
+            }
+
+            contacts++;
+            Vector3 point = (Vector3)hit["position"];
+            float distance = anchor.DistanceTo(point);
+            float compression = Mathf.Max(0f, RestLength + WheelRadius - distance);
+
+            Vector3 contactVelocity = LinearVelocity + AngularVelocity.Cross(point - com);
+            float closing = -LinearVelocity.Dot(up);
+            float springForce = SpringStiffness * compression + SpringDamping * closing;
+            springForce = Mathf.Clamp(springForce, 0f, 90000f);
+
+            if (DebugForces && _physicsFrames < 60 && i == 0)
+                GD.Print($"[f{_physicsFrames}] y={GlobalPosition.Y:F3} vy={LinearVelocity.Y:F2} comp={compression:F3} force={springForce:F0}");
+
+            ApplyForce(up * springForce, point - com);
+
+            // Шины держат поперёк своего качения; передние повёрнуты рулём.
+            Vector3 wheelRight = right;
+            if (i < 2) wheelRight = right.Rotated(up, -steer);
+
+            float lateralSpeed = contactVelocity.Dot(wheelRight);
+            float lateralForce = -lateralSpeed * grip * mass * 0.25f;
+            lateralForce = Mathf.Clamp(lateralForce, -mass * 12f, mass * 12f);
+            ApplyForce(wheelRight * lateralForce, point - com);
+
+            // Тяга — на заднюю ось, но без пары сил: иначе машина встаёт на дыбы.
+            if (i >= 2 && throttle > 0.01f && SpeedMps < MaxSpeedMps)
+            {
+                ApplyForce(forward * throttle * MaxDriveForce);
+            }
+
+            // Тормоз — на все колёса.
+            if (brake > 0.01f && SpeedMps > 0.3f)
+            {
+                Vector3 back = -LinearVelocity.Normalized();
+                ApplyForce(back * brake * MaxBrakeForce * 0.25f, point - com);
+            }
+
+            _wheels[i].Position = ToLocal(point) + Vector3.Up * WheelRadius;
+        }
+
+        GroundedWheels = contacts;
+
+        // Небольшая прижимная сила на скорости — машина перестаёт козлить.
+        ApplyForce(-up * Mathf.Min(SpeedMps * 45f, 2500f));
+
+        if (contacts == 0)
+            ApplyTorque(-AngularVelocity * mass * 0.05f);
+    }
+
+    private void SpinWheels(float dt)
+    {
+        float spin = SpeedMps / WheelRadius * dt;
+        foreach (var wheel in _wheels)
+            wheel.RotateX(-spin);
+    }
+}
