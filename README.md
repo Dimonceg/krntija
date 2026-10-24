@@ -36,14 +36,33 @@ krntija/
 
 ## Быстрый старт
 
+Одна команда — пересборка и запуск:
+
 ```powershell
-# тесты ядра (23 теста, ~0.3 с)
+powershell -ExecutionPolicy Bypass -File tools\play.ps1
+```
+
+Аргументы после имени скрипта уходят в игру:
+
+```powershell
+# на выбранной машине
+powershell -ExecutionPolicy Bypass -File tools\play.ps1 --car=golf_2
+
+# прогон-проверка, игра закроется сама
+powershell -ExecutionPolicy Bypass -File tools\play.ps1 --smoke
+
+# без пересборки / с повторным импортом ассетов
+powershell -ExecutionPolicy Bypass -File tools\play.ps1 -NoBuild
+powershell -ExecutionPolicy Bypass -File tools\play.ps1 -RebuildAssets
+```
+
+Остальные проверки:
+
+```powershell
+# тесты ядра
 powershell -ExecutionPolicy Bypass -File tools\test.ps1
 
-# игра с окном
-powershell -ExecutionPolicy Bypass -File tools\play.ps1
-
-# headless-прогон физики (CI-проверка, что машина едет; код возврата 0 = ок)
+# headless-прогон физики (код возврата 0 = ок)
 powershell -ExecutionPolicy Bypass -File tools\smoke.ps1
 ```
 

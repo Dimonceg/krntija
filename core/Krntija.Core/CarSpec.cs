@@ -17,7 +17,11 @@ public sealed record CarSpec(
     IReadOnlyList<double> GearRatios,
     double IdleRpm = 800,
     double MaxRpm = 6200,
-    double ReverseRatio = 3.4)
+    double ReverseRatio = 3.4,
+    double WheelbaseM = 0,
+    double TrackM = 0,
+    double BodyLengthM = 0,
+    double BodyWidthM = 0)
 {
     /// <summary>Тяга на ведущей оси при нулевой скорости, Н (упрощённо).</summary>
     public double MaxTractionN => PowerKw * 1000 / 4.0;
@@ -35,7 +39,11 @@ public static class CarCatalog
         FuelStartL: 24,
         WheelRadiusM: 0.29,
         FinalDrive: 3.9,
-        GearRatios: new[] { 3.53, 2.04, 1.35, 1.00 });
+        GearRatios: new[] { 3.53, 2.04, 1.35, 1.00 },
+        WheelbaseM: 2.449,
+        TrackM: 1.30,
+        BodyLengthM: 3.80,
+        BodyWidthM: 1.58);
 
     public static readonly CarSpec Golf2 = new(
         Id: "golf_2",
@@ -47,7 +55,12 @@ public static class CarCatalog
         FuelStartL: 30,
         WheelRadiusM: 0.30,
         FinalDrive: 3.94,
-        GearRatios: new[] { 3.45, 1.94, 1.29, 0.97, 0.76 });
+        GearRatios: new[] { 3.45, 1.94, 1.29, 0.97, 0.76 },
+        // Blender-модели пока нет: процедурный кузов живёт на старой раскладке
+        // колёс (±1.45 м, R 0.36). Значения заполним, когда арт-модель отдаст
+        // golf_2.glb и golf_2_wheel.glb — по образцу Zastava101 выше.
+        WheelbaseM: 0,
+        TrackM: 0);
 
     public static readonly CarSpec Vaz2106 = new(
         Id: "vaz_2106",
@@ -59,7 +72,9 @@ public static class CarCatalog
         FuelStartL: 25,
         WheelRadiusM: 0.31,
         FinalDrive: 3.9,
-        GearRatios: new[] { 3.67, 2.10, 1.36, 1.00 });
+        GearRatios: new[] { 3.67, 2.10, 1.36, 1.00 },
+        WheelbaseM: 0,
+        TrackM: 0);
 
     /// <summary>Заднемоторный, лёгкий и злой. Идеальная машина для плохой дороги.</summary>
     public static readonly CarSpec Zaz968 = new(
@@ -73,7 +88,9 @@ public static class CarCatalog
         WheelRadiusM: 0.28,
         FinalDrive: 4.1,
         GearRatios: new[] { 3.80, 2.10, 1.40, 1.00 },
-        MaxRpm: 5600);
+        MaxRpm: 5600,
+        WheelbaseM: 0,
+        TrackM: 0);
 
     public static readonly IReadOnlyList<CarSpec> All = new[] { Zastava101, Golf2, Vaz2106, Zaz968 };
 

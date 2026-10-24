@@ -33,8 +33,24 @@ public partial class RoadEvents : Node3D
     }
 
     private readonly List<Spot> _spots = new();
+    private static readonly PartSlot[] Wheels =
+    {
+        PartSlot.WheelFrontLeft, PartSlot.WheelFrontRight, PartSlot.WheelRearLeft, PartSlot.WheelRearRight,
+    };
+
     private Car _car = null!;
     private Hud _hud = null!;
+    private double _punctureToast;
+
+    /// <summary>
+    /// Машину пересоздали (новая игра или загрузка сейва) — обновляем ссылки,
+    /// иначе события продолжают толкать удалённый узел.
+    /// </summary>
+    public void Rebind(Car car, Hud hud)
+    {
+        _car = car;
+        _hud = hud;
+    }
 
     public void Setup(List<Vector3> centerline, List<float> headings, Car car, Hud hud)
     {
@@ -86,7 +102,9 @@ public partial class RoadEvents : Node3D
 
     public override void _PhysicsProcess(double delta)
     {
-        if (_car is null || _hud is null) return;
+        // Машину пересоздают при новой игре и загрузке сейва: старый узел может
+        // на кадр оказаться вне дерева, и GlobalPosition уже не посчитать.
+        if (_car is null || _hud is null || !IsInstanceValid(_car) || !_car.IsInsideTree()) return;
 
         Vector3 carPosition = _car.GlobalPosition;
         float speed = _car.SpeedMps;
@@ -130,6 +148,29 @@ public partial class RoadEvents : Node3D
             if (new Vector2(spot.Position.X - carPosition.X, spot.Position.Z - carPosition.Z).Length() > 120f)
                 spot.Done = true;
         }
+
+        UpdatePuncture(delta);
+    }
+
+    /// <summary>Пробитое колесо тянет машину: сильное сопротивление и напоминание.</summary>
+    private void UpdatePuncture(double delta)
+    {
+        bool punctured = false;
+        foreach (var slot in Wheels)
+        {
+            if (_car.Session.Vehicle.Parts[slot].IsBroken) punctured = true;
+        }
+
+        if (!punctured) return;
+
+        Vector3 velocity = _car.LinearVelocity;
+        _car.ApplyCentralForce(-new Vector3(velocity.X, 0f, velocity.Z) * 700f);
+
+        _punctureToast -= delta;
+        if (_punctureToast > 0) return;
+
+        _punctureToast = 14;
+        _hud.Toast("Колесо пробито — замените из сумки (J, затем T)");
     }
 
     private void HitPothole(Spot spot)
@@ -138,8 +179,16 @@ public partial class RoadEvents : Node3D
         _car.Session.Vehicle.Parts[PartSlot.SuspensionFront].Wear(0.035);
         _car.Session.Vehicle.Parts[PartSlot.SuspensionRear].Wear(0.025);
 
-        // Толчок вверх и вбок — удар чувствуется, но машину не разворачивает.
+        // Толчок вверх — удар чувствуется, но машину не разворачивает.
         _car.ApplyCentralImpulse(new Vector3(0f, 220f, 0f));
+
+        if (_car.SpeedMps > 14f && GD.Randf() < 0.45f)
+        {
+            var wheel = Wheels[(int)(GD.Randi() % (uint)Wheels.Length)];
+            _car.Session.Vehicle.Parts[wheel].Wear(1.0);
+            _hud.Toast("Яма! Пробило колесо — машину тянет в сторону");
+            return;
+        }
 
         _hud.Toast("Яма! Подвеска получила по зубам");
     }

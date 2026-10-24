@@ -19,6 +19,7 @@ public partial class Main : Node3D
 
     private Car _car = null!;
     private ChaseCamera _camera = null!;
+    private bool _firstPerson;
     private Hud _hud = null!;
     private Player? _player;
     private bool _onFoot;
@@ -38,6 +39,12 @@ public partial class Main : Node3D
     private bool _shotRain;
     private bool _shotCar;
     private bool _shotLineup;
+    private string? _shotProp;
+    private bool _shotCars;
+    private bool _selfTestCars;
+    private bool _checkHouse;
+    private int _houseCheckFrames = -1;
+    private float _houseGroundY;
     private int _frames;
 
     private enum InteractionKind
@@ -45,13 +52,16 @@ public partial class Main : Node3D
         Pump,
         Shop,
         Gate,
+        Sleep,
+        Door,
     }
 
-    private sealed record InteractionPoint(Vector3 Position, InteractionKind Kind, float Radius, CheckpointGate? Gate = null);
+    private sealed record InteractionPoint(Vector3 Position, InteractionKind Kind, float Radius, CheckpointGate? Gate = null, Door? Door = null);
 
     private readonly List<InteractionPoint> _interactions = new();
     private RoadBuildResult? _road;
     private MenuUi _menu = null!;
+    private RoadEvents? _events;
     private RainFx _rain = null!;
     private DirectionalLight3D? _sun;
     private Godot.Environment? _environment;
@@ -81,30 +91,46 @@ public partial class Main : Node3D
         SetupInput();
         GameSettings.Load();
         GameSettings.Apply();
+
+        // Проверка ассетов мира: печатает габариты и центровку каждого пропа.
+        if (Array.IndexOf(OS.GetCmdlineUserArgs(), "--check-props") >= 0)
+        {
+            RunPropCheck();
+            GetTree().Quit(0);
+            return;
+        }
+
         BuildWorld();
 
-        var session = GameSession.NewGame();
+        var session = GameSession.NewGame(car: SelectedCar());
 
         _car = Car.Build(session);
         AddChild(_car);
-        // Ставим машину не на самом краю полотна, иначе половина висит в воздухе.
-        Vector3 start = _road is { Centerline.Count: > 4 } ? _road.Centerline[4] : new Vector3(0, 0.6f, 0);
-        _car.GlobalPosition = start + Vector3.Up * 0.62f;
-        _car.Path = _road?.Centerline;
+        PlaceCarAtStart();
 
-        _camera = new ChaseCamera { Target = _car };
+        _camera = new ChaseCamera
+        {
+            Target = _car,
+            Distance = 5.2f,
+            Height = 2.15f,
+            LookHeight = 0.8f,
+            Fov = 68f,
+        };
         AddChild(_camera);
         _camera.GlobalPosition = _car.GlobalPosition + new Vector3(0, 4.5f, 10);
 
         _hud = new Hud { Car = _car };
         AddChild(_hud);
 
+        // Дом игрока у старта: слева от дороги, со своими дверями и чердаком.
+        BuildPlayerHouse();
+
         // Дорожные события: ямы, коровы, попутчики.
         if (_road is not null)
         {
-            var events = new RoadEvents();
-            AddChild(events);
-            events.Setup(_road.Centerline, _road.Headings, _car, _hud);
+            _events = new RoadEvents();
+            AddChild(_events);
+            _events.Setup(_road.Centerline, _road.Headings, _car, _hud);
         }
 
         _rain = new RainFx();
@@ -112,6 +138,18 @@ public partial class Main : Node3D
 
         AddChild(new Sfx());
 
+        // Отладочный старт от первого лица для скриншотов.
+        bool fpCar = Array.IndexOf(OS.GetCmdlineUserArgs(), "--fp") >= 0;
+        bool fpFoot = Array.IndexOf(OS.GetCmdlineUserArgs(), "--fp-foot") >= 0;
+        if (fpCar || fpFoot)
+        {
+            _firstPerson = true;
+            _camera.FirstPerson = true;
+            _camera.AutoRecenter = false;
+
+            if (fpFoot) ExitCar();
+            else _camera.FirstPersonOffset = new Vector3(0.30f, 0.86f, -1.05f);
+        }
         _smoke = Array.IndexOf(OS.GetCmdlineUserArgs(), "--smoke") >= 0;
         _selfTest = Array.IndexOf(OS.GetCmdlineUserArgs(), "--selftest") >= 0;
         _shot = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot") >= 0
@@ -121,7 +159,9 @@ public partial class Main : Node3D
                 || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-settings") >= 0
                 || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-rain") >= 0
                 || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-car") >= 0
-                || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-lineup") >= 0;
+                || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-lineup") >= 0
+                || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-cars") >= 0
+                || _shotProp is not null;
         _openJournalInShot = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-ui") >= 0;
         _shotMenu = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-menu") >= 0;
         _shotDay = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-day") >= 0;
@@ -129,8 +169,29 @@ public partial class Main : Node3D
         _shotRain = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-rain") >= 0;
         _shotCar = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-car") >= 0;
         _shotLineup = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-lineup") >= 0;
+        foreach (string arg in OS.GetCmdlineUserArgs())
+        {
+            if (arg.StartsWith("--shot-prop=", StringComparison.Ordinal))
+                _shotProp = arg["--shot-prop=".Length..];
+        }
+        _shotCars = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-cars") >= 0;
+        _selfTestCars = Array.IndexOf(OS.GetCmdlineUserArgs(), "--selftest-cars") >= 0;
+        _checkHouse = Array.IndexOf(OS.GetCmdlineUserArgs(), "--check-house") >= 0;
         _perf = Array.IndexOf(OS.GetCmdlineUserArgs(), "--perf") >= 0;
-        _car.Autopilot = _smoke || _selfTest || _perf;
+        _car.Autopilot = _smoke || _selfTest || _perf || _selfTestCars;
+
+        // Проверка дверей: открываем все и через полсотни кадров меряем проёмы.
+        if (_checkHouse)
+        {
+            foreach (var point in _interactions)
+                if (point.Kind == InteractionKind.Door) point.Door?.Toggle();
+
+            _houseCheckFrames = 45;
+        }
+
+        // Новая игра начинается на ручнике: машина не катится сама по себе.
+        // В автотестах ручник не взводим, иначе автопилот не тронется.
+        EngageParkingBrake();
 
         _menu = new MenuUi();
         AddChild(_menu);
@@ -142,13 +203,25 @@ public partial class Main : Node3D
         _menu.QuitRequested += () => GetTree().Quit(0);
         _menu.EscapePressed += OnEscape;
 
+        // Проверка выбора машины: жмём кнопки и сверяем спеку. Без окна и мыши.
+        if (_selfTestCars)
+        {
+            RunCarSelectCheck();
+            return;
+        }
+
         // В автоматических прогонах меню не показываем: тесты должны ехать сразу.
-        bool automated = _smoke || _selfTest || _shot || _perf;
+        bool automated = _smoke || _selfTest || _shot || _perf || _checkHouse;
         if (!automated)
         {
             _menu.ShowMainMenu(HasSave());
             _hud.Visible = false;
             GetTree().Paused = true;
+        }
+        else if (_shotCars)
+        {
+            _menu.ShowCarSelect();
+            _hud.Visible = false;
         }
         else if (_shotMenu || _shotSettings)
         {
@@ -203,9 +276,55 @@ public partial class Main : Node3D
 
             if (_shotLineup)
                 BuildLineup(road, index);
+
+            if (_shotProp is not null)
+                BuildPropPreview(road, index, _shotProp);
         }
 
         GD.Print($"[Krntija] старт. smoke={_smoke}, selftest={_selfTest}, машина: {session.Vehicle.Spec.Name}");
+    }
+
+    /// <summary>Превью пропа: ставим модель у дороги и снимаем её в три четверти.</summary>
+    private void BuildPropPreview(RoadBuildResult road, int index, string id)
+    {
+        _car.Visible = false;
+        _car.ProcessMode = ProcessModeEnum.Disabled;
+        _hud.Visible = false;
+        _camera.ProcessMode = ProcessModeEnum.Disabled;
+
+        Vector3 center = road.Centerline[index];
+        float heading = road.Headings[index];
+        var right = new Vector3(Mathf.Cos(heading), 0, Mathf.Sin(heading));
+        var forward = new Vector3(Mathf.Sin(heading), 0, -Mathf.Cos(heading));
+
+        var prop = PropFactory.Spawn(id, center, heading, solid: false, this);
+        if (prop is null)
+        {
+            GD.Print($"[prop] нет модели {id}.glb");
+            return;
+        }
+
+        Vector3 eye = center + forward * 9f - right * 7f + Vector3.Up * 4.5f;
+        _camera.LookAtFromPosition(eye, center + Vector3.Up * 1.6f);
+    }
+
+    /// <summary>Проверка ассетов мира: печатает габариты и центровку каждого пропа.</summary>
+    private static void RunPropCheck()
+    {
+        string[] ids =
+        {
+            "gasstation_a", "gasstation_b", "gasstation",
+            "village_a", "village_b", "village_c", "village",
+            "ruins_a", "ruins_b", "ruins",
+            "farm_a", "farm_b", "farm",
+            "checkpoint_a", "checkpoint",
+        };
+
+        bool ok = true;
+        foreach (string id in ids)
+            ok &= PropFactory.Check(id);
+
+        GD.Print(ok ? "[props] проверка пройдена" : "[props] есть проблемы");
     }
 
     /// <summary>Три варианта кузова рядом — для сравнения силуэта.</summary>
@@ -255,6 +374,15 @@ public partial class Main : Node3D
 
     public override void _PhysicsProcess(double delta)
     {
+        if (_houseCheckFrames >= 0)
+        {
+            if (--_houseCheckFrames < 0)
+            {
+                RunHouseCheck();
+                return;
+            }
+        }
+
         if (!(_smoke || _selfTest || _shot || _perf) || _smokeDone) return;
 
         _frames++;
@@ -337,6 +465,8 @@ public partial class Main : Node3D
         return best;
     }
 
+    private readonly HashSet<int> _visitedPoi = new();
+
     public override void _Process(double delta)
     {
         if (_hud is null || _car is null) return;
@@ -344,6 +474,7 @@ public partial class Main : Node3D
         _hud.Prompt = BuildPrompt();
         UpdateSky();
         ApplyWeather();
+        RewardNewPlaces();
 
         if (_objectiveDone || _objectivePosition is null) return;
 
@@ -445,6 +576,7 @@ public partial class Main : Node3D
                 Interact();
                 break;
             case Key.J: _hud.Screen = _hud.Screen == HudScreen.None ? HudScreen.Journal : HudScreen.None; break;
+            case Key.C: ToggleCameraMode(); break;
             case Key.F5:
                 SaveGame();
                 break;
@@ -479,8 +611,9 @@ public partial class Main : Node3D
 
         if (_onFoot && _player is not null)
         {
+            if (point is not null && point.Position.DistanceTo(_player.GlobalPosition) < DistanceToCar() + 0.5f)
+                return PromptFor(point);
             if (DistanceToCar() < 3.5f) return "[E] сесть в машину";
-            if (point is not null) return PromptFor(point);
             return "мышь — обзор, W/S — идти, A/D — шаг вбок, Shift — бежать";
         }
 
@@ -493,6 +626,8 @@ public partial class Main : Node3D
     {
         InteractionKind.Shop => "[E] зайти в лавку",
         InteractionKind.Gate => point.Gate is { IsOpen: true } ? "[E] шлагбаум открыт" : "[E] заплатить 15 € за проезд",
+        InteractionKind.Sleep => "[E] переночевать (15 €)",
+        InteractionKind.Door => point.Door is { IsOpen: true } ? "[E] закрыть дверь" : "[E] открыть дверь",
         _ => "[E] заправить",
     };
 
@@ -506,13 +641,20 @@ public partial class Main : Node3D
 
         if (_onFoot)
         {
+            // Сначала ближайшее действие: у дома E не должно сажать обратно за руль.
+            var point = NearestInteraction();
+            if (point is not null && point.Position.DistanceTo(_player!.GlobalPosition) < DistanceToCar() + 0.5f)
+            {
+                Use(point);
+                return;
+            }
+
             if (DistanceToCar() < 3.5f)
             {
                 EnterCar();
                 return;
             }
 
-            var point = NearestInteraction();
             if (point is not null) Use(point);
 
             return;
@@ -546,6 +688,15 @@ public partial class Main : Node3D
                 PayForGate(point.Gate);
                 break;
 
+            case InteractionKind.Sleep:
+                TrySleep();
+                break;
+
+            case InteractionKind.Door:
+                point.Door?.Toggle();
+                Sfx.PlayUi();
+                break;
+
             default:
                 RefuelAtPump();
                 break;
@@ -573,6 +724,85 @@ public partial class Main : Node3D
         }
     }
 
+    /// <summary>За первое посещение каждого места — деньги: есть смысл ехать дальше.</summary>
+    private void RewardNewPlaces()
+    {
+        if (_road is null) return;
+
+        for (int i = 0; i < _road.Points.Count; i++)
+        {
+            if (_visitedPoi.Contains(i)) continue;
+
+            var point = _road.Points[i];
+            if (_car.GlobalPosition.DistanceTo(point.Position) > 25f) continue;
+
+            _visitedPoi.Add(i);
+            _car.Session.Wallet.Earn(40);
+            _hud.Toast($"{point.Segment.Title}: +40 €");
+        }
+    }
+
+    private void TrySleep()
+    {
+        var session = _car.Session;
+
+        if (!session.Wallet.TrySpend(15))
+        {
+            _hud.Toast("Ночлег стоит 15 €");
+            return;
+        }
+
+        session.Survival.Sleep(8);
+
+        double now = session.Clock.TotalMinutes;
+        double dayStart = Math.Floor(now / GameClock.MinutesPerDay) * GameClock.MinutesPerDay;
+        double morning = dayStart + 7 * 60;
+        if (morning <= now) morning += GameClock.MinutesPerDay;
+        session.Clock.SetTotalMinutes(morning);
+
+        _hud.Toast("Выспались. Утро, силы восстановлены");
+    }
+
+    /// <summary>Машина из --car=&lt;id&gt;: нужно для отладки и скриншотов разных кузовов.</summary>
+    private static CarSpec SelectedCar()
+    {
+        foreach (string arg in OS.GetCmdlineUserArgs())
+        {
+            if (arg.StartsWith("--car=", StringComparison.Ordinal))
+                return CarCatalog.Get(arg["--car=".Length..]);
+        }
+
+        return CarCatalog.Zastava101;
+    }
+
+    /// <summary>Переключение вида: от первого лица / от третьего.</summary>
+    private void ToggleCameraMode()
+    {
+        _firstPerson = !_firstPerson;
+
+        _camera.FirstPerson = _firstPerson;
+        _camera.AutoRecenter = !_firstPerson;
+        _camera.ResetOrbit();
+
+        if (_onFoot)
+        {
+            _camera.FirstPersonOffset = new Vector3(0f, 1.62f, 0f);
+            _camera.OrbitWithMouse = true;
+            _camera.PitchWithMouse = true;
+            _camera.UseTargetYaw = true;
+            _player?.SetModelVisible(!_firstPerson);
+        }
+        else
+        {
+            _camera.FirstPersonOffset = new Vector3(0.30f, 0.86f, -1.05f);
+            _camera.OrbitWithMouse = true;
+            _camera.PitchWithMouse = false;
+            _camera.UseTargetYaw = false;
+        }
+
+        _hud.Toast(_firstPerson ? "Вид от первого лица (C)" : "Вид от третьего лица (C)");
+    }
+
     private void ExitCar()
     {
         Vector3 side = -_car.GlobalBasis.X.Normalized() * 1.5f;
@@ -586,10 +816,15 @@ public partial class Main : Node3D
         _car.Driven = false;
 
         _camera.Target = _player;
-        _camera.Distance = 4.6f;
-        _camera.Height = 2.4f;
-        _camera.LookHeight = 1.4f;
-        _camera.OrbitWithMouse = false;
+        _camera.Distance = 4.2f;
+        _camera.Height = 2.0f;
+        _camera.LookHeight = 1.45f;
+        _camera.Fov = 66f;
+        _camera.OrbitWithMouse = true;
+        _camera.PitchWithMouse = true;
+        _camera.UseTargetYaw = true;
+        _camera.FirstPersonOffset = new Vector3(0f, 1.62f, 0f);
+        _player.SetModelVisible(!_firstPerson);
         _camera.ResetOrbit();
         Sfx.PlayDoor(_car.GlobalPosition);
 
@@ -604,10 +839,14 @@ public partial class Main : Node3D
         _car.Driven = true;
 
         _camera.Target = _car;
-        _camera.Distance = 7.5f;
-        _camera.Height = 3.2f;
-        _camera.LookHeight = 0.9f;
+        _camera.Distance = 5.2f;
+        _camera.Height = 2.15f;
+        _camera.LookHeight = 0.8f;
+        _camera.Fov = 68f;
         _camera.OrbitWithMouse = true;
+        _camera.PitchWithMouse = false;
+        _camera.UseTargetYaw = false;
+        _camera.FirstPersonOffset = new Vector3(0.30f, 0.86f, -1.05f);
         _camera.ResetOrbit();
         Sfx.PlayDoor(_car.GlobalPosition);
 
@@ -926,18 +1165,51 @@ public partial class Main : Node3D
         _menu.Close();
     }
 
-    private void StartNewGame()
+    /// <summary>
+    /// Новая игра на выбранной машине: сессия собирается заново, поэтому
+    /// топливо, детали, деньги, время и задача начинаются с чистого листа.
+    /// Мир (дорога, террейн) остаётся, но его состояние сбрасывается:
+    /// события, открытые шлагбаумы и награды за посещённые места.
+    /// </summary>
+    private void StartNewGame(CarSpec spec)
     {
-        // Сцена перезагружается только при выходе в главное меню,
-        // поэтому здесь сессия уже свежая — просто снимаем паузу.
+        Respawn(GameSession.NewGame(car: spec));
+        PlaceCarAtStart();
+        EngageParkingBrake();
+        ResetWorldState();
+
+        _objectiveDone = false;
+        _hud.Objective = string.Empty;
+
         ResumeGame();
+        _hud.Toast($"Новая игра: {spec.Name}");
+        GD.Print($"[newgame] {spec.Id}");
+    }
+
+    /// <summary>Сброс состояния мира при новой игре в той же сцене.</summary>
+    private void ResetWorldState()
+    {
+        _visitedPoi.Clear();
+
+        foreach (var point in _interactions)
+            point.Gate?.Close();
+
+        // События хранят сработавшие точки и ссылки на старую машину:
+        // проще собрать их заново, чем чинить флаги и удалённые узлы.
+        if (_road is not null)
+        {
+            _events?.QueueFree();
+            _events = new RoadEvents();
+            AddChild(_events);
+            _events.Setup(_road.Centerline, _road.Headings, _car, _hud);
+        }
     }
 
     private void ContinueGame()
     {
         if (!HasSave())
         {
-            StartNewGame();
+            _menu.ShowCarSelect();
             return;
         }
 
@@ -1041,15 +1313,101 @@ public partial class Main : Node3D
         Vector3 position = _car.GlobalPosition;
         Vector3 rotation = _car.GlobalRotation;
 
+        // Сначала убираем старую машину из дерева: QueueFree освобождает узел
+        // в конце кадра, и без RemoveChild две машины успели бы побыть в мире
+        // одновременно — старая ещё участвует в физике.
+        RemoveChild(_car);
         _car.QueueFree();
+
         _car = Car.Build(session);
         AddChild(_car);
         _car.GlobalPosition = position;
         _car.GlobalRotation = rotation;
-        _car.Autopilot = _smoke;
+        _car.Autopilot = _smoke || _selfTest || _perf || _selfTestCars;
 
         _camera.Target = _car;
         _hud.Car = _car;
+
+        // События держат ссылку на машину: без Rebind ямы и коровы
+        // продолжали бы толкать удалённый объект после загрузки сейва.
+        _events?.Rebind(_car, _hud);
+    }
+
+    /// <summary>Игрок начинает на ручнике; в автотестах ручник не мешает движению.</summary>
+    private void EngageParkingBrake()
+    {
+        if (_smoke || _selfTest || _perf || _selfTestCars) return;
+        _car.SetHandbrake(true);
+    }
+
+    /// <summary>Поставить машину на старт дороги: новую игру всегда начинаем там.</summary>
+    private void PlaceCarAtStart()
+    {
+        // Не на самом краю полотна, иначе половина машины висит в воздухе.
+        Vector3 start = _road is { Centerline.Count: > 4 } ? _road.Centerline[4] : new Vector3(0, 0.6f, 0);
+        _car.GlobalPosition = start + Vector3.Up * 0.62f;
+        _car.LinearVelocity = Vector3.Zero;
+        _car.AngularVelocity = Vector3.Zero;
+        _car.Path = _road?.Centerline;
+    }
+
+    /// <summary>
+    /// Автопроверка экрана выбора машины: жмём каждую кнопку и убеждаемся,
+    /// что сессия собралась на нужной спеке с её стартовым топливом.
+    /// </summary>
+    private void RunCarSelectCheck()
+    {
+        bool ok = true;
+
+        _menu.ShowCarSelect();
+        GD.Print($"[carselftest] кнопок в меню: {_menu.CarChoices}, машин в каталоге: {CarCatalog.All.Count}");
+        ok &= _menu.CarChoices == CarCatalog.All.Count;
+
+        for (int i = 0; i < CarCatalog.All.Count; i++)
+        {
+            CarSpec expected = CarCatalog.All[i];
+            _menu.ShowCarSelect();
+            _menu.PressCar(i);
+
+            string actual = _car.Session.Vehicle.Spec.Id;
+            double fuel = _car.Session.Vehicle.Fuel.Liters;
+            bool match = actual == expected.Id && Math.Abs(fuel - expected.FuelStartL) < 0.001;
+
+            GD.Print($"[carselftest] {i}: ждали {expected.Id}/{expected.FuelStartL:F0} л, "
+                     + $"получили {actual}/{fuel:F0} л — {(match ? "ок" : "FAIL")}");
+            ok &= match;
+        }
+
+        // Вторая часть: новая игра не должна копить события, награды и шлагбаумы.
+        var gatePoint = _interactions.FirstOrDefault(p => p.Gate is not null);
+        gatePoint?.Gate?.Open();
+
+        for (int i = 0; i < 2; i++)
+        {
+            _visitedPoi.Add(999);
+            _menu.ShowCarSelect();
+            _menu.PressCar(0);
+        }
+
+        // Считаем только живые узлы: QueueFree освобождает старые в конце кадра.
+        int eventNodes = 0;
+        foreach (var child in GetChildren())
+        {
+            if (child is RoadEvents events && !events.IsQueuedForDeletion()) eventNodes++;
+        }
+
+        bool singleEvents = eventNodes == 1;
+        bool visitedCleared = _visitedPoi.Count == 0;
+        bool gateClosed = gatePoint?.Gate is { IsOpen: false };
+
+        GD.Print($"[carselftest] события: {eventNodes} (ждём 1) — {(singleEvents ? "ок" : "FAIL")}, "
+                 + $"награды сброшены: {_visitedPoi.Count} — {(visitedCleared ? "ок" : "FAIL")}, "
+                 + $"шлагбаум закрыт — {(gateClosed ? "ок" : "FAIL")}");
+
+        ok &= singleEvents && visitedCleared && gateClosed;
+
+        GD.Print(ok ? "[carselftest] OK" : "[carselftest] FAIL");
+        GetTree().Quit(ok ? 0 : 1);
     }
 
     // ---------- мир ----------
@@ -1121,13 +1479,14 @@ public partial class Main : Node3D
         _road = road;
         WorldArtGround.Configure(road.Points);
 
+        int poiIndex = 0;
         foreach (var poi in road.Points)
         {
             GD.Print($"[poi] {poi.Segment.Feature} at index {(int)Mathf.Round(poi.Segment.StartM / 4f)} ({poi.Segment.StartM:F0} м)");
             var right = new Vector3(Mathf.Cos(poi.Heading), 0, Mathf.Sin(poi.Heading));
             Vector3 spot = poi.Position - right * 16f; // левая обочина
             spot.Y = TerrainBuilder.SurfaceHeight(poi.Position.Y, -16f, spot);
-            AddLandmark(poi.Segment.Feature, poi.Segment.Title, spot, poi.Heading, poi.Position);
+            AddLandmark(poi.Segment.Feature, poi.Segment.Title, spot, poi.Heading, poi.Position, poiIndex++);
         }
 
         TerrainBuilder.Build(road.Centerline, road.Headings, this);
@@ -1147,17 +1506,20 @@ public partial class Main : Node3D
         GD.Print($"[road] {plan.Segments.Count} сегментов, {plan.TotalMeters:F0} м, точек интереса: {road.Points.Count}");
     }
 
-    private void AddLandmark(RoadFeature feature, string title, Vector3 position, float heading, Vector3 roadPoint)
+    private void AddLandmark(RoadFeature feature, string title, Vector3 position, float heading, Vector3 roadPoint, int poiIndex)
     {
-        var model = ModelLibrary.Prop(feature.ToString().ToLowerInvariant());
+        string featureId = feature.ToString().ToLowerInvariant();
+        string? variant = PropFactory.PickVariant(PropVariants(featureId), poiIndex);
 
-        if (model is not null)
-        {
-            model.Name = $"Landmark_{feature}";
-            model.Position = position;
-            model.Rotation = new Vector3(0, -heading, 0);
-            AddChild(model);
-        }
+        // Небольшой разворот и сдвиг: одинаковые пропы не должны стоять строем.
+        var rng = new Pcg32((ulong)(20261024 + poiIndex), sequence: 5);
+        float yawJitter = (float)rng.Range(-0.18, 0.18);
+        float sink = (float)rng.Range(-0.05, 0.05);
+
+        Node3D? model = variant is null
+            ? null
+            : PropFactory.Spawn(variant, position + Vector3.Up * sink, heading, solid: true, this, yawJitter);
+        if (model is not null) model.Name = $"Landmark_{feature}";
 
         switch (feature)
         {
@@ -1173,6 +1535,184 @@ public partial class Main : Node3D
         }
 
         if (title.Length > 0) AddFeatureSign(roadPoint, heading, title);
+    }
+
+    /// <summary>Какие файлы ищем для каждого типа места: base, _a, _b, _c.</summary>
+    private static IReadOnlyList<string> PropVariants(string featureId) => new[]
+    {
+        featureId + "_a", featureId + "_b", featureId + "_c", featureId,
+    };
+
+    /// <summary>
+    /// Проверка проходимости дверей: капсула игрока в центре каждого проёма
+    /// не должна ни с чем пересекаться. Двери к этому моменту открыты.
+    /// </summary>
+    private void RunHouseCheck()
+    {
+        var space = GetWorld3D().DirectSpaceState;
+        var capsule = new CapsuleShape3D { Radius = 0.34f, Height = 1.78f };
+        bool ok = true;
+
+        foreach (var point in _interactions)
+        {
+            if (point.Kind != InteractionKind.Door || point.Door is null) continue;
+            var door = point.Door;
+
+            Vector3 center = door.GlobalPosition + door.GlobalBasis.X.Normalized() * (door.Width * 0.5f);
+            center.Y = _houseGroundY + 0.95f;
+
+            var query = new PhysicsShapeQueryParameters3D
+            {
+                Shape = capsule,
+                Transform = new Transform3D(Basis.Identity, center),
+                CollideWithBodies = true,
+            };
+
+            var hits = space.IntersectShape(query, 4);
+            bool free = hits.Count == 0 && door.IsOpen;
+            ok &= free;
+
+            string what = string.Empty;
+            foreach (var hit in hits)
+            {
+                if (hit["collider"].As<GodotObject>() is Node3D node)
+                {
+                    Vector3 local = node.GetParent() is Node3D parent3D ? parent3D.Position : node.Position;
+                    what += $"{node.Name}@локально({local.X:F1}; {local.Y:F1}; {local.Z:F1}) ";
+                }
+                else if (hit["collider"].As<GodotObject>() is Node other)
+                    what += other.Name + " ";
+            }
+
+            GD.Print($"[housecheck] {door.Name,-16} {(free ? "свободно" : $"ЗАБЛОКИРОВАНО ({hits.Count}: {what.Trim()})")}");
+        }
+
+        // Проход тела игрока в каждую наружную дверь: старт в 4.5 м снаружи.
+        foreach (var point in _interactions)
+        {
+            if (point.Kind != InteractionKind.Door || point.Door is null) continue;
+            var door = point.Door;
+            if (door.Name == "GarageInnerDoor" || door.Name == "KitchenDoor") continue;
+
+            var body = new CharacterBody3D { Name = "WalkProbe" };
+            body.AddChild(new CollisionShape3D { Shape = capsule, Position = new Vector3(0, 0.89f, 0) });
+            AddChild(body);
+
+            // Наружная стена смотрит вдоль локальной Z дома: знак задаёт сторону.
+            var houseNode = GetNodeOrNull<Node3D>("PlayerHouse")!;
+            float localZ = houseNode.ToLocal(door.GlobalPosition).Z;
+            Vector3 inward = door.GlobalBasis.Z.Normalized() * (localZ > 0 ? -1f : 1f);
+            Vector3 start = door.GlobalPosition
+                            + door.GlobalBasis.X.Normalized() * (door.Width * 0.5f)
+                            - inward * 4.5f;
+            start.Y = _houseGroundY - 0.1f;
+            body.GlobalPosition = start;
+
+            for (int i = 0; i < 220; i++)
+            {
+                body.Velocity = inward * 2.2f - Vector3.Up * 0.25f;
+
+                // Шаг вверх, как у игрока: пороги и крыльцо.
+                if (body.IsOnFloor())
+                {
+                    var raised = new Transform3D(body.GlobalBasis, body.GlobalPosition + Vector3.Up * 0.34f);
+                    if (body.TestMove(body.GlobalTransform, inward * 0.35f)
+                        && !body.TestMove(raised, inward * 0.35f)
+                        && body.TestMove(raised, Vector3.Down * 0.46f))
+                        body.GlobalPosition += Vector3.Up * 0.34f;
+                }
+
+                body.MoveAndSlide();
+            }
+
+            float depth = (body.GlobalPosition - door.GlobalPosition).Dot(inward);
+            bool inside = depth > 1.2f;
+            ok &= inside;
+
+            string blocked = string.Empty;
+            var probe = new PhysicsShapeQueryParameters3D
+            {
+                Shape = capsule,
+                Transform = new Transform3D(Basis.Identity, body.GlobalPosition + Vector3.Up * 0.95f),
+                CollideWithBodies = true,
+            };
+            foreach (var hit in space.IntersectShape(probe, 4))
+            {
+                if (hit["collider"].As<GodotObject>() is Node3D node)
+                {
+                    Vector3 local = node.GetParent() is Node3D parent3D ? parent3D.Position : node.Position;
+                    blocked += $"{node.Name}@локально({local.X:F1}; {local.Y:F1}; {local.Z:F1}) ";
+                }
+            }
+
+            GD.Print($"[housewalk] {door.Name,-12} {depth,5:F2} м — {(inside ? "зашёл" : "НЕ ЗАШЁЛ")} {blocked.Trim()}");
+            body.QueueFree();
+        }
+
+        // Подъём на чердак: тело идёт от подножия вверх по пандусу.
+        if (GetNodeOrNull<Node3D>("PlayerHouse") is { } house)
+        {
+            var climb = new CharacterBody3D { Name = "ClimbProbe" };
+            climb.AddChild(new CollisionShape3D { Shape = capsule, Position = new Vector3(0, 0.89f, 0) });
+            AddChild(climb);
+
+            Vector3 startWorld = house.ToGlobal(new Vector3(4.2f, 0.35f, 3.8f));
+            Vector3 topWorld = house.ToGlobal(new Vector3(4.2f, 0.35f, 0.5f));
+            Vector3 direction = (topWorld - startWorld).Normalized();
+            climb.GlobalPosition = startWorld;
+
+            for (int i = 0; i < 420; i++)
+            {
+                climb.Velocity = direction * 2.4f - Vector3.Up * 0.2f;
+
+                // Тот же шаг вверх: иначе тест не повторит путь игрока.
+                if (climb.IsOnFloor())
+                {
+                    var raised = new Transform3D(climb.GlobalBasis, climb.GlobalPosition + Vector3.Up * 0.34f);
+                    if (climb.TestMove(climb.GlobalTransform, direction * 0.35f)
+                        && !climb.TestMove(raised, direction * 0.35f)
+                        && climb.TestMove(raised, Vector3.Down * 0.46f))
+                        climb.GlobalPosition += Vector3.Up * 0.34f;
+                }
+
+                climb.MoveAndSlide();
+            }
+
+            float height = house.ToLocal(climb.GlobalPosition).Y;
+            bool reached = height > 2.3f;
+            ok &= reached;
+            GD.Print($"[houseclimb] чердак: поднялся на {height:F2} м — {(reached ? "ок" : "НЕ ПОДНЯЛСЯ")}");
+            climb.QueueFree();
+        }
+
+        GD.Print(ok ? "[housecheck] OK" : "[housecheck] FAIL");
+        GetTree().Quit(ok ? 0 : 1);
+    }
+
+    /// <summary>Дом игрока у старта: слева от дороги, с дверями и чердаком.</summary>
+    private void BuildPlayerHouse()
+    {
+        if (_road is not { Centerline.Count: > 20 }) return;
+
+        int index = 10;
+        Vector3 anchor = _road.Centerline[index];
+        var right = new Vector3(Mathf.Cos(_road.Headings[index]), 0, Mathf.Sin(_road.Headings[index]));
+        Vector3 spot = anchor - right * 15f;
+        spot.Y = TerrainBuilder.SurfaceHeight(anchor.Y, -15f, spot);
+
+        // Фундамент: пол приподнят над газоном, чтобы рельеф не пробивал его.
+        spot.Y += 0.12f;
+        _houseGroundY = spot.Y;
+
+        var doors = PlayerHouse.Build(this, spot, -_road.Headings[index] + Mathf.Pi * 0.5f);
+        foreach (var (position, door) in doors)
+        {
+            // Подсказка ищется от центра полотна, а не от петли: у петли радиус мал.
+            Vector3 center = position + door.GlobalBasis.X.Normalized() * (door.Width * 0.5f);
+            _interactions.Add(new InteractionPoint(center, InteractionKind.Door, 3.2f, Door: door));
+        }
+
+        GD.Print($"[house] дом игрока: {doors.Count} дверей, {spot}");
     }
 
     /// <summary>Дорожный указатель с названием места: «Село», «Рушевине» и т.п.</summary>
@@ -1230,12 +1770,12 @@ public partial class Main : Node3D
             var house = new Node3D { Position = new Vector3(i * 10f - 10f, 0, -i * 7f) };
             village.AddChild(house);
 
-            float width = 6.4f + i * 0.6f;
-            float depth = 5.2f;
-            float height = 3.0f + i * 0.25f;
+            float width = 8.0f + i * 0.5f;
+            float depth = 6.4f;
+            float height = 3.4f + i * 0.2f;
 
             Box(house, new Vector3(width, height, depth), new Vector3(0, height / 2, 0), wall);
-            GableRoof(house, height, width, depth, 1.7f, roof);
+            GableRoof(house, height, width, depth, 2.0f, roof);
 
             Box(house, new Vector3(0.9f, 1.1f, 0.12f), new Vector3(-1.7f, 1.8f, depth / 2), window);
             Box(house, new Vector3(0.9f, 1.1f, 0.12f), new Vector3(1.7f, 1.8f, depth / 2), window);
@@ -1258,6 +1798,42 @@ public partial class Main : Node3D
         sign.Rotation = new Vector3(0, 0.3f, 0);
 
         AddBusStop(village, new Vector3(3.5f, 0, 7.5f));
+        AddMotel(village, new Vector3(-6f, 0, 9.5f));
+    }
+
+    /// <summary>Мотель у села: переночевать за 15 €, проснуться утром.</summary>
+    private void AddMotel(Node3D parent, Vector3 position)
+    {
+        var motel = new Node3D { Position = position, Rotation = new Vector3(0, 0.18f, 0) };
+        parent.AddChild(motel);
+
+        var wall = new Color(0.72f, 0.66f, 0.56f);
+        var roof = new Color(0.44f, 0.30f, 0.22f);
+        var window = new Color(0.15f, 0.18f, 0.21f);
+
+        Box(motel, new Vector3(8.8f, 3.6f, 6.2f), new Vector3(0, 1.8f, 0), wall);
+        GableRoof(motel, 3.6f, 8.8f, 6.2f, 1.9f, roof);
+
+        for (int i = -1; i <= 1; i++)
+            Box(motel, new Vector3(0.9f, 0.9f, 0.12f), new Vector3(i * 2f, 1.9f, 2.52f), window);
+
+        Box(motel, new Vector3(1.1f, 2f, 0.14f), new Vector3(0, 1f, 2.53f), new Color(0.30f, 0.22f, 0.16f));
+
+        var sign = Box(motel, new Vector3(2.8f, 0.62f, 0.1f), new Vector3(0, 3.35f, 2.45f),
+            new Color(0.86f, 0.83f, 0.70f));
+        sign.Rotation = new Vector3(0, 0, 0);
+
+        motel.AddChild(new Label3D
+        {
+            Text = "МОТЕЛЬ",
+            FontSize = 56,
+            PixelSize = 0.0045f,
+            Position = new Vector3(0, 3.35f, 2.52f),
+            Modulate = new Color(0.16f, 0.15f, 0.14f),
+        });
+
+        _interactions.Add(new InteractionPoint(
+            motel.ToGlobal(new Vector3(0, 0, 3.4f)), InteractionKind.Sleep, 4.5f));
     }
 
     /// <summary>Автобусная остановка: бетонный навес, лавка и табличка.</summary>
@@ -1269,7 +1845,7 @@ public partial class Main : Node3D
         var concrete = new Color(0.66f, 0.64f, 0.58f);
         var bench = new Color(0.45f, 0.32f, 0.2f);
 
-        Box(stop, new Vector3(4.4f, 0.16f, 2.0f), new Vector3(0, 2.45f, 0), concrete);
+        Box(stop, new Vector3(5.0f, 0.18f, 2.2f), new Vector3(0, 2.6f, 0), concrete);
         Box(stop, new Vector3(4.4f, 1.3f, 0.14f), new Vector3(0, 1.75f, -0.95f), concrete);
         Box(stop, new Vector3(0.14f, 2.45f, 2.0f), new Vector3(-2.15f, 1.22f, 0), concrete);
         Box(stop, new Vector3(0.14f, 2.45f, 2.0f), new Vector3(2.15f, 1.22f, 0), concrete);
@@ -1296,8 +1872,8 @@ public partial class Main : Node3D
         var stone = new Color(0.61f, 0.58f, 0.51f);
         var beam = new Color(0.29f, 0.22f, 0.16f);
 
-        Box(ruins, new Vector3(9, 2.6f, 0.45f), new Vector3(0, 1.3f, 0), stone);
-        Box(ruins, new Vector3(0.45f, 3.6f, 6), new Vector3(4.2f, 1.8f, 0), stone);
+        Box(ruins, new Vector3(10.5f, 3.2f, 0.45f), new Vector3(0, 1.6f, 0), stone);
+        Box(ruins, new Vector3(0.45f, 4.2f, 7), new Vector3(4.9f, 2.1f, 0), stone);
         Box(ruins, new Vector3(0.45f, 1.6f, 4), new Vector3(-4.2f, 0.8f, 0), stone);
         Box(ruins, new Vector3(3.4f, 1.0f, 0.45f), new Vector3(-2.4f, 0.5f, 0.1f), stone);
 
@@ -1347,8 +1923,8 @@ public partial class Main : Node3D
         var roof = new Color(0.42f, 0.30f, 0.22f);
         var fence = new Color(0.42f, 0.34f, 0.24f);
 
-        Box(farm, new Vector3(10, 4, 7), new Vector3(0, 2, 0), wall);
-        GableRoof(farm, 4, 10, 7, 2.2f, roof);
+        Box(farm, new Vector3(12.5f, 4.6f, 8.5f), new Vector3(0, 2.3f, 0), wall);
+        GableRoof(farm, 4.6f, 12.5f, 8.5f, 2.7f, roof);
         Box(farm, new Vector3(2.4f, 2.8f, 0.14f), new Vector3(0, 1.4f, 3.55f), new Color(0.29f, 0.21f, 0.15f));
 
         var silo = new MeshInstance3D
