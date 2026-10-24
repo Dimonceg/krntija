@@ -40,4 +40,14 @@ public static class WorldArtGround
         }
         return naturalHeight;
     }
+
+    public static bool IsPlot(Vector3 world, float margin = 0)
+    {
+        foreach (var plot in Plots)
+        {
+            var p = plot.Basis.Inverse() * (world - plot.Center);
+            if (Mathf.Abs(p.X) < plot.Extent.X + margin && Mathf.Abs(p.Z) < plot.Extent.Y + margin) return true;
+        }
+        return false;
+    }
 }

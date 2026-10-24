@@ -58,16 +58,9 @@ public static class RoadMeshBuilder
         result.Headings.AddRange(headingsAll);
 
         var mesh = BuildRibbon(centers, headingsAll);
-        var body = new StaticBody3D();
+        var body = new StaticBody3D { Name = "RoadSurface" };
 
-        var roadMaterial = new StandardMaterial3D
-        {
-            AlbedoTexture = ProcTexture.Noise(0.06f, new Color(0.09f, 0.09f, 0.10f), new Color(0.19f, 0.19f, 0.20f), seed: 3),
-            Uv1Triplanar = true,
-            Uv1Scale = new Vector3(0.22f, 0.22f, 0.22f),
-            Roughness = 0.95f,
-            CullMode = BaseMaterial3D.CullModeEnum.Disabled,
-        };
+        var roadMaterial = LandscapeArt.Asphalt();
         result.RoadMaterial = roadMaterial;
 
         body.AddChild(new MeshInstance3D { Mesh = mesh, MaterialOverride = roadMaterial });
@@ -155,8 +148,8 @@ public static class RoadMeshBuilder
             float halfWidth = (float)rng.Range(0.35, 1.1);
 
             Vector3 right = new(Mathf.Cos(headings[index]), 0, Mathf.Sin(headings[index]));
-            Vector3 forward = new(Mathf.Sin(headings[index]), 0, -Mathf.Cos(headings[index]));
-            Vector3 center = points[index] + right * lateral + Vector3.Up * 0.015f;
+            Vector3 forward = (points[index + 1] - points[index]) / StepMeters;
+            Vector3 center = points[index] + right * lateral + Vector3.Up * 0.047f;
 
             Vector3 a = center - forward * halfLength - right * halfWidth;
             Vector3 b = center + forward * halfLength - right * halfWidth;
@@ -224,7 +217,7 @@ public static class RoadMeshBuilder
             {
                 // Не белоснежная: пыль, потёртости.
                 AlbedoColor = new Color(0.74f, 0.72f, 0.62f),
-                ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+                Roughness = .96f,
                 CullMode = BaseMaterial3D.CullModeEnum.Disabled,
             },
         });
@@ -244,8 +237,8 @@ public static class RoadMeshBuilder
         for (int i = 20; i < points.Count - 2; i += 25)
         {
             Vector3 right = new(Mathf.Cos(headings[i]), 0, Mathf.Sin(headings[i]));
-            Vector3 forward = new(Mathf.Sin(headings[i]), 0, -Mathf.Cos(headings[i]));
-            Vector3 center = points[i] + Vector3.Up * 0.012f;
+            Vector3 forward = (points[i + 1] - points[i]) / StepMeters;
+            Vector3 center = points[i] + Vector3.Up * 0.048f;
 
             float half = Width * 0.46f;
             Vector3 a = center - right * half;
@@ -312,20 +305,22 @@ public static class RoadMeshBuilder
             Vector3 leftB = Edge(points[i + 1], headings[i + 1], -1);
             Vector3 rightB = Edge(points[i + 1], headings[i + 1], +1);
 
-            AddTriangle(st, leftA, leftB, rightA);
-            AddTriangle(st, rightA, leftB, rightB);
+            AddRoadVertex(st, leftA, 0, i);
+            AddRoadVertex(st, leftB, 0, i + 1);
+            AddRoadVertex(st, rightA, Width, i);
+            AddRoadVertex(st, rightA, Width, i);
+            AddRoadVertex(st, leftB, 0, i + 1);
+            AddRoadVertex(st, rightB, Width, i + 1);
         }
 
         return st.Commit();
     }
 
-    private static void AddTriangle(SurfaceTool st, Vector3 a, Vector3 b, Vector3 c)
+    private static void AddRoadVertex(SurfaceTool st, Vector3 point, float across, int index)
     {
-        foreach (var vertex in new[] { a, b, c })
-        {
-            st.SetNormal(Vector3.Up);
-            st.AddVertex(vertex);
-        }
+        st.SetNormal(Vector3.Up);
+        st.SetUV(new Vector2(across / 4f, index * StepMeters / 4f));
+        st.AddVertex(point);
     }
 
     private static Vector3 Edge(Vector3 point, float heading, int side)

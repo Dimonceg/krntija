@@ -1575,6 +1575,7 @@ public partial class Main : Node3D
 
         TerrainBuilder.Build(road.Centerline, road.Headings, this);
         WorldScatter.ScatterHills(road.Centerline, road.Headings, this, seed: 20261023);
+        LandscapeArt.Grass(road.Centerline, road.Headings, this);
         WorldScatter.ScatterTrees(road.Centerline, road.Headings, this, seed: 20261023, landmarks: road.Points);
         WorldScatter.ScatterPowerLine(road.Centerline, road.Headings, this, seed: 20261023);
         WorldScatter.AddKilometerPosts(road.Centerline, road.Headings, this);
