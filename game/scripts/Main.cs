@@ -40,6 +40,10 @@ public partial class Main : Node3D
     private bool _shotCar;
     private bool _shotLineup;
     private string? _shotProp;
+    private BackpackUi _backpack = null!;
+    private LootItem? _hoveredLoot;
+    private bool _cursorFree;
+    private bool _shotBackpack;
     private bool _shotCars;
     private bool _selfTestCars;
     private bool _checkHouse;
@@ -124,6 +128,9 @@ public partial class Main : Node3D
         _hud = new Hud { Car = _car };
         AddChild(_hud);
 
+        _backpack = new BackpackUi();
+        AddChild(_backpack);
+
         // Дом игрока у старта: слева от дороги, со своими дверями и чердаком.
         BuildPlayerHouse();
         SpawnLoot();
@@ -164,7 +171,9 @@ public partial class Main : Node3D
                 || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-car") >= 0
                 || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-lineup") >= 0
                 || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-cars") >= 0
+                || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-backpack") >= 0
                 || _shotProp is not null;
+        _shotBackpack = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-backpack") >= 0;
         _openJournalInShot = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-ui") >= 0;
         _shotMenu = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-menu") >= 0;
         _shotDay = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-day") >= 0;
@@ -295,6 +304,12 @@ public partial class Main : Node3D
 
             if (_shotLineup)
                 BuildLineup(road, index);
+
+            if (_shotBackpack)
+            {
+                _backpack.Toggle(_car.Session.Inventory);
+                _hud.Visible = false;
+            }
 
             if (_shotProp is not null)
                 BuildPropPreview(road, index, _shotProp);
@@ -566,6 +581,28 @@ public partial class Main : Node3D
 
     public override void _UnhandledInput(InputEvent @event)
     {
+        // Правая кнопка мыши — свободный курсор: можно навести на предмет и щёлкнуть.
+        if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Right })
+        {
+            SetCursorFree(!_cursorFree);
+            return;
+        }
+
+        if (_cursorFree)
+        {
+            if (@event is InputEventMouseMotion motion)
+            {
+                UpdateHover(motion.Position);
+                return;
+            }
+
+            if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left })
+            {
+                PickHoveredLoot();
+                return;
+            }
+        }
+
         if (@event is not InputEventKey { Pressed: true, Echo: false } key)
             return;
 
@@ -590,6 +627,10 @@ public partial class Main : Node3D
         switch (key.Keycode)
         {
             case Key.Escape:
+                if (_backpack.IsOpen) _backpack.Close();
+                break;
+            case Key.B:
+                ToggleBackpack();
                 break;
             case Key.E:
                 Interact();
@@ -1756,6 +1797,80 @@ public partial class Main : Node3D
 
         GD.Print(ok ? "[housecheck] OK" : "[housecheck] FAIL");
         GetTree().Quit(ok ? 0 : 1);
+    }
+
+    /// <summary>Рюкзак: открыть/закрыть, заодно отпустить или захватить мышь.</summary>
+    private void ToggleBackpack()
+    {
+        _backpack.Toggle(_car.Session.Inventory);
+        SetCursorFree(_backpack.IsOpen);
+    }
+
+    private bool _orbitBeforeFree;
+
+    /// <summary>Свободный курсор: обзор не крутится, мышь видна.</summary>
+    private void SetCursorFree(bool free)
+    {
+        if (_cursorFree == free) return;
+
+        _cursorFree = free;
+        Input.MouseMode = free ? Input.MouseModeEnum.Visible : Input.MouseModeEnum.Captured;
+
+        if (free)
+        {
+            _orbitBeforeFree = _camera.OrbitWithMouse;
+            _camera.OrbitWithMouse = false;
+        }
+        else
+        {
+            _camera.OrbitWithMouse = _orbitBeforeFree;
+            ClearHover();
+        }
+    }
+
+    /// <summary>Луч из камеры под курсор: что за предмет, подсветить и запомнить.</summary>
+    private void UpdateHover(Vector2 screenPosition)
+    {
+        var camera = GetViewport().GetCamera3D();
+        var space = GetWorld3D()?.DirectSpaceState;
+        if (camera is null || space is null) return;
+
+        Vector3 from = camera.ProjectRayOrigin(screenPosition);
+        Vector3 to = from + camera.ProjectRayNormal(screenPosition) * 9f;
+
+        var query = new PhysicsRayQueryParameters3D { From = from, To = to, CollisionMask = 2 };
+        var hit = space.IntersectRay(query);
+
+        LootItem? found = null;
+        if (hit.Count > 0 && hit["collider"].As<GodotObject>() is Node3D body)
+            found = body.GetParent() as LootItem;
+
+        if (found == _hoveredLoot) return;
+
+        ClearHover();
+        _hoveredLoot = found;
+
+        if (found is not null)
+        {
+            found.Scale = Vector3.One * 1.45f;
+            _hud.Toast($"{Core.Items.ItemCatalog.Get(found.ItemId).Name} — ЛКМ поднять");
+        }
+    }
+
+    private void ClearHover()
+    {
+        if (_hoveredLoot is not null) _hoveredLoot.Scale = Vector3.One;
+        _hoveredLoot = null;
+    }
+
+    private void PickHoveredLoot()
+    {
+        if (_hoveredLoot is null) return;
+
+        var point = _interactions.FirstOrDefault(p => p.Node == _hoveredLoot);
+        if (point is not null) PickUpLoot(point);
+
+        ClearHover();
     }
 
     /// <summary>Подобрать предмет: в инвентарь, узел убрать, точку взаимодействия снять.</summary>
