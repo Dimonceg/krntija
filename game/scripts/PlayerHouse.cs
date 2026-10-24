@@ -44,7 +44,7 @@ public static class PlayerHouse
         Slab(root, new Vector3(Width, 0.2f, Depth), new Vector3(0, -0.1f, 0), Floor);
         // Перекрытие чердака с проёмом над лестницей (x 3.2…5.5, z 0.6…3.6).
         Slab(root, new Vector3(8.7f, 0.2f, Depth), new Vector3(-1.15f, WallHeight, 0), Floor, solid: false);
-        Slab(root, new Vector3(2.3f, 0.2f, 4.3f), new Vector3(4.35f, WallHeight, -1.85f), Floor, solid: false);
+        Slab(root, new Vector3(2.3f, 0.2f, 4.0f), new Vector3(4.35f, WallHeight, -2.0f), Floor, solid: false);
         Slab(root, new Vector3(2.3f, 0.2f, 0.4f), new Vector3(4.35f, WallHeight, 3.8f), Floor, solid: false);
 
         // --- внешние стены с проёмами ---
@@ -86,15 +86,12 @@ public static class PlayerHouse
         // --- крыша и чердак ---
         BuildRoof(root);
 
-        // Лестница на чердак: широкий пандус (35°) с коллизией, отодвинут от стены.
-        // Ступени поверх — только для вида, иначе капсула упирается в подступенок.
-        var stairs = Slab(root, new Vector3(2.6f, 0.2f, 4.5f), new Vector3(3.6f, 1.35f, 2.2f), Floor);
-        stairs.Rotation = new Vector3(0.62f, 0, 0);
-
-        for (int i = 0; i < 12; i++)
+        // Лестница на чердак: низкие ступени по 12 см — шаг вверх берёт их надёжно.
+        // Пандус убран: капсула на нём застревала, а на ступенях с шагом идёт.
+        for (int i = 0; i < 22; i++)
         {
-            float y = 0.11f + i * 0.225f;
-            Slab(root, new Vector3(2.6f, 0.22f, 0.28f), new Vector3(3.6f, y, 3.4f - i * 0.26f), Floor);
+            float y = 0.06f + i * 0.12f;
+            Slab(root, new Vector3(2.6f, 0.12f, 0.34f), new Vector3(3.6f, y, 3.7f - i * 0.16f), Floor);
         }
 
         // --- мебель ---
@@ -232,11 +229,11 @@ public static class PlayerHouse
 
     private static void BuildFurniture(Node3D parent)
     {
-        // Кухня: столешница, плита, мойка.
-        Slab(parent, new Vector3(2.6f, 0.85f, 0.65f), new Vector3(-4.0f, 0.42f, 2.5f), Furniture);
-        Slab(parent, new Vector3(0.65f, 0.9f, 0.65f), new Vector3(-4.9f, 0.45f, 2.5f), new Color(0.25f, 0.25f, 0.26f));
-        Slab(parent, new Vector3(0.6f, 0.06f, 0.5f), new Vector3(-4.9f, 0.93f, 2.5f), new Color(0.65f, 0.66f, 0.66f));
-        Slab(parent, new Vector3(2.6f, 0.6f, 0.06f), new Vector3(-4.0f, 1.9f, 2.84f), Furniture, solid: false);
+        // Кухня: столешница у западной стены, чтобы не перекрывать чёрный ход.
+        Slab(parent, new Vector3(0.65f, 0.85f, 2.2f), new Vector3(-5.12f, 0.42f, 2.9f), Furniture);
+        Slab(parent, new Vector3(0.7f, 0.9f, 0.7f), new Vector3(-5.1f, 0.45f, 3.7f), new Color(0.25f, 0.25f, 0.26f));
+        Slab(parent, new Vector3(0.55f, 0.06f, 0.55f), new Vector3(-5.1f, 0.93f, 2.5f), new Color(0.65f, 0.66f, 0.66f));
+        Slab(parent, new Vector3(0.06f, 0.6f, 2.2f), new Vector3(-5.42f, 1.9f, 2.9f), Furniture, solid: false);
 
         // Гостиная: стол, четыре стула, диван.
         Slab(parent, new Vector3(1.6f, 0.08f, 1.0f), new Vector3(-1.4f, 0.78f, 1.2f), Furniture);
