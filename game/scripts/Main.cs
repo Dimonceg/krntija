@@ -41,10 +41,13 @@ public partial class Main : Node3D
     private bool _shotLineup;
     private string? _shotProp;
     private BackpackUi _backpack = null!;
+    private MapUi _mapUi = null!;
+    private MapResult _map = new();
     private LootItem? _hoveredLoot;
     private bool _cursorFree;
     private bool _shotBackpack;
     private bool _shotMap;
+    private bool _shotMapUi;
     private List<WorldMap.Place> _mapPlaces = new();
     private bool _shotCars;
     private bool _selfTestCars;
@@ -62,6 +65,8 @@ public partial class Main : Node3D
         Door,
         Loot,
         SellAll,
+        Drink,
+        Pet,
     }
 
     private sealed record InteractionPoint(Vector3 Position, InteractionKind Kind, float Radius,
@@ -135,6 +140,11 @@ public partial class Main : Node3D
         _backpack.Clicked += OnBackpackClick;
         AddChild(_backpack);
 
+        _mapUi = new MapUi();
+        AddChild(_mapUi);
+        if (_road is not null)
+            _mapUi.SetData(_road.Centerline, _map.Branches, _map.Places, _map.ClosedExits);
+
         // Дом игрока у старта: слева от дороги, со своими дверями и чердаком.
         BuildPlayerHouse();
         SpawnLoot();
@@ -177,9 +187,11 @@ public partial class Main : Node3D
                 || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-cars") >= 0
                 || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-backpack") >= 0
                 || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-map") >= 0
+                || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-mapui") >= 0
                 || _shotProp is not null;
         _shotBackpack = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-backpack") >= 0;
         _shotMap = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-map") >= 0;
+        _shotMapUi = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-mapui") >= 0;
         _openJournalInShot = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-ui") >= 0;
         _shotMenu = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-menu") >= 0;
         _shotDay = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-day") >= 0;
@@ -314,6 +326,12 @@ public partial class Main : Node3D
             if (_shotBackpack)
             {
                 _backpack.Toggle(_car.Session.Inventory, _car.Session.Trunk);
+                _hud.Visible = false;
+            }
+
+            if (_shotMapUi)
+            {
+                _mapUi.Toggle();
                 _hud.Visible = false;
             }
 
@@ -529,6 +547,9 @@ public partial class Main : Node3D
         }
 
         _hud.Prompt = BuildPrompt();
+
+        if (_mapUi is not null && _mapUi.IsOpen)
+            _mapUi.UpdatePlayer(_car.GlobalPosition);
         UpdateSky();
         ApplyWeather();
         RewardNewPlaces();
@@ -655,6 +676,9 @@ public partial class Main : Node3D
             case Key.B:
                 ToggleBackpack();
                 break;
+            case Key.M:
+                _mapUi.Toggle();
+                break;
             case Key.X when _hud.Screen == HudScreen.Shop:
                 SellJunk();
                 break;
@@ -712,6 +736,8 @@ public partial class Main : Node3D
     {
         InteractionKind.Shop => "[E] зайти в лавку",
         InteractionKind.SellAll => "[E] сдать всё скупщику",
+        InteractionKind.Drink => "[E] попить из колодца",
+        InteractionKind.Pet => "[E] погладить собаку",
         InteractionKind.Gate => point.Gate is { IsOpen: true } ? "[E] шлагбаум открыт" : "[E] заплатить 15 € за проезд",
         InteractionKind.Sleep => "[E] переночевать (15 €)",
         InteractionKind.Door => point.Door is { IsOpen: true } ? "[E] закрыть дверь" : "[E] открыть дверь",
@@ -1597,6 +1623,8 @@ public partial class Main : Node3D
 
         AddRoadBoundaries(road);
         _mapPlaces = WorldMap.Build(road.Centerline, road.Headings, this, seed: 20261023);
+        _map = WorldMap2.Build(road.Centerline, road.Headings, this, seed: 20261023);
+        RegisterMapUses(_map);
 
         var target = road.Points.Count > 0 ? road.Points[^1] : null;
         if (target is not null)
@@ -1870,6 +1898,42 @@ public partial class Main : Node3D
         }
 
         _backpack.Refresh(session.Inventory, session.Trunk);
+    }
+
+    /// <summary>Точки карты: лут, скупщик, колодец, собака.</summary>
+    private void RegisterMapUses(MapResult map)
+    {
+        int loot = 0;
+
+        foreach (var use in map.Uses)
+        {
+            switch (use.Kind)
+            {
+                case "loot":
+                    AddLoot(use.Position, use.ItemId ?? "cassette", use.Count);
+                    loot++;
+                    break;
+                case "sell":
+                    _interactions.Add(new InteractionPoint(use.Position, InteractionKind.SellAll, 5f));
+                    break;
+                case "drink":
+                    _interactions.Add(new InteractionPoint(use.Position, InteractionKind.Drink, 3.5f));
+                    break;
+                case "dog":
+                    _interactions.Add(new InteractionPoint(use.Position, InteractionKind.Pet, 3f));
+                    break;
+            }
+        }
+
+        GD.Print($"[map] лута на карте: {loot}, всего точек: {map.Uses.Count}");
+    }
+
+    /// <summary>Вода из колодца: немного восстанавливает жажду.</summary>
+    private void DrinkFromWell()
+    {
+        _car.Session.Survival.Thirst = Mathf.Min(1f, _car.Session.Survival.Thirst + 0.35f);
+        _hud.Toast("Вода холодная, жажда утолена");
+        Sfx.PlayUi();
     }
 
     /// <summary>Скупщик берёт всё, кроме инструментов, по 70 % цены.</summary>
