@@ -16,7 +16,8 @@ public enum HudScreen
 }
 
 /// <summary>
-/// HUD: строка состояния, подсказка взаимодействия, журнал (J) и лавка.
+/// HUD по углам экрана: скорость слева сверху, время и деньги справа,
+/// состояние внизу слева, подсказка и сообщения внизу по центру.
 /// </summary>
 public partial class Hud : CanvasLayer
 {
@@ -32,12 +33,17 @@ public partial class Hud : CanvasLayer
         set => _prompt.Text = value;
     }
 
-    private Label _status = null!;
+    private Label _speed = null!;
+    private Label _info = null!;
+    private Label _vitals = null!;
     private Label _prompt = null!;
-    private Panel _panel = null!;
-    private RichTextLabel _panelText = null!;
+    private Label _hint = null!;
+    private Label _objective = null!;
     private Label _toast = null!;
     private float _toastLeft;
+
+    private Panel _panel = null!;
+    private RichTextLabel _panelText = null!;
 
     private static readonly PartSlot[] SlotOrder = Enum.GetValues<PartSlot>();
     private int _selected;
@@ -49,18 +55,98 @@ public partial class Hud : CanvasLayer
 
     public override void _Ready()
     {
-        _status = new Label { Position = new Vector2(20, 16) };
-        _status.AddThemeFontSizeOverride("font_size", 17);
-        _status.AddThemeColorOverride("font_color", new Color(0.96f, 0.94f, 0.86f));
-        _status.AddThemeColorOverride("font_outline_color", new Color(0, 0, 0, 0.85f));
-        _status.AddThemeConstantOverride("outline_size", 5);
-        AddChild(_status);
+        _speed = CornerLabel(0, 0, 20, 14, 20);
+        _info = CornerLabel(0, 0, 20, 78, 16);
+        _vitals = CornerLabel(0, 1, 20, -16, 15);
+        _hint = CornerLabel(1, 1, -20, -16, 13);
+        _hint.OffsetLeft = -560;
+        _hint.HorizontalAlignment = HorizontalAlignment.Right;
 
+        _objective = new Label
+        {
+            HorizontalAlignment = HorizontalAlignment.Center,
+            AnchorsPreset = (int)Control.LayoutPreset.CenterTop,
+            AnchorLeft = 0.5f,
+            AnchorRight = 0.5f,
+            OffsetLeft = -320,
+            OffsetRight = 320,
+            OffsetTop = 12,
+            OffsetBottom = 40,
+        };
+        Style(_objective, 16, new Color(0.9f, 0.86f, 0.7f));
+        AddChild(_objective);
+
+        _prompt = new Label
+        {
+            HorizontalAlignment = HorizontalAlignment.Center,
+            AnchorsPreset = (int)Control.LayoutPreset.CenterBottom,
+            AnchorLeft = 0.5f,
+            AnchorRight = 0.5f,
+            AnchorTop = 1f,
+            AnchorBottom = 1f,
+            OffsetLeft = -320,
+            OffsetRight = 320,
+            OffsetTop = -78,
+            OffsetBottom = -46,
+        };
+        Style(_prompt, 19, new Color(0.98f, 0.9f, 0.65f));
+        AddChild(_prompt);
+
+        _toast = new Label
+        {
+            HorizontalAlignment = HorizontalAlignment.Center,
+            AnchorLeft = 0.5f,
+            AnchorRight = 0.5f,
+            AnchorTop = 1f,
+            AnchorBottom = 1f,
+            OffsetLeft = -360,
+            OffsetRight = 360,
+            OffsetTop = -112,
+            OffsetBottom = -80,
+        };
+        Style(_toast, 16, new Color(0.95f, 0.82f, 0.45f));
+        AddChild(_toast);
+
+        BuildPanel();
+
+        _hint.Text = "[E] действие   [J] журнал   [B] рюкзак   [M] карта   [C] вид   [F5/F9] сейв";
+    }
+
+    private Label CornerLabel(int right, int bottom, float dx, float dy, int size)
+    {
+        var label = new Label
+        {
+            AnchorLeft = right,
+            AnchorRight = right,
+            AnchorTop = bottom,
+            AnchorBottom = bottom,
+            OffsetLeft = right == 0 ? dx : dx - 420,
+            OffsetTop = bottom == 0 ? dy : dy - 90,
+            OffsetRight = right == 0 ? dx + 420 : dx,
+            OffsetBottom = bottom == 0 ? dy + 40 : dy,
+        };
+
+        Style(label, size, new Color(0.96f, 0.94f, 0.86f));
+        if (right == 1) label.HorizontalAlignment = HorizontalAlignment.Right;
+        AddChild(label);
+        return label;
+    }
+
+    private static void Style(Label label, int size, Color color)
+    {
+        label.AddThemeFontSizeOverride("font_size", size);
+        label.AddThemeColorOverride("font_color", color);
+        label.AddThemeColorOverride("font_outline_color", new Color(0, 0, 0, 0.9f));
+        label.AddThemeConstantOverride("outline_size", 5);
+    }
+
+    private void BuildPanel()
+    {
         _panel = new Panel
         {
             Visible = false,
-            Position = new Vector2(20, 112),
-            Size = new Vector2(640, 520),
+            Position = new Vector2(20, 100),
+            Size = new Vector2(640, 500),
         };
         _panel.AddThemeStyleboxOverride("panel", new StyleBoxFlat
         {
@@ -78,25 +164,11 @@ public partial class Hud : CanvasLayer
             BbcodeEnabled = true,
             ScrollActive = true,
             Position = new Vector2(16, 12),
-            Size = new Vector2(608, 496),
+            Size = new Vector2(608, 476),
         };
         _panelText.AddThemeFontSizeOverride("normal_font_size", 13);
         _panelText.AddThemeFontSizeOverride("bold_font_size", 13);
         _panel.AddChild(_panelText);
-
-        _prompt = new Label { HorizontalAlignment = HorizontalAlignment.Center };
-        _prompt.AddThemeFontSizeOverride("font_size", 19);
-        _prompt.AddThemeColorOverride("font_color", new Color(0.98f, 0.9f, 0.65f));
-        _prompt.AddThemeColorOverride("font_outline_color", new Color(0, 0, 0, 0.9f));
-        _prompt.AddThemeConstantOverride("outline_size", 5);
-        AddChild(_prompt);
-
-        _toast = new Label { Position = new Vector2(20, 104) };
-        _toast.AddThemeFontSizeOverride("font_size", 16);
-        _toast.AddThemeColorOverride("font_color", new Color(0.95f, 0.82f, 0.45f));
-        _toast.AddThemeColorOverride("font_outline_color", new Color(0, 0, 0, 0.9f));
-        _toast.AddThemeConstantOverride("outline_size", 5);
-        AddChild(_toast);
     }
 
     public void Toast(string message)
@@ -108,10 +180,6 @@ public partial class Hud : CanvasLayer
     public override void _Process(double delta)
     {
         if (Car is null) return;
-
-        Vector2 viewport = GetViewport().GetVisibleRect().Size;
-        _prompt.Size = new Vector2(viewport.X, 30);
-        _prompt.Position = new Vector2(0, viewport.Y - 74);
 
         if (_toastLeft > 0)
         {
@@ -125,16 +193,14 @@ public partial class Hud : CanvasLayer
         var survival = session.Survival;
         var train = session.DriveTrain;
 
-        string ignition = vehicle.EngineRunning ? "ON" : "OFF";
-        string heat = session.Systems.Overheating ? "  !! ПЕРЕГРЕВ !!" : string.Empty;
+        string heat = session.Systems.Overheating ? "  ПЕРЕГРЕВ" : string.Empty;
+        string ignition = vehicle.EngineRunning ? string.Empty : "  · заглушен";
 
-        _status.Text =
-            $"{Car.Kmh,5:F0} км/ч   {train.GearText} передача   {train.Rpm,4:F0} об/мин   двигатель {ignition}{heat}\n" +
-            $"{vehicle.Spec.Name}   топливо {vehicle.Fuel.Liters,5:F1} / {vehicle.Fuel.CapacityLiters:F0} л   " +
-            $"температура {vehicle.EngineTempC,4:F0} °C\n" +
-            $"Здоровье {survival.Health * 100,3:F0}%   голод {survival.Hunger * 100,3:F0}%   " +
-            $"жажда {survival.Thirst * 100,3:F0}%   {session.Wallet.Money:F0} €\n" +
-            $"{session.Clock}   [W/S/A/D] [V] зажигание [E] выйти/сесть [J] журнал [C] вид [F5/F9] сейв";
+        _speed.Text = $"{Car.Kmh:F0} км/ч\n{train.GearText} · {train.Rpm:F0} об/мин{ignition}{heat}";
+        _info.Text = $"{session.Clock}\n{session.Wallet.Money:F0} €   топливо {vehicle.Fuel.Liters:F1}/{vehicle.Fuel.CapacityLiters:F0} л";
+        _vitals.Text = $"Здоровье {survival.Health * 100:F0}%   голод {survival.Hunger * 100:F0}%   "
+                       + $"жажда {survival.Thirst * 100:F0}%   сон {survival.Fatigue * 100:F0}%";
+        _objective.Text = Objective;
 
         _panel.Visible = Screen != HudScreen.None;
         if (Screen != HudScreen.None)
