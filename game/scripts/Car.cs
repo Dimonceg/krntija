@@ -31,7 +31,7 @@ public partial class Car : RigidBody3D
     public GameSession Session { get; private set; } = null!;
     public bool Autopilot { get; set; }
 
-    /// <summary>��������� ������ ������ ��� ������/��������� ���������.</summary>
+    /// <summary>Подменить модель кузова для съёмки/сравнения вариантов.</summary>
     public static string? ModelOverride { get; set; }
 
     /// <summary>За рулём ли игрок. Когда вышел — машина просто стоит и молотит на холостых.</summary>

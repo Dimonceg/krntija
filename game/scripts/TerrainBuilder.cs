@@ -76,6 +76,15 @@ public static class TerrainBuilder
 
         var faces = new List<Vector3>((rows.Count - 1) * (columns - 1) * 6);
 
+        // Цвет вершины: у дороги гравий, дальше трава — обочина без отдельной ленты.
+        var rowColors = new Color[rows.Count][];
+        for (int i = 0; i < rows.Count; i++)
+        {
+            rowColors[i] = new Color[columns];
+            for (int j = 0; j < columns; j++)
+                rowColors[i][j] = TerrainColor(Offsets[j]);
+        }
+
         for (int i = 0; i < rows.Count - 1; i++)
         {
             for (int j = 0; j < columns - 1; j++)
@@ -87,8 +96,8 @@ public static class TerrainBuilder
 
                 Vector3 normal = (c - a).Cross(b - a).Normalized();
 
-                AddTriangle(st, faces, a, b, c, normal);
-                AddTriangle(st, faces, b, d, c, normal);
+                AddTriangle(st, faces, a, b, c, normal, rowColors[i][j], rowColors[i][j + 1], rowColors[i + 1][j]);
+                AddTriangle(st, faces, b, d, c, normal, rowColors[i][j + 1], rowColors[i + 1][j + 1], rowColors[i + 1][j]);
             }
         }
 
@@ -97,10 +106,11 @@ public static class TerrainBuilder
             Mesh = st.Commit(),
             MaterialOverride = new StandardMaterial3D
             {
-                // Трава с пятнами: тёмная и выгоревшая, трипланарно по миру.
-                AlbedoTexture = ProcTexture.Noise(0.07f, new Color(0.26f, 0.32f, 0.19f), new Color(0.42f, 0.45f, 0.27f)),
+                // Нейтральная текстура + цвет вершины: трава и гравий одной сеткой.
+                AlbedoTexture = ProcTexture.Noise(0.07f, new Color(0.42f, 0.45f, 0.38f), new Color(0.66f, 0.68f, 0.56f)),
                 Uv1Triplanar = true,
                 Uv1Scale = new Vector3(0.05f, 0.05f, 0.05f),
+                VertexColorUseAsAlbedo = true,
                 Roughness = 1f,
                 CullMode = BaseMaterial3D.CullModeEnum.Disabled,
             },
@@ -115,13 +125,32 @@ public static class TerrainBuilder
         parent.AddChild(body);
     }
 
-    private static void AddTriangle(SurfaceTool st, List<Vector3> faces, Vector3 a, Vector3 b, Vector3 c, Vector3 normal)
+    private static readonly Color GrassColor = new(0.44f, 0.52f, 0.28f);
+    private static readonly Color GravelColor = new(0.42f, 0.36f, 0.28f);
+
+    /// <summary>Цвет земли по удалению от оси: у асфальта гравий, дальше трава.</summary>
+    private static Color TerrainColor(float lateral)
     {
-        foreach (var vertex in new[] { a, b, c })
+        float distance = Mathf.Abs(lateral);
+        if (distance <= 6.6f) return GravelColor;
+        if (distance >= 9.4f) return GrassColor;
+
+        float t = (distance - 6.6f) / 2.8f;
+        return GravelColor.Lerp(GrassColor, t);
+    }
+
+    private static void AddTriangle(SurfaceTool st, List<Vector3> faces, Vector3 a, Vector3 b, Vector3 c,
+        Vector3 normal, Color ca, Color cb, Color cc)
+    {
+        var vertices = new[] { a, b, c };
+        var colors = new[] { ca, cb, cc };
+
+        for (int i = 0; i < 3; i++)
         {
             st.SetNormal(normal);
-            st.AddVertex(vertex);
-            faces.Add(vertex);
+            st.SetColor(colors[i]);
+            st.AddVertex(vertices[i]);
+            faces.Add(vertices[i]);
         }
     }
 }

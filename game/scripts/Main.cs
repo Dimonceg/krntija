@@ -1022,7 +1022,7 @@ public partial class Main : Node3D
             BackgroundMode = Godot.Environment.BGMode.Sky,
             Sky = new Sky { SkyMaterial = skyMaterial },
             AmbientLightSource = Godot.Environment.AmbientSource.Sky,
-            AmbientLightEnergy = 0.7f,
+            AmbientLightEnergy = 0.42f,
             ReflectedLightSource = Godot.Environment.ReflectionSource.Sky,
 
             FogEnabled = true,
@@ -1042,14 +1042,14 @@ public partial class Main : Node3D
             GlowBloom = 0.05f,
 
             TonemapMode = Godot.Environment.ToneMapper.Filmic,
-            TonemapExposure = 1.05f,
+            TonemapExposure = 0.85f,
             TonemapWhite = 1.0f,
         };
         AddChild(new WorldEnvironment { Environment = _environment });
 
         _sun = new DirectionalLight3D
         {
-            LightEnergy = 1.5f,
+            LightEnergy = 1.25f,
             LightColor = new Color(1.0f, 0.95f, 0.86f),
             ShadowEnabled = true,
             DirectionalShadowMode = DirectionalLight3D.ShadowMode.Orthogonal,
@@ -1082,9 +1082,11 @@ public partial class Main : Node3D
         }
 
         TerrainBuilder.Build(road.Centerline, road.Headings, this);
+        WorldScatter.ScatterHills(road.Centerline, road.Headings, this, seed: 20261023);
         WorldScatter.ScatterTrees(road.Centerline, road.Headings, this, seed: 20261023);
         WorldScatter.ScatterPowerLine(road.Centerline, road.Headings, this, seed: 20261023);
         WorldScatter.AddKilometerPosts(road.Centerline, road.Headings, this);
+        WorldScatter.ScatterSigns(road.Centerline, road.Headings, this, seed: 20261023);
 
         var target = road.Points.Count > 0 ? road.Points[^1] : null;
         if (target is not null)

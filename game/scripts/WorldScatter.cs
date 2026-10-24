@@ -192,6 +192,98 @@ public static class WorldScatter
         }
     }
 
+    /// <summary>Дальние холмы за пределами полосы террейна: горизонт не плоский.</summary>
+    public static void ScatterHills(List<Vector3> centerline, List<float> headings, Node3D parent, ulong seed)
+    {
+        var rng = new Pcg32(seed, sequence: 77);
+        var spots = new List<(Vector3 Position, Vector3 Scale, float Yaw)>();
+
+        for (int i = 8; i < centerline.Count; i += 14)
+        {
+            for (int side = -1; side <= 1; side += 2)
+            {
+                if (!rng.Chance(0.55)) continue;
+
+                float offset = (float)rng.Range(150, 330);
+                var right = new Vector3(Mathf.Cos(headings[i]), 0, Mathf.Sin(headings[i]));
+                Vector3 hill = centerline[i] + right * offset * side;
+
+                float edge = TerrainBuilder.SurfaceHeight(centerline[i].Y, TerrainBuilder.HalfWidth, hill);
+                hill.Y = edge - 14f;
+
+                spots.Add((
+                    hill,
+                    new Vector3((float)rng.Range(70, 160), (float)rng.Range(16, 40), (float)rng.Range(70, 160)),
+                    (float)rng.Range(0, Mathf.Tau)));
+            }
+        }
+
+        if (spots.Count == 0) return;
+
+        var sphere = new SphereMesh { Radius = 1f, Height = 2f, RadialSegments = 10, Rings = 6 };
+        var mm = new MultiMesh
+        {
+            TransformFormat = MultiMesh.TransformFormatEnum.Transform3D,
+            Mesh = sphere,
+            InstanceCount = spots.Count,
+        };
+
+        for (int i = 0; i < spots.Count; i++)
+        {
+            var (position, scale, yaw) = spots[i];
+            var basis = new Basis(Vector3.Up, yaw).Scaled(scale);
+            mm.SetInstanceTransform(i, new Transform3D(basis, position));
+        }
+
+        parent.AddChild(new MultiMeshInstance3D
+        {
+            Multimesh = mm,
+            MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.22f, 0.28f, 0.20f), Roughness = 1f },
+        });
+    }
+
+    /// <summary>Дорожные знаки: столбик и табличка, иногда круглый ограничитель.</summary>
+    public static void ScatterSigns(List<Vector3> centerline, List<float> headings, Node3D parent, ulong seed)
+    {
+        var rng = new Pcg32(seed, sequence: 91);
+        var postMesh = new CylinderMesh { TopRadius = 0.05f, BottomRadius = 0.06f, Height = 2.2f, RadialSegments = 6 };
+        var plateMesh = new BoxMesh { Size = new Vector3(0.9f, 0.62f, 0.05f) };
+        var roundMesh = new CylinderMesh { TopRadius = 0.42f, BottomRadius = 0.42f, Height = 0.06f, RadialSegments = 16 };
+
+        var postMaterial = new StandardMaterial3D { AlbedoColor = new Color(0.55f, 0.55f, 0.55f), Roughness = 0.7f, Metallic = 0.4f };
+        var plateMaterial = new StandardMaterial3D { AlbedoColor = new Color(0.86f, 0.83f, 0.7f), Roughness = 0.6f };
+        var redMaterial = new StandardMaterial3D { AlbedoColor = new Color(0.72f, 0.16f, 0.13f), Roughness = 0.5f };
+
+        for (int i = 20; i < centerline.Count - 4; i += 34)
+        {
+            if (!rng.Chance(0.7)) continue;
+
+            int side = rng.Chance(0.5) ? 1 : -1;
+            var right = new Vector3(Mathf.Cos(headings[i]), 0, Mathf.Sin(headings[i]));
+            Vector3 spot = centerline[i] + right * (RoadMeshBuilder.Width * 0.5f + 1.4f) * side;
+            spot.Y = TerrainBuilder.SurfaceHeight(centerline[i].Y, 6f * side, spot);
+
+            var root = new Node3D { Position = spot, Rotation = new Vector3(0, -headings[i], 0) };
+            parent.AddChild(root);
+
+            root.AddChild(new MeshInstance3D
+            {
+                Mesh = postMesh,
+                Position = new Vector3(0, 1.1f, 0),
+                MaterialOverride = postMaterial,
+            });
+
+            bool round = rng.Chance(0.4);
+            root.AddChild(new MeshInstance3D
+            {
+                Mesh = round ? roundMesh : plateMesh,
+                Position = new Vector3(0, 2.1f, 0),
+                Rotation = round ? new Vector3(Mathf.Pi / 2, 0, 0) : Vector3.Zero,
+                MaterialOverride = round ? redMaterial : plateMaterial,
+            });
+        }
+    }
+
     private static void AddWire(Node3D parent, Vector3 from, Vector3 to, Material material)
     {
         float length = from.DistanceTo(to);

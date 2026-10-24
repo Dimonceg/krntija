@@ -74,8 +74,8 @@ public static class RoadMeshBuilder
         body.AddChild(BuildCollision(centers, headingsAll));
         parent.AddChild(body);
 
-        // Обочина пока отключена: полоса конфликтует с террейном по краю.
-        // Следующий шаг — красить обочину на самом террейне, а не отдельной лентой.
+        // РћР±РѕС‡РёРЅР° РїРѕРєР° РѕС‚РєР»СЋС‡РµРЅР°: РїРѕР»РѕСЃР° РєРѕРЅС„Р»РёРєС‚СѓРµС‚ СЃ С‚РµСЂСЂРµР№РЅРѕРј РїРѕ РєСЂР°СЋ.
+        // РЎР»РµРґСѓСЋС‰РёР№ С€Р°Рі вЂ” РєСЂР°СЃРёС‚СЊ РѕР±РѕС‡РёРЅСѓ РЅР° СЃР°РјРѕРј С‚РµСЂСЂРµР№РЅРµ, Р° РЅРµ РѕС‚РґРµР»СЊРЅРѕР№ Р»РµРЅС‚РѕР№.
         // AddShoulders(centers, headingsAll, parent);
         AddPatches(centers, headingsAll, parent);
         AddCenterLine(centers, headingsAll, parent);
