@@ -41,6 +41,7 @@ public sealed class GameSession
     public GameClock Clock { get; }
     public Pcg32 Rng { get; }
     public Wallet Wallet { get; }
+    public WeatherState Weather { get; } = new();
 
     public static GameSession NewGame(ulong seed = 20261023, CarSpec? car = null)
     {
@@ -69,6 +70,7 @@ public sealed class GameSession
         Systems.Step(dt, sample, input);
         DriveTrain.Update(sample.SpeedMps, input.Throttle, dt, reversing);
         Survival.Step(dt * Clock.TimeScale / 3600.0, sample.AmbientC);
+        Weather.Update(dt * Clock.TimeScale / 60.0, Rng);
     }
 
     // ---------- сохранение ----------
@@ -98,6 +100,10 @@ public sealed class GameSession
             .Select(i => new ItemSave { DefId = i.DefId, Count = i.Count, Condition = i.Condition, Liters = i.Liters })
             .ToList(),
         RngState = Rng.State,
+        WeatherKind = Weather.Kind.ToString(),
+        Wetness = Weather.Wetness,
+        RainIntensity = Weather.RainIntensity,
+        WeatherTimer = Weather.MinutesUntilChange,
     };
 
     public static GameSession FromSave(SaveData data)
@@ -139,7 +145,12 @@ public sealed class GameSession
         var rng = new Pcg32(1);
         rng.State = data.RngState;
 
-        return new GameSession(vehicle, survival, inventory, clock, rng, new Wallet(data.Money));
+        var session = new GameSession(vehicle, survival, inventory, clock, rng, new Wallet(data.Money));
+
+        if (Enum.TryParse<WeatherKind>(data.WeatherKind, out var kind))
+            session.Weather.Restore(kind, data.Wetness, data.RainIntensity, data.WeatherTimer);
+
+        return session;
     }
 }
 
@@ -156,6 +167,10 @@ public sealed class SaveData
     public double CarY { get; set; }
     public double CarZ { get; set; }
     public double CarYaw { get; set; }
+    public string WeatherKind { get; set; } = "Clear";
+    public double Wetness { get; set; }
+    public double RainIntensity { get; set; }
+    public double WeatherTimer { get; set; } = 5;
     public double ClockMinutes { get; set; }
     public double FuelLiters { get; set; }
     public double FuelCapacityLiters { get; set; } = 36;

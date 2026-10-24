@@ -11,6 +11,9 @@ public sealed class RoadBuildResult
     public List<RoadMeshBuilder.PointOfInterest> Points { get; } = new();
     public List<Vector3> Centerline { get; } = new();
     public List<float> Headings { get; } = new();
+
+    /// <summary>Материал полотна: погода меняет ему шероховатость и блеск.</summary>
+    public StandardMaterial3D? RoadMaterial { get; set; }
 }
 
 /// <summary>
@@ -56,16 +59,16 @@ public static class RoadMeshBuilder
 
         var mesh = BuildRibbon(centers, headingsAll);
         var body = new StaticBody3D();
-        body.AddChild(new MeshInstance3D
+
+        var roadMaterial = new StandardMaterial3D
         {
-            Mesh = mesh,
-            MaterialOverride = new StandardMaterial3D
-            {
-                AlbedoColor = new Color(0.13f, 0.13f, 0.14f),
-                Roughness = 1f,
-                CullMode = BaseMaterial3D.CullModeEnum.Disabled,
-            },
-        });
+            AlbedoColor = new Color(0.13f, 0.13f, 0.14f),
+            Roughness = 0.95f,
+            CullMode = BaseMaterial3D.CullModeEnum.Disabled,
+        };
+        result.RoadMaterial = roadMaterial;
+
+        body.AddChild(new MeshInstance3D { Mesh = mesh, MaterialOverride = roadMaterial });
         body.AddChild(BuildCollision(centers, headingsAll));
         parent.AddChild(body);
 

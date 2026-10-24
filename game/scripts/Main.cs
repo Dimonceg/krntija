@@ -32,6 +32,7 @@ public partial class Main : Node3D
     private bool _shotMenu;
     private bool _shotDay;
     private bool _shotSettings;
+    private bool _shotRain;
     private int _frames;
 
     private enum InteractionKind
@@ -46,6 +47,7 @@ public partial class Main : Node3D
     private readonly List<InteractionPoint> _interactions = new();
     private RoadBuildResult? _road;
     private MenuUi _menu = null!;
+    private RainFx _rain = null!;
     private DirectionalLight3D? _sun;
     private Godot.Environment? _environment;
     private Vector3? _objectivePosition;
@@ -78,17 +80,22 @@ public partial class Main : Node3D
         _hud = new Hud { Car = _car };
         AddChild(_hud);
 
+        _rain = new RainFx();
+        AddChild(_rain);
+
         _smoke = Array.IndexOf(OS.GetCmdlineUserArgs(), "--smoke") >= 0;
         _selfTest = Array.IndexOf(OS.GetCmdlineUserArgs(), "--selftest") >= 0;
         _shot = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot") >= 0
                 || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-ui") >= 0
                 || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-menu") >= 0
                 || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-day") >= 0
-                || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-settings") >= 0;
+                || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-settings") >= 0
+                || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-rain") >= 0;
         _openJournalInShot = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-ui") >= 0;
         _shotMenu = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-menu") >= 0;
         _shotDay = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-day") >= 0;
         _shotSettings = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-settings") >= 0;
+        _shotRain = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-rain") >= 0;
         _car.Autopilot = _smoke || _selfTest;
 
         _menu = new MenuUi();
@@ -125,6 +132,12 @@ public partial class Main : Node3D
             _car.Rotation = new Vector3(0, -road.Headings[index] + 0.35f, 0);
             _camera.GlobalPosition = _car.GlobalPosition + _car.GlobalBasis.Z * 9f + Vector3.Up * 4f;
             _car.Session.Clock.SetTotalMinutes((_shotDay ? 12.0 : 18.75) * 60);
+
+            if (_shotRain)
+            {
+                _car.Session.Clock.SetTotalMinutes(15.0 * 60);
+                _car.Session.Weather.Restore(WeatherKind.Rain, wetness: 1, rain: 1, minutesUntilChange: 30);
+            }
         }
 
         GD.Print($"[Krntija] старт. smoke={_smoke}, selftest={_selfTest}, машина: {session.Vehicle.Spec.Name}");
@@ -200,6 +213,7 @@ public partial class Main : Node3D
 
         _hud.Prompt = BuildPrompt();
         UpdateSky();
+        ApplyWeather();
 
         if (_objectiveDone || _objectivePosition is null) return;
 
@@ -226,11 +240,33 @@ public partial class Main : Node3D
         float pitch = -(float)((hour - 5.5) / 13.0 * 180.0);
         _sun.RotationDegrees = new Vector3(pitch, -35, 0);
 
-        _sun.LightEnergy = 0.05f + 1.25f * daylight;
+        float rain = (float)_car.Session.Weather.RainIntensity;
+
+        _sun.LightEnergy = (0.05f + 1.25f * daylight) * (1f - 0.65f * rain);
         _sun.LightColor = new Color(1f, 0.72f, 0.45f).Lerp(Colors.White, daylight);
 
-        _environment.AmbientLightEnergy = 0.14f + 0.56f * daylight;
+        _environment.AmbientLightEnergy = (0.14f + 0.56f * daylight) * (1f - 0.35f * rain);
         _environment.FogLightColor = new Color(0.08f, 0.1f, 0.16f).Lerp(new Color(0.7f, 0.68f, 0.6f), daylight);
+        _environment.FogDensity = 0.0022f + 0.0055f * rain;
+    }
+
+    /// <summary>Дождь: капли вокруг камеры и мокрое полотно.</summary>
+    private void ApplyWeather()
+    {
+        var weather = _car.Session.Weather;
+        float rain = (float)weather.RainIntensity;
+        float wet = (float)weather.Wetness;
+
+        _rain.GlobalPosition = _camera.GlobalPosition + Vector3.Up * 8f;
+        _rain.Apply(rain);
+
+        _car.GripScale = (float)weather.GripFactor;
+
+        if (_road?.RoadMaterial is { } material)
+        {
+            material.Roughness = Mathf.Lerp(0.95f, 0.55f, wet);
+            material.Metallic = Mathf.Lerp(0f, 0.08f, wet);
+        }
     }
 
     public override void _UnhandledInput(InputEvent @event)

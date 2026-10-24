@@ -47,6 +47,9 @@ public partial class Car : RigidBody3D
     /// <summary>Ручник нажат — для индикатора в HUD.</summary>
     public bool HandbrakeActive { get; private set; }
 
+    /// <summary>Мокрое полотно держит хуже: множитель приходит из погоды.</summary>
+    public float GripScale { get; set; } = 1f;
+
     public bool DebugForces { get; set; }
 
     private int _physicsFrames;
@@ -267,7 +270,7 @@ public partial class Car : RigidBody3D
         Vector3 com = GlobalPosition;
 
         float mass = Mass;
-        float grip = 10f * (float)Session.Systems.GripFactor;
+        float grip = 10f * (float)Session.Systems.GripFactor * GripScale;
         int contacts = 0;
 
         var space = GetWorld3D().DirectSpaceState;
