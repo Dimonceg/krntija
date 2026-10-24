@@ -477,11 +477,15 @@ public partial class Main
             return;
         }
 
-        if (Core.WorldActions.TryCraft(session, out string crafted) == Core.ActionResult.Done)
+        switch (Core.WorldActions.TryCraft(session, out string crafted))
         {
-            _hud.Toast($"Собрано: {crafted}");
-            Sfx.PlayDoor(_car.GlobalPosition);
-            return;
+            case Core.ActionResult.Done:
+                _hud.Toast($"Собрано: {crafted}");
+                Sfx.PlayDoor(_car.GlobalPosition);
+                return;
+            case Core.ActionResult.NoRoom:
+                _hud.Toast("Собрать можно, но некуда положить: освободи карман");
+                return;
         }
 
         _hud.Toast("Чинить нечего, улучшений нет");

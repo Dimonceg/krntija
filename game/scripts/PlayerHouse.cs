@@ -43,9 +43,10 @@ public static class PlayerHouse
         Slab(root, new Vector3(Width, 0.6f, Depth), new Vector3(0, -0.4f, 0), new Color(0.5f, 0.48f, 0.44f));
         Slab(root, new Vector3(Width, 0.2f, Depth), new Vector3(0, -0.1f, 0), Floor);
         // Перекрытие чердака с проёмом над лестницей (x 3.2…5.5, z 0.6…3.6).
-        Slab(root, new Vector3(8.7f, 0.2f, Depth), new Vector3(-1.15f, WallHeight, 0), Floor, solid: false);
-        Slab(root, new Vector3(2.3f, 0.2f, 4.0f), new Vector3(4.35f, WallHeight, -2.0f), Floor, solid: false);
-        Slab(root, new Vector3(2.3f, 0.2f, 0.4f), new Vector3(4.35f, WallHeight, 3.8f), Floor, solid: false);
+        // Твёрдое: на чердаке кровать, без коллизии игрок проваливался на первый этаж.
+        Slab(root, new Vector3(8.7f, 0.2f, Depth), new Vector3(-1.15f, WallHeight, 0), Floor);
+        Slab(root, new Vector3(2.3f, 0.2f, 4.0f), new Vector3(4.35f, WallHeight, -2.0f), Floor);
+        Slab(root, new Vector3(2.3f, 0.2f, 0.4f), new Vector3(4.35f, WallHeight, 3.8f), Floor);
 
         // --- внешние стены с проёмами ---
         // Фасад (z = -Depth/2): вход в зал и ворота гаража.
@@ -98,7 +99,7 @@ public static class PlayerHouse
         for (int i = 0; i <= 8; i++)
         {
             float z = 0.4f + i * 0.4f;
-            Slab(root, new Vector3(0.12f, 1.0f, 0.12f), new Vector3(3.15f, WallHeight + 0.5f, z), Furniture, solid: false);
+            Slab(root, new Vector3(0.12f, 1.0f, 0.12f), new Vector3(3.15f, WallHeight + 0.5f, z), Furniture);
         }
 
         Slab(root, new Vector3(0.1f, 0.12f, 3.4f), new Vector3(3.15f, WallHeight + 1.0f, 2.0f), Furniture, solid: false);
@@ -240,6 +241,24 @@ public static class PlayerHouse
                     new Vector3(side * Width / 2, WallHeight + stepHeight / 2 + step * stepHeight, 0), Wall, solid: false);
             }
         }
+
+        // Скаты и фронтоны без коллизии: под низкой крышей капсула игрока не помещается.
+        // Чтобы с чердака нельзя было уйти сквозь них наружу, по периметру над полом
+        // стоят невидимые стенки. Они выше пола чердака, поэтому лестнице не мешают.
+        float wallY = WallHeight + 0.1f + h / 2;
+        for (int side = -1; side <= 1; side += 2)
+        {
+            Blocker(parent, new Vector3(Width, h, 0.2f), new Vector3(0, wallY, side * (Depth / 2 - 0.6f)));
+            Blocker(parent, new Vector3(0.2f, h, Depth), new Vector3(side * (Width / 2 - 0.2f), wallY, 0));
+        }
+    }
+
+    /// <summary>Только коллизия, без меша: невидимая стенка.</summary>
+    private static void Blocker(Node3D parent, Vector3 size, Vector3 position)
+    {
+        var body = new StaticBody3D { Name = "Blocker", Position = position };
+        body.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = size } });
+        parent.AddChild(body);
     }
 
     /// <summary>Погреб за домом: пристройка с полками, вход со двора.</summary>

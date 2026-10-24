@@ -83,4 +83,25 @@ public class InventoryTests
         var inv = new Inventory();
         Assert.False(inv.TryAdd("nonsense"));
     }
+
+    [Fact]
+    public void TryAdd_StackThatDoesNotFitInSlots_AddsNothing()
+    {
+        // Один слот, стопка металлолома до 10: 8 + 5 не помещаются.
+        var bag = new Inventory(slots: 1, maxWeightKg: 1000);
+        bag.TryAdd("scrap_metal", 8);
+
+        Assert.False(bag.TryAdd("scrap_metal", 5));
+        Assert.Equal(8, bag.Count("scrap_metal"));
+    }
+
+    [Fact]
+    public void TryAdd_NonStackableBeyondFreeSlots_AddsNothing()
+    {
+        var bag = new Inventory(slots: 2, maxWeightKg: 1000);
+
+        Assert.False(bag.TryAdd("spare_tire", 3));
+        Assert.Equal(0, bag.Count("spare_tire"));
+        Assert.True(bag.TryAdd("spare_tire", 2));
+    }
 }

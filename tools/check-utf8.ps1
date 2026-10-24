@@ -1,4 +1,4 @@
-# Проверка, что все исходники — валидный UTF-8.
+﻿# Проверка, что все исходники — валидный UTF-8.
 # Ловит классическую проблему: файл перезаписали консолью в CP1251,
 # а Godot потом не может его загрузить.
 $ErrorActionPreference = 'Stop'
@@ -8,7 +8,11 @@ $strict = New-Object System.Text.UTF8Encoding($false, $true)
 $broken = @()
 
 $files = Get-ChildItem $root -Recurse -Include *.cs, *.py, *.md, *.tscn, *.godot -File |
-    Where-Object { $_.FullName -notmatch '\\(obj|bin|\.godot)\\' }
+    Where-Object {
+        $relative = $_.FullName.Substring($root.Length)
+        # build\ — чужие worktree и сторонние библиотеки, их не проверяем.
+        $relative -notmatch '\\(obj|bin|\.godot)\\' -and $relative -notmatch '^\\build\\'
+    }
 
 foreach ($file in $files) {
     try {

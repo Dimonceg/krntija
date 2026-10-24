@@ -148,6 +148,11 @@ public sealed class Inventory
         if (WeightKg + addedWeight > MaxWeightKg + 1e-9)
             return false;
 
+        // Сначала проверяем, что влезет всё: иначе часть стопки оседала бы в сумке,
+        // а вызывающий, получив false, оставлял бы предмет и на земле.
+        if (FreeRoomFor(def) < count)
+            return false;
+
         int remaining = count;
 
         if (def.Stackable)
@@ -177,6 +182,21 @@ public sealed class Inventory
         }
 
         return remaining == 0;
+    }
+
+    /// <summary>Сколько штук предмета ещё помещается по слотам (без учёта веса).</summary>
+    private int FreeRoomFor(ItemDef def)
+    {
+        int room = 0;
+        foreach (var slot in _slots)
+        {
+            if (slot is null)
+                room += def.Stackable ? def.MaxStack : 1;
+            else if (def.Stackable && string.Equals(slot.DefId, def.Id, StringComparison.OrdinalIgnoreCase))
+                room += Math.Max(0, def.MaxStack - slot.Count);
+        }
+
+        return room;
     }
 
     public bool TryAdd(ItemStack stack) => TryAdd(stack.DefId, stack.Count, stack.Condition, stack.Liters);

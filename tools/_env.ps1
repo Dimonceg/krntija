@@ -1,4 +1,4 @@
-# Shared paths for all scripts.
+﻿# Shared paths for all scripts.
 # Godot finds .NET through DOTNET_ROOT. The machine-wide .NET 6 is too old,
 # so we point at the per-user install. Nothing here changes system state.
 

@@ -1,4 +1,4 @@
-# Сделать скриншот геймплея (сохраняется в user://shot.png).
+﻿# Сделать скриншот геймплея (сохраняется в user://shot.png).
 . (Join-Path $PSScriptRoot '_env.ps1')
 
 Push-Location $KrntijaRoot

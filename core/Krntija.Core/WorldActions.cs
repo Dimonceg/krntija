@@ -12,6 +12,7 @@ public enum ActionResult
     NothingToDo,
     NotEnoughMoney,
     NoDuctTape,
+    NoRoom,
 }
 
 /// <summary>
@@ -109,7 +110,14 @@ public static class WorldActions
             foreach (var item in need)
                 session.Inventory.Remove(item.Id, item.Count);
 
-            session.Inventory.TryAdd(recipe.Result, 1);
+            // Результат может не влезть по весу (запаска — 12 кг): тогда возвращаем хлам.
+            if (!session.Inventory.TryAdd(recipe.Result, 1))
+            {
+                foreach (var item in need)
+                    session.Inventory.TryAdd(item.Id, item.Count);
+                return ActionResult.NoRoom;
+            }
+
             crafted = ItemCatalog.Get(recipe.Result).Name;
             return ActionResult.Done;
         }
