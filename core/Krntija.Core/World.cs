@@ -1,5 +1,21 @@
 namespace Krntija.Core.World;
 
+/// <summary>
+/// Профиль высот дороги: пологие балканские горки. Зависит только от пройденных
+/// метров, поэтому дорога, обочины и точки интереса всегда согласованы между собой
+/// и у всех игроков одинаковы.
+/// </summary>
+public static class RoadProfile
+{
+    public static double HeightAt(double distanceMeters) =>
+        5.5 * Math.Sin(distanceMeters * 0.0042)
+        + 2.4 * Math.Sin(distanceMeters * 0.011 + 1.3)
+        + 1.1 * Math.Sin(distanceMeters * 0.027 + 0.7);
+
+    /// <summary>Максимальная крутизна, м на метр пути (для проверок в тестах).</summary>
+    public static double MaxSlope => 5.5 * 0.0042 + 2.4 * 0.011 + 1.1 * 0.027;
+}
+
 /// <summary>Игровые часы. По умолчанию 1 реальная секунда = 1 игровая минута.</summary>
 public sealed class GameClock
 {

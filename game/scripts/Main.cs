@@ -63,11 +63,14 @@ public partial class Main : Node3D
 
         _car = Car.Build(session);
         AddChild(_car);
-        _car.GlobalPosition = new Vector3(0, 0.595f, 0);
+        // Ставим машину не на самом краю полотна, иначе половина висит в воздухе.
+        Vector3 start = _road is { Centerline.Count: > 4 } ? _road.Centerline[4] : new Vector3(0, 0.6f, 0);
+        _car.GlobalPosition = start + Vector3.Up * 0.6f;
+        _car.Path = _road?.Centerline;
 
         _camera = new ChaseCamera { Target = _car };
         AddChild(_camera);
-        _camera.GlobalPosition = new Vector3(0, 4.5f, 10);
+        _camera.GlobalPosition = _car.GlobalPosition + new Vector3(0, 4.5f, 10);
 
         _hud = new Hud { Car = _car };
         AddChild(_hud);
@@ -171,6 +174,17 @@ public partial class Main : Node3D
                  + $"топливо={v.Fuel.Liters:F2} л температура={v.EngineTempC:F1} °C одометр={v.OdometerKm:F2} км");
 
         GetTree().Quit(speed > 5f ? 0 : 1);
+    }
+
+    private float RoadOffset()
+    {
+        if (_road is null) return 0;
+
+        float best = float.MaxValue;
+        foreach (var point in _road.Centerline)
+            best = Mathf.Min(best, point.DistanceTo(_car.GlobalPosition));
+
+        return best;
     }
 
     public override void _Process(double delta)
@@ -781,7 +795,7 @@ public partial class Main : Node3D
             AmbientLightEnergy = 0.7f,
             FogEnabled = true,
             FogLightColor = new Color(0.7f, 0.68f, 0.6f),
-            FogDensity = 0.0015f,
+            FogDensity = 0.0022f,
         };
         AddChild(new WorldEnvironment { Environment = _environment });
 
@@ -789,14 +803,6 @@ public partial class Main : Node3D
         _sun.RotationDegrees = new Vector3(-48, -35, 0);
         AddChild(_sun);
 
-        var ground = new StaticBody3D { Position = new Vector3(0, -1, 0) };
-        ground.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = new Vector3(2000, 2, 2000) } });
-        ground.AddChild(new MeshInstance3D
-        {
-            Mesh = new PlaneMesh { Size = new Vector2(2000, 2000) },
-            MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.24f, 0.27f, 0.17f), Roughness = 1f },
-        });
-        AddChild(ground);
 
         BuildRoad();
     }
@@ -812,9 +818,11 @@ public partial class Main : Node3D
         {
             var right = new Vector3(Mathf.Cos(poi.Heading), 0, Mathf.Sin(poi.Heading));
             Vector3 spot = poi.Position - right * 16f; // левая обочина
+            spot.Y = TerrainBuilder.SurfaceHeight(poi.Position.Y, -16f, spot);
             AddLandmark(poi.Segment.Feature, spot, poi.Heading, poi.Position);
         }
 
+        TerrainBuilder.Build(road.Centerline, road.Headings, this);
         WorldScatter.ScatterTrees(road.Centerline, road.Headings, this, seed: 20261023);
         WorldScatter.ScatterPowerLine(road.Centerline, road.Headings, this, seed: 20261023);
         WorldScatter.AddKilometerPosts(road.Centerline, road.Headings, this);

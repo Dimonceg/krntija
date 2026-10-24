@@ -38,6 +38,7 @@ public static class RoadMeshBuilder
             double segmentEnd = segment.StartM + segment.LengthM;
             while (distance < segmentEnd - 0.001)
             {
+                position.Y = (float)RoadProfile.HeightAt(distance);
                 centers.Add(position);
                 headingsAll.Add(theta);
 
@@ -93,16 +94,20 @@ public static class RoadMeshBuilder
             Vector3 ra = new(Mathf.Cos(headings[i]), 0, Mathf.Sin(headings[i]));
             Vector3 rb = new(Mathf.Cos(headings[i + 1]), 0, Mathf.Sin(headings[i + 1]));
 
+            float ay = points[i].Y + 0.05f;
+            float by = points[i + 1].Y + 0.05f;
+
             Vector3 a1 = points[i] - ra * 0.09f;
             Vector3 a2 = points[i] + ra * 0.09f;
             Vector3 b1 = points[i + 1] - rb * 0.09f;
             Vector3 b2 = points[i + 1] + rb * 0.09f;
 
-            foreach (var vertex in new[] { a1, b1, a2, a2, b1, b2 })
-            {
-                st.SetNormal(Vector3.Up);
-                st.AddVertex(new Vector3(vertex.X, 0.07f, vertex.Z));
-            }
+            AddDashedVertex(st, a1, ay);
+            AddDashedVertex(st, b1, by);
+            AddDashedVertex(st, a2, ay);
+            AddDashedVertex(st, a2, ay);
+            AddDashedVertex(st, b1, by);
+            AddDashedVertex(st, b2, by);
         }
 
         parent.AddChild(new MeshInstance3D
@@ -115,6 +120,12 @@ public static class RoadMeshBuilder
                 CullMode = BaseMaterial3D.CullModeEnum.Disabled,
             },
         });
+    }
+
+    private static void AddDashedVertex(SurfaceTool st, Vector3 vertex, float y)
+    {
+        st.SetNormal(Vector3.Up);
+        st.AddVertex(new Vector3(vertex.X, y, vertex.Z));
     }
 
     private static ArrayMesh BuildRibbon(List<Vector3> points, List<float> headings)
@@ -149,7 +160,7 @@ public static class RoadMeshBuilder
     {
         var right = new Vector3(Mathf.Cos(heading), 0, Mathf.Sin(heading));
         var vertex = point + right * (Width * 0.5f * side);
-        vertex.Y = 0.04f;
+        vertex.Y = point.Y + 0.04f;
         return vertex;
     }
 

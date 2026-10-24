@@ -24,8 +24,11 @@ public static class WorldScatter
 
                 float offset = (float)rng.Range(11, 30);
                 var right = new Vector3(Mathf.Cos(headings[i]), 0, Mathf.Sin(headings[i]));
+                Vector3 tree = centerline[i] + right * offset * side;
+                tree.Y = TerrainBuilder.SurfaceHeight(centerline[i].Y, offset * side, tree);
+
                 spots.Add((
-                    centerline[i] + right * offset * side + Vector3.Up * -0.05f,
+                    tree,
                     (float)rng.Range(0.75, 1.45),
                     (float)rng.Range(0, Mathf.Tau)));
             }
@@ -70,7 +73,9 @@ public static class WorldScatter
         for (int i = 12; i < centerline.Count; i += 14)
         {
             var right = new Vector3(Mathf.Cos(headings[i]), 0, Mathf.Sin(headings[i]));
-            poles.Add(centerline[i] + right * (13f * side));
+            Vector3 pole = centerline[i] + right * (13f * side);
+            pole.Y = TerrainBuilder.SurfaceHeight(centerline[i].Y, 13f * side, pole);
+            poles.Add(pole);
         }
 
         if (poles.Count == 0) return;

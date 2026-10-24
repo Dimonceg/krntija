@@ -37,6 +37,11 @@ public partial class Car : RigidBody3D
     /// <summary>Принудительный ввод для автотестов: заменяет клавиатуру.</summary>
     public DriveInput? ForcedInput { get; set; }
 
+    /// <summary>Осевая дороги для автопилота (тесты и будущий трафик).</summary>
+    public System.Collections.Generic.List<Vector3>? Path { get; set; }
+
+    private int _pathIndex;
+
     public int GroundedWheels { get; private set; }
 
     public bool DebugForces { get; set; }
@@ -215,7 +220,7 @@ public partial class Car : RigidBody3D
 
         var input = ForcedInput
             ?? (Autopilot
-                ? new DriveInput(Ignition: true, Throttle: 1.0)
+                ? new DriveInput(Ignition: true, Throttle: 0.65, Steer: AutopilotSteer())
                 : ReadInput());
 
         var sample = new VehicleSample(LinearVelocity.Length(), AmbientC: 20);
@@ -333,11 +338,42 @@ public partial class Car : RigidBody3D
 
         GroundedWheels = contacts;
 
+        // Аэродинамическое сопротивление: без него с горки машина разгоняется
+        // до 200 км/ч, потому что ограничитель стоит только на тяге.
+        if (SpeedMps > 0.1f)
+            ApplyForce(-LinearVelocity.Normalized() * (1.15f * SpeedMps * SpeedMps));
+
         // Небольшая прижимная сила на скорости — машина перестаёт козлить.
         ApplyForce(-up * Mathf.Min(SpeedMps * 45f, 2500f));
 
         if (contacts == 0)
             ApplyTorque(-AngularVelocity * mass * 0.05f);
+    }
+
+    /// <summary>Простое следование по осевой: смотрим на точку впереди и рулим к ней.</summary>
+    private float AutopilotSteer()
+    {
+        if (Path is null || Path.Count < 2) return 0;
+
+        float best = float.MaxValue;
+        int bestIndex = _pathIndex;
+
+        int limit = Mathf.Min(_pathIndex + 60, Path.Count);
+        for (int i = _pathIndex; i < limit; i++)
+        {
+            float distance = Path[i].DistanceSquaredTo(GlobalPosition);
+            if (distance >= best) continue;
+
+            best = distance;
+            bestIndex = i;
+        }
+
+        _pathIndex = bestIndex;
+
+        Vector3 target = Path[Mathf.Min(bestIndex + 5, Path.Count - 1)];
+        Vector3 local = GlobalTransform.AffineInverse() * target;
+
+        return Mathf.Clamp(local.X * 0.12f, -1f, 1f);
     }
 
     private void SpinWheels(float dt)
