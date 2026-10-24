@@ -52,12 +52,17 @@ public static class WorldGenerator
         double endS = startS + ChunkLength;
 
         var places = new List<PlacePlan>();
+        var curve = Curve(worldSeed);
         int count = PlaceCount(worldSeed, chunkIndex);
 
         for (int placeIndex = 0; placeIndex < count; placeIndex++)
         {
             var place = Place(worldSeed, chunkIndex, placeIndex);
-            if (place is not null) places.Add(place);
+            if (place is null) continue;
+
+            // Места проверяются формой: пересекающееся место в план не попадает.
+            bool clashes = places.Any(other => PlaceGeometry.Overlaps(other, place, curve));
+            if (!clashes) places.Add(place);
         }
 
         return new ChunkPlan(chunkIndex, startS, endS, Tier(startS), places);
@@ -99,10 +104,26 @@ public static class WorldGenerator
         var loot = BuildLoot(worldSeed, chunkIndex, placeIndex, kind, Tier(s));
         var uses = BuildUses(id, kind);
 
-        return new PlacePlan(id, kind, s, lateral, yaw, variantSeed, onRoad, loot, uses);
+        return new PlacePlan(id, kind, s, lateral, yaw, variantSeed, onRoad,
+            FootprintFor(kind), loot, uses);
     }
 
     public static string PlaceId(int chunkIndex, int placeIndex) => $"c{chunkIndex}/p{placeIndex}";
+
+    /// <summary>Габарит по типу места: полуширина и полуглубина в осях постройки.</summary>
+    public static Footprint FootprintFor(PlaceKind kind) => kind switch
+    {
+        PlaceKind.House or PlaceKind.Abandoned => new Footprint(5.0, 4.0),
+        PlaceKind.GasStation => new Footprint(9.0, 7.0),
+        PlaceKind.Village => new Footprint(14.0, 11.0),
+        PlaceKind.Checkpoint => new Footprint(5.0, 2.0),
+        PlaceKind.Ruins => new Footprint(6.0, 5.0),
+        PlaceKind.Farm => new Footprint(11.0, 8.0),
+        PlaceKind.Barn => new Footprint(7.0, 6.0),
+        PlaceKind.Shed => new Footprint(2.6, 2.0),
+        PlaceKind.Well => new Footprint(2.0, 2.0),
+        _ => new Footprint(4.0, 4.0),
+    };
 
     // ------------------------------------------------------------ типы мест
 

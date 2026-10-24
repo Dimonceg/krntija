@@ -143,6 +143,9 @@ public class WorldGenTests
     [Fact]
     public void PlacesStayOffRoadAndDoNotOverlap()
     {
+        var curve = WorldGenerator.Curve(Seed);
+        var all = new List<PlacePlan>();
+
         for (int chunk = 0; chunk < 30; chunk++)
         {
             var places = WorldGenerator.Plan(Seed, chunk).Places;
@@ -155,15 +158,23 @@ public class WorldGenTests
                     $"{place.Id} вылез за кусок");
 
                 if (!place.OnRoad)
-                    Assert.True(Math.Abs(place.Lateral) >= 12, $"{place.Id} стоит на полотне");
+                    Assert.True(Math.Abs(place.Lateral) - place.Footprint.Radius >= 4,
+                        $"{place.Id} наезжает на полотно");
 
-                foreach (var other in places)
-                {
-                    if (ReferenceEquals(other, place) || string.CompareOrdinal(other.Id, place.Id) <= 0) continue;
+                all.Add(place);
+            }
+        }
 
-                    double along = Math.Abs(other.S - place.S);
-                    Assert.True(along >= 25, $"{place.Id} и {other.Id} слишком близко: {along:F0} м");
-                }
+        // Пересечение проверяем формой, а не расстоянием по станции: соседи
+        // из разных кусков тоже не должны наезжать друг на друга.
+        for (int i = 0; i < all.Count; i++)
+        {
+            for (int j = i + 1; j < all.Count; j++)
+            {
+                if (Math.Abs(all[i].S - all[j].S) > 80) continue;
+
+                Assert.False(PlaceGeometry.Overlaps(all[i], all[j], curve),
+                    $"{all[i].Id} и {all[j].Id} пересекаются");
             }
         }
     }
@@ -220,6 +231,34 @@ public class WorldGenTests
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => WorldGenerator.Plan(Seed, -1));
     }
+
+    [Fact]
+    public void EveryPlaceKindHasFootprint()
+    {
+        foreach (PlaceKind kind in Enum.GetValues<PlaceKind>())
+        {
+            var footprint = WorldGenerator.FootprintFor(kind);
+            Assert.True(footprint.HalfWidth > 0, $"{kind}: нулевая полуширина");
+            Assert.True(footprint.HalfDepth > 0, $"{kind}: нулевая полуглубина");
+            Assert.True(footprint.Radius > 1, $"{kind}: слишком маленький радиус");
+        }
+    }
+
+    [Fact]
+    public void FootprintOverlapCatchesNeighboursAndIgnoresDistantPlaces()
+    {
+        var curve = WorldGenerator.Curve(Seed);
+        var first = PlaceAt(curve, 1000, -40, 0);
+        var sameSpot = PlaceAt(curve, 1000, -40, 0.3);
+        var farAway = PlaceAt(curve, 1000, -80, 0);
+
+        Assert.True(PlaceGeometry.Overlaps(first, sameSpot, curve));
+        Assert.False(PlaceGeometry.Overlaps(first, farAway, curve));
+    }
+
+    private static PlacePlan PlaceAt(RoadCurve curve, double s, double lateral, double yaw) =>
+        new("c0/p0", PlaceKind.House, s, lateral, yaw, 0, false,
+            new Footprint(5, 4), Array.Empty<LootPlan>(), Array.Empty<UsePlan>());
 
     private static void AssertPlansEqual(ChunkPlan a, ChunkPlan b)
     {

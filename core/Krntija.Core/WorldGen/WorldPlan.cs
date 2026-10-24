@@ -32,7 +32,18 @@ public sealed record UsePlan(
     double OffsetY,
     double OffsetZ);
 
-/// <summary>Одно место в куске: где стоит и что внутри.</summary>
+/// <summary>
+/// Габарит места в его собственных осях: полуширина поперёк фасада и
+/// полуглубина вглубь. По нему сцена выравнивает площадку и расчищает
+/// растительность, а ядро проверяет, что места не наезжают друг на друга.
+/// </summary>
+public sealed record Footprint(double HalfWidth, double HalfDepth)
+{
+    /// <summary>Радиус описанной окружности — для грубых проверок и отступа от дороги.</summary>
+    public double Radius => Math.Sqrt(HalfWidth * HalfWidth + HalfDepth * HalfDepth);
+}
+
+/// <summary>Одно место в куске: где стоит, какого размера и что внутри.</summary>
 public sealed record PlacePlan(
     string Id,
     PlaceKind Kind,
@@ -41,6 +52,7 @@ public sealed record PlacePlan(
     double Yaw,
     int VariantSeed,
     bool OnRoad,
+    Footprint Footprint,
     IReadOnlyList<LootPlan> Loot,
     IReadOnlyList<UsePlan> Uses);
 
