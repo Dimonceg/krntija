@@ -53,7 +53,7 @@ public partial class Player : CharacterBody3D
 
         float move = Input.GetActionStrength("accelerate") - Input.GetActionStrength("brake");
         float strafe = Input.GetAxis("steer_left", "steer_right");
-        float speed = Input.IsActionPressed("handbrake") ? RunSpeed : WalkSpeed;
+        float speed = Input.IsActionPressed("sprint") ? RunSpeed : WalkSpeed;
 
         Vector3 forward = -GlobalBasis.Z;
         Vector3 right = GlobalBasis.X;

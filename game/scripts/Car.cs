@@ -44,6 +44,9 @@ public partial class Car : RigidBody3D
 
     public int GroundedWheels { get; private set; }
 
+    /// <summary>Ручник нажат — для индикатора в HUD.</summary>
+    public bool HandbrakeActive { get; private set; }
+
     public bool DebugForces { get; set; }
 
     private int _physicsFrames;
@@ -226,6 +229,8 @@ public partial class Car : RigidBody3D
         var sample = new VehicleSample(LinearVelocity.Length(), AmbientC: 20);
 
         float forwardSpeed = LinearVelocity.Dot(-GlobalBasis.Z);
+        HandbrakeActive = input.Handbrake;
+
         bool reversing = input.Brake > 0.5
                          && !input.Handbrake
                          && Session.Vehicle.EngineRunning
@@ -309,7 +314,10 @@ public partial class Car : RigidBody3D
             if (i < 2) wheelRight = right.Rotated(up, -steer);
 
             float lateralSpeed = contactVelocity.Dot(wheelRight);
-            float lateralForce = -lateralSpeed * grip * mass * 0.25f;
+
+            // Ручник срывает заднюю ось в скольжение: боковое сцепление падает.
+            float wheelGrip = input.Handbrake && i >= 2 ? grip * 0.28f : grip;
+            float lateralForce = -lateralSpeed * wheelGrip * mass * 0.25f;
             lateralForce = Mathf.Clamp(lateralForce, -mass * 12f, mass * 12f);
             ApplyForce(wheelRight * lateralForce, point - com);
 
@@ -331,6 +339,13 @@ public partial class Car : RigidBody3D
             {
                 Vector3 back = -LinearVelocity.Normalized();
                 ApplyForce(back * brake * MaxBrakeForce * 0.25f, point - com);
+            }
+
+            // Ручник держит задние колёса: сильное торможение и никакой тяги.
+            if (input.Handbrake && i >= 2 && Mathf.Abs(forwardSpeed) > 0.4f)
+            {
+                Vector3 back = -LinearVelocity.Normalized();
+                ApplyForce(back * 7000f, point - com);
             }
 
             _wheels[i].Position = ToLocal(point) + Vector3.Up * WheelRadius;

@@ -53,6 +53,7 @@ public partial class Main : Node3D
     private bool _objectiveDone;
     private float _offroadStartY;
     private float _playerStartY;
+    private float _handbrakeSpeed;
 
     public override void _Ready()
     {
@@ -153,7 +154,8 @@ public partial class Main : Node3D
         {
             if (_frames == 120) RunSelfTest();
             if (_frames == 230) CheckReverse();
-            if (_frames == 240) SetupOffroadCheck();
+            if (_frames == 240) SetupHandbrakeCheck();
+            if (_frames == 300) { CheckHandbrake(); SetupOffroadCheck(); }
             if (_frames == 320) { CheckOffroad(); SetupPlayerCheck(); }
             if (_frames == 390) CheckPlayerOffroad();
             if (_frames >= 400)
@@ -612,6 +614,24 @@ public partial class Main : Node3D
         _car.AngularVelocity = Vector3.Zero;
     }
 
+    /// <summary>Ручник: разгоняем машину и проверяем, что она тормозит.</summary>
+    private void SetupHandbrakeCheck()
+    {
+        _car.ForcedInput = null;
+        _car.LinearVelocity = -_car.GlobalBasis.Z * 15f;
+        _car.AngularVelocity = Vector3.Zero;
+        _handbrakeSpeed = _car.SpeedMps;
+        _car.ForcedInput = new DriveInput(Handbrake: true);
+    }
+
+    private void CheckHandbrake()
+    {
+        float speed = _car.SpeedMps;
+        Check(speed < 6f, $"ручник тормозит ({speed:F1} м/с из {_handbrakeSpeed:F0})");
+        _car.ForcedInput = null;
+        _car.LinearVelocity = Vector3.Zero;
+    }
+
     /// <summary>Ставим машину на площадку у заправки: там раньше проваливалась.</summary>
     private void SetupOffroadCheck()
     {
@@ -1045,6 +1065,7 @@ public partial class Main : Node3D
         AddKey("steer_right", Key.D);
         AddKey("ignition", Key.V);
         AddKey("handbrake", Key.Space);
+        AddKey("sprint", Key.Shift);
         AddKey("journal", Key.J);
     }
 
