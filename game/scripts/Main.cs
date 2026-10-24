@@ -24,6 +24,9 @@ public partial class Main : Node3D
     private bool _onFoot;
     private bool _smoke;
     private bool _smokeDone;
+    private bool _perf;
+    private double _fpsSum;
+    private double _fpsMin = 999;
     private bool _selfTest;
     private bool _selfTestDone;
     private bool _selfTestOk;
@@ -96,6 +99,14 @@ public partial class Main : Node3D
         _hud = new Hud { Car = _car };
         AddChild(_hud);
 
+        // Дорожные события: ямы, коровы, попутчики.
+        if (_road is not null)
+        {
+            var events = new RoadEvents();
+            AddChild(events);
+            events.Setup(_road.Centerline, _road.Headings, _car, _hud);
+        }
+
         _rain = new RainFx();
         AddChild(_rain);
 
@@ -118,7 +129,8 @@ public partial class Main : Node3D
         _shotRain = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-rain") >= 0;
         _shotCar = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-car") >= 0;
         _shotLineup = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-lineup") >= 0;
-        _car.Autopilot = _smoke || _selfTest;
+        _perf = Array.IndexOf(OS.GetCmdlineUserArgs(), "--perf") >= 0;
+        _car.Autopilot = _smoke || _selfTest || _perf;
 
         _menu = new MenuUi();
         AddChild(_menu);
@@ -131,7 +143,7 @@ public partial class Main : Node3D
         _menu.EscapePressed += OnEscape;
 
         // В автоматических прогонах меню не показываем: тесты должны ехать сразу.
-        bool automated = _smoke || _selfTest || _shot;
+        bool automated = _smoke || _selfTest || _shot || _perf;
         if (!automated)
         {
             _menu.ShowMainMenu(HasSave());
@@ -243,9 +255,28 @@ public partial class Main : Node3D
 
     public override void _PhysicsProcess(double delta)
     {
-        if (!(_smoke || _selfTest || _shot) || _smokeDone) return;
+        if (!(_smoke || _selfTest || _shot || _perf) || _smokeDone) return;
 
         _frames++;
+
+        if (_perf)
+        {
+            double fps = Performance.GetMonitor(Performance.Monitor.TimeFps);
+            _fpsSum += fps;
+            if (_frames == 1 || fps < _fpsMin) _fpsMin = fps;
+
+            if (_frames >= 600)
+            {
+                _smokeDone = true;
+                GD.Print($"[perf] средний FPS {_fpsSum / _frames:F1}, минимум {_fpsMin:F1}, " +
+                         $"кадров {_frames}, объектов {Performance.GetMonitor(Performance.Monitor.ObjectCount):F0}, " +
+                         $"узлов {Performance.GetMonitor(Performance.Monitor.ObjectNodeCount):F0}, " +
+                         $"вызовов отрисовки {Performance.GetMonitor(Performance.Monitor.RenderTotalDrawCallsInFrame):F0}");
+                GetTree().Quit(0);
+            }
+
+            return;
+        }
 
         if (_shot && _frames == 120 && _openJournalInShot)
             _hud.Screen = HudScreen.Journal;

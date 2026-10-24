@@ -11,87 +11,91 @@ namespace Krntija.Game;
 /// </summary>
 public static class WorldScatter
 {
+    /// <summary>
+    /// Деревья кусками вдоль дороги: у каждого куска свой AABB, поэтому
+    /// движок отсекает то, что за спиной или далеко впереди.
+    /// </summary>
     public static void ScatterTrees(List<Vector3> centerline, List<float> headings, Node3D parent, ulong seed)
     {
+        const int chunkPoints = 48;
+
         var rng = new Pcg32(seed, sequence: 99);
-        var spots = new List<(Vector3 Position, float Scale, float Yaw, bool Pine)>();
-
-        for (int i = 4; i < centerline.Count; i += 2)
-        {
-            for (int side = -1; side <= 1; side += 2)
-            {
-                if (!rng.Chance(0.62)) continue;
-
-                float offset = (float)rng.Range(14, 42);
-                var right = new Vector3(Mathf.Cos(headings[i]), 0, Mathf.Sin(headings[i]));
-                Vector3 tree = centerline[i] + right * offset * side;
-                tree.Y = TerrainBuilder.SurfaceHeight(centerline[i].Y, offset * side, tree);
-
-                spots.Add((
-                    tree,
-                    (float)rng.Range(0.65, 1.15),
-                    (float)rng.Range(0, Mathf.Tau),
-                    rng.Chance(0.62)));
-            }
-        }
-
-        if (spots.Count == 0) return;
-
         var trunkMesh = new CylinderMesh { TopRadius = 0.13f, BottomRadius = 0.22f, Height = 3.0f, RadialSegments = 6 };
         var pineCrown = BuildPineCrown();
         var roundCrown = new SphereMesh { Radius = 1.6f, Height = 2.7f, RadialSegments = 8, Rings = 5 };
 
-        int pineCount = 0;
-        foreach (var spot in spots)
-            if (spot.Pine) pineCount++;
-
-        var trunks = new MultiMesh { TransformFormat = MultiMesh.TransformFormatEnum.Transform3D, Mesh = trunkMesh, InstanceCount = spots.Count };
-        var pines = new MultiMesh { TransformFormat = MultiMesh.TransformFormatEnum.Transform3D, Mesh = pineCrown, InstanceCount = pineCount };
-        var rounds = new MultiMesh { TransformFormat = MultiMesh.TransformFormatEnum.Transform3D, Mesh = roundCrown, InstanceCount = spots.Count - pineCount };
-
-        int pineIndex = 0;
-        int roundIndex = 0;
-
-        for (int i = 0; i < spots.Count; i++)
+        for (int start = 4; start < centerline.Count - 2; start += chunkPoints)
         {
-            var (position, scale, yaw, pine) = spots[i];
-            var basis = new Basis(Vector3.Up, yaw).Scaled(new Vector3(scale, scale, scale));
+            int end = Math.Min(start + chunkPoints, centerline.Count);
+            var spots = new List<(Vector3 Position, float Scale, float Yaw, bool Pine)>();
+            var bounds = new Aabb();
 
-            trunks.SetInstanceTransform(i, new Transform3D(basis, position + Vector3.Up * (1.5f * scale)));
+            for (int i = start; i < end; i += 2)
+            {
+                for (int side = -1; side <= 1; side += 2)
+                {
+                    if (!rng.Chance(0.62)) continue;
 
-            if (pine)
-            {
-                pines.SetInstanceTransform(pineIndex++, new Transform3D(basis, position + Vector3.Up * (1.4f * scale)));
+                    float offset = (float)rng.Range(14, 42);
+                    var right = new Vector3(Mathf.Cos(headings[i]), 0, Mathf.Sin(headings[i]));
+                    Vector3 tree = centerline[i] + right * offset * side;
+                    tree.Y = TerrainBuilder.SurfaceHeight(centerline[i].Y, offset * side, tree);
+
+                    spots.Add((tree, (float)rng.Range(0.65, 1.15), (float)rng.Range(0, Mathf.Tau), rng.Chance(0.62)));
+
+                    var padded = new Aabb(tree - new Vector3(9, 2, 9), new Vector3(18, 16, 18));
+                    bounds = bounds.Size == Vector3.Zero ? padded : bounds.Merge(padded);
+                }
             }
-            else
+
+            if (spots.Count == 0) continue;
+
+            int pineCount = 0;
+            foreach (var spot in spots)
+                if (spot.Pine) pineCount++;
+
+            var trunks = new MultiMesh { TransformFormat = MultiMesh.TransformFormatEnum.Transform3D, Mesh = trunkMesh, InstanceCount = spots.Count };
+            var pines = new MultiMesh { TransformFormat = MultiMesh.TransformFormatEnum.Transform3D, Mesh = pineCrown, InstanceCount = pineCount };
+            var rounds = new MultiMesh { TransformFormat = MultiMesh.TransformFormatEnum.Transform3D, Mesh = roundCrown, InstanceCount = spots.Count - pineCount };
+
+            int pineIndex = 0;
+            int roundIndex = 0;
+
+            for (int i = 0; i < spots.Count; i++)
             {
-                rounds.SetInstanceTransform(roundIndex++, new Transform3D(basis, position + Vector3.Up * (3.1f * scale)));
+                var (position, scale, yaw, pine) = spots[i];
+                var basis = new Basis(Vector3.Up, yaw).Scaled(new Vector3(scale, scale, scale));
+
+                trunks.SetInstanceTransform(i, new Transform3D(basis, position + Vector3.Up * (1.5f * scale)));
+
+                if (pine)
+                {
+                    pines.SetInstanceTransform(pineIndex++, new Transform3D(basis, position + Vector3.Up * (1.4f * scale)));
+                }
+                else
+                {
+                    rounds.SetInstanceTransform(roundIndex++, new Transform3D(basis, position + Vector3.Up * (3.1f * scale)));
+                }
             }
+
+            AddChunk(parent, trunks, new StandardMaterial3D { AlbedoColor = new Color(0.29f, 0.22f, 0.15f), Roughness = 1f }, bounds);
+
+            if (pineCount > 0)
+                AddChunk(parent, pines, SwayMaterial(new Color(0.17f, 0.25f, 0.15f)), bounds);
+
+            if (roundIndex > 0)
+                AddChunk(parent, rounds, SwayMaterial(new Color(0.27f, 0.34f, 0.17f)), bounds);
         }
+    }
 
+    private static void AddChunk(Node3D parent, MultiMesh mesh, Material material, Aabb bounds)
+    {
         parent.AddChild(new MultiMeshInstance3D
         {
-            Multimesh = trunks,
-            MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.29f, 0.22f, 0.15f), Roughness = 1f },
+            Multimesh = mesh,
+            MaterialOverride = material,
+            CustomAabb = bounds,
         });
-
-        if (pineCount > 0)
-        {
-            parent.AddChild(new MultiMeshInstance3D
-            {
-                Multimesh = pines,
-                MaterialOverride = SwayMaterial(new Color(0.17f, 0.25f, 0.15f)),
-            });
-        }
-
-        if (roundIndex > 0)
-        {
-            parent.AddChild(new MultiMeshInstance3D
-            {
-                Multimesh = rounds,
-                MaterialOverride = SwayMaterial(new Color(0.27f, 0.34f, 0.17f)),
-            });
-        }
     }
 
     /// <summary>Материал кроны с лёгким покачиванием на ветру (вершинный шейдер).</summary>
