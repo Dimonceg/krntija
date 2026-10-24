@@ -85,7 +85,7 @@ public partial class Main : Node3D
         AddChild(_car);
         // Ставим машину не на самом краю полотна, иначе половина висит в воздухе.
         Vector3 start = _road is { Centerline.Count: > 4 } ? _road.Centerline[4] : new Vector3(0, 0.6f, 0);
-        _car.GlobalPosition = start + Vector3.Up * 0.62f;
+        _car.GlobalPosition = start + Vector3.Up * 0.56f;
         _car.Path = _road?.Centerline;
 
         _camera = new ChaseCamera { Target = _car };
@@ -221,9 +221,9 @@ public partial class Main : Node3D
             {
                 root.AddChild(new MeshInstance3D
                 {
-                    Mesh = new CylinderMesh { Height = 0.24f, TopRadius = 0.38f, BottomRadius = 0.38f },
+                    Mesh = new CylinderMesh { Height = 0.22f, TopRadius = 0.32f, BottomRadius = 0.32f },
                     MaterialOverride = rubber,
-                    Position = new Vector3(x, -0.24f, z),
+                    Position = new Vector3(x, -0.20f, z),
                     Rotation = new Vector3(0, 0, Mathf.Pi / 2),
                 });
             }

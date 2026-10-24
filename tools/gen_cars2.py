@@ -17,9 +17,9 @@ OUT_DIR = os.path.join(ROOT, "game", "assets", "models", "cars")
 
 # All heights are relative to the chassis origin (y = 0).
 WHEEL_Z = 1.45
-WHEEL_Y = -0.215
-ARCH_R = 0.44
-SILL = -0.36
+WHEEL_Y = -0.24
+ARCH_R = 0.36
+SILL = -0.34
 BELT = 0.34
 ROOF = 0.84
 
@@ -91,8 +91,9 @@ def body_profile(spec):
 
     return [
         (front + 0.01, -0.12),
-        (front + 0.01, 0.10),
-        (front + 0.07, 0.13),
+        (front + 0.01, 0.07),
+        (front + 0.12, 0.10),
+        (front + 0.60, 0.14),
         (-0.90, 0.16),
         (-0.90, BELT),
         (1.30, BELT),
@@ -157,10 +158,13 @@ def build_cabin(paint, glass, spec):
     # Roof.
     paint.quad(left[1], right[1], right[2], left[2])
 
-    # B-pillar, kept inside the tapered roof line.
+    # Pillars: strips in the same plane as the glass, so they never poke out.
     for side in (-1, 1):
-        x = side * (half_at(0.10, BELT) - 0.005)
-        paint.box((x, (BELT + ROOF) / 2, 0.10), (0.012, ROOF - BELT - 0.05, 0.05))
+        for z0 in (-0.87, 0.04, 1.10):
+            z1 = z0 + 0.07
+            xb = side * (half_at(z0, BELT) + 0.002)
+            xr = side * (half_at(z0, ROOF) + 0.002)
+            paint.quad((xb, BELT, z0), (xb, BELT, z1), (xr, ROOF, z1), (xr, ROOF, z0))
 
 
 def build_body(spec):
@@ -209,7 +213,7 @@ def build_body(spec):
 
         trim.box((side * (half + 0.012), 0.13, -0.06), (0.02, 0.03, 0.13))
         trim.box((side * (half + 0.012), 0.13, 0.74), (0.02, 0.03, 0.13))
-        trim.box((side * (half + 0.09), 0.29, -0.80), (0.11, 0.06, 0.03))
+        trim.box((side * (half + 0.10), 0.31, -0.82), (0.16, 0.09, 0.05))
         trim.box((side * (half + 0.004), 0.06, 0.32), (0.014, 0.035, 1.34))
 
     return {"paint": paint, "glass": glass, "trim": trim, "lamp": lamp, "tail": tail}
