@@ -191,8 +191,13 @@ public static class RoadMeshBuilder
         var st = new SurfaceTool();
         st.Begin(Mesh.PrimitiveType.Triangles);
 
+        var rng = new Pcg32(1717, sequence: 5);
+
         for (int i = 0; i < points.Count - 1; i += 2)
         {
+            // Разметка со временем стирается: часть штрихов пропускаем совсем.
+            if (rng.Chance(0.14)) continue;
+
             Vector3 ra = new(Mathf.Cos(headings[i]), 0, Mathf.Sin(headings[i]));
             Vector3 rb = new(Mathf.Cos(headings[i + 1]), 0, Mathf.Sin(headings[i + 1]));
 
@@ -217,7 +222,72 @@ public static class RoadMeshBuilder
             Mesh = st.Commit(),
             MaterialOverride = new StandardMaterial3D
             {
-                AlbedoColor = new Color(0.82f, 0.8f, 0.72f),
+                // Не белоснежная: пыль, потёртости.
+                AlbedoColor = new Color(0.74f, 0.72f, 0.62f),
+                ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+                CullMode = BaseMaterial3D.CullModeEnum.Disabled,
+            },
+        });
+
+        AddJoints(points, headings, parent);
+    }
+
+    /// <summary>Поперечные швы асфальта и трещины: полотно не должно быть монолитным.</summary>
+    private static void AddJoints(List<Vector3> points, List<float> headings, Node3D parent)
+    {
+        var rng = new Pcg32(9091, sequence: 3);
+        var tool = new SurfaceTool();
+        tool.Begin(Mesh.PrimitiveType.Triangles);
+        tool.SetNormal(Vector3.Up);
+        tool.SetColor(new Color(0.55f, 0.53f, 0.48f));
+
+        for (int i = 20; i < points.Count - 2; i += 25)
+        {
+            Vector3 right = new(Mathf.Cos(headings[i]), 0, Mathf.Sin(headings[i]));
+            Vector3 forward = new(Mathf.Sin(headings[i]), 0, -Mathf.Cos(headings[i]));
+            Vector3 center = points[i] + Vector3.Up * 0.012f;
+
+            float half = Width * 0.46f;
+            Vector3 a = center - right * half;
+            Vector3 b = center + right * half;
+            Vector3 c = center + right * half + forward * 0.16f;
+            Vector3 d = center - right * half + forward * 0.16f;
+
+            tool.AddVertex(a);
+            tool.AddVertex(b);
+            tool.AddVertex(c);
+            tool.AddVertex(a);
+            tool.AddVertex(c);
+            tool.AddVertex(d);
+
+            // Трещина наискосок.
+            if (rng.Chance(0.6))
+            {
+                float offset = (float)rng.Range(-2.5, 2.5);
+                Vector3 start = center + right * offset;
+                Vector3 dir = (right * (float)rng.Range(-0.3, 0.3) + forward).Normalized();
+                Vector3 side = right * 0.05f;
+
+                Vector3 c1 = start - side;
+                Vector3 c2 = start + side;
+                Vector3 c3 = start + dir * (float)rng.Range(2.5, 6) + side;
+                Vector3 c4 = start + dir * (float)rng.Range(2.5, 6) - side;
+
+                tool.AddVertex(c1);
+                tool.AddVertex(c2);
+                tool.AddVertex(c3);
+                tool.AddVertex(c1);
+                tool.AddVertex(c3);
+                tool.AddVertex(c4);
+            }
+        }
+
+        parent.AddChild(new MeshInstance3D
+        {
+            Mesh = tool.Commit(),
+            MaterialOverride = new StandardMaterial3D
+            {
+                AlbedoColor = new Color(0.09f, 0.09f, 0.10f),
                 ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
                 CullMode = BaseMaterial3D.CullModeEnum.Disabled,
             },

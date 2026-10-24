@@ -12,6 +12,7 @@ public partial class Sfx : Node
 
     private AudioStreamPlayer _ui = null!;
     private AudioStreamPlayer _rain = null!;
+    private AudioStreamPlayer _wind = null!;
     private AudioStreamPlayer3D _pour = null!;
     private AudioStreamPlayer3D _door = null!;
     private AudioStreamPlayer3D _stepL = null!;
@@ -28,6 +29,10 @@ public partial class Sfx : Node
 
         _rain = Create2D(SoundBank.RainLoop(), "Rain");
         _rain.VolumeDb = -60f;
+
+        _wind = Create2D(SoundBank.WindLoop(), "Wind");
+        _wind.VolumeDb = -60f;
+        _wind.Play();
 
         _door = Create3D(SoundBank.Door(), "Door");
         _stepL = Create3D(SoundBank.Step(), "StepL");
@@ -66,6 +71,14 @@ public partial class Sfx : Node
         if (Instance is null) return;
         Instance._pour.GlobalPosition = position;
         Instance._pour.Play();
+    }
+
+    public static void SetWind(float intensity)
+    {
+        if (Instance is null) return;
+
+        float clamped = Mathf.Clamp(intensity, 0f, 1f);
+        Instance._wind.VolumeDb = clamped < 0.02f ? -60f : Mathf.LinearToDb(0.18f * clamped + 0.001f);
     }
 
     public static void SetRain(float intensity)

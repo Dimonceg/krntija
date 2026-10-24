@@ -37,6 +37,25 @@ public static class SoundBank
         return (bubble + hiss) * env;
     });
 
+    public static AudioStreamWav WindLoop()
+    {
+        var rng = new Random(23);
+        int count = Rate * 3;
+        var samples = new float[count];
+        float previous = 0;
+
+        for (int i = 0; i < count; i++)
+        {
+            float noise = (float)(rng.NextDouble() * 2 - 1);
+            previous = previous * 0.94f + noise * 0.06f; // сильнее фильтр — глуше ветер
+            float fade = MathF.Min(1f, MathF.Min(i, count - i) / (Rate * 0.2f));
+            float gust = 0.6f + 0.4f * MathF.Sin(i / (float)Rate * 0.7f);
+            samples[i] = previous * 1.6f * fade * gust;
+        }
+
+        return FromSamples(samples, loop: true);
+    }
+
     public static AudioStreamWav RainLoop()
     {
         var rng = new Random(7);

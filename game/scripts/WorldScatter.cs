@@ -80,7 +80,7 @@ public static class WorldScatter
             parent.AddChild(new MultiMeshInstance3D
             {
                 Multimesh = pines,
-                MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.17f, 0.25f, 0.15f), Roughness = 1f },
+                MaterialOverride = SwayMaterial(new Color(0.17f, 0.25f, 0.15f)),
             });
         }
 
@@ -89,9 +89,38 @@ public static class WorldScatter
             parent.AddChild(new MultiMeshInstance3D
             {
                 Multimesh = rounds,
-                MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.27f, 0.34f, 0.17f), Roughness = 1f },
+                MaterialOverride = SwayMaterial(new Color(0.27f, 0.34f, 0.17f)),
             });
         }
+    }
+
+    /// <summary>Материал кроны с лёгким покачиванием на ветру (вершинный шейдер).</summary>
+    private static ShaderMaterial SwayMaterial(Color color)
+    {
+        var shader = new Shader
+        {
+            Code = @"shader_type spatial;
+render_mode cull_disabled;
+uniform vec4 tint : source_color = vec4(0.3, 0.4, 0.2, 1.0);
+uniform float amount = 0.035;
+
+void vertex() {
+    vec3 world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+    float h = max(VERTEX.y, 0.0);
+    float sway = sin(TIME * 1.1 + world.x * 0.3 + world.z * 0.21);
+    VERTEX.x += sway * amount * h;
+    VERTEX.z += cos(TIME * 0.85 + world.x * 0.25) * amount * 0.55 * h;
+}
+
+void fragment() {
+    ALBEDO = tint.rgb;
+    ROUGHNESS = 1.0;
+}",
+        };
+
+        var material = new ShaderMaterial { Shader = shader };
+        material.SetShaderParameter("tint", color);
+        return material;
     }
 
     /// <summary>Ёлка из трёх конусов — читается как хвойное дерево, а не как конус.</summary>

@@ -348,6 +348,11 @@ public partial class Main : Node3D
         _environment.FogLightColor = new Color(0.08f, 0.1f, 0.16f).Lerp(new Color(0.7f, 0.68f, 0.6f), daylight);
         _environment.FogDensity = 0.0022f + 0.0055f * rain;
 
+        // Утренний туман в низинах: плотнее всего около 6:30.
+        float dawn = Mathf.Clamp(1f - Mathf.Abs((float)hour - 6.5f) / 2.2f, 0f, 1f);
+        _environment.FogDensity += 0.0045f * dawn;
+        _environment.FogHeightDensity = 0.25f * dawn;
+
         // Небо теплеет к закату и темнеет к ночи.
         if (_skyMaterial is not null)
         {
@@ -1090,7 +1095,7 @@ public partial class Main : Node3D
             var right = new Vector3(Mathf.Cos(poi.Heading), 0, Mathf.Sin(poi.Heading));
             Vector3 spot = poi.Position - right * 16f; // левая обочина
             spot.Y = TerrainBuilder.SurfaceHeight(poi.Position.Y, -16f, spot);
-            AddLandmark(poi.Segment.Feature, spot, poi.Heading, poi.Position);
+            AddLandmark(poi.Segment.Feature, poi.Segment.Title, spot, poi.Heading, poi.Position);
         }
 
         TerrainBuilder.Build(road.Centerline, road.Headings, this);
@@ -1110,7 +1115,7 @@ public partial class Main : Node3D
         GD.Print($"[road] {plan.Segments.Count} сегментов, {plan.TotalMeters:F0} м, точек интереса: {road.Points.Count}");
     }
 
-    private void AddLandmark(RoadFeature feature, Vector3 position, float heading, Vector3 roadPoint)
+    private void AddLandmark(RoadFeature feature, string title, Vector3 position, float heading, Vector3 roadPoint)
     {
         var model = ModelLibrary.Prop(feature.ToString().ToLowerInvariant());
 
@@ -1133,6 +1138,35 @@ public partial class Main : Node3D
             case RoadFeature.Farm: if (model is null) AddFarm(position, heading); break;
             case RoadFeature.Checkpoint: AddCheckpoint(position, heading, roadPoint, model is null); break;
         }
+
+        if (title.Length > 0) AddFeatureSign(roadPoint, heading, title);
+    }
+
+    /// <summary>Дорожный указатель с названием места: «Село», «Рушевине» и т.п.</summary>
+    private void AddFeatureSign(Vector3 roadPoint, float heading, string title)
+    {
+        var right = new Vector3(Mathf.Cos(heading), 0, Mathf.Sin(heading));
+        Vector3 spot = roadPoint + right * (RoadMeshBuilder.Width * 0.5f + 2.6f);
+        spot.Y = TerrainBuilder.SurfaceHeight(roadPoint.Y, 6f, spot);
+
+        var root = new Node3D { Position = spot, Rotation = new Vector3(0, -heading, 0) };
+        AddChild(root);
+
+        var post = new Color(0.55f, 0.55f, 0.52f);
+        var board = new Color(0.86f, 0.83f, 0.70f);
+
+        Box(root, new Vector3(0.09f, 2.4f, 0.09f), new Vector3(-0.75f, 1.2f, 0), post);
+        Box(root, new Vector3(0.09f, 2.4f, 0.09f), new Vector3(0.75f, 1.2f, 0), post);
+        Box(root, new Vector3(1.9f, 0.62f, 0.07f), new Vector3(0, 2.25f, 0), board);
+
+        root.AddChild(new Label3D
+        {
+            Text = title.ToUpperInvariant(),
+            FontSize = 56,
+            PixelSize = 0.0042f,
+            Position = new Vector3(0, 2.25f, 0.06f),
+            Modulate = new Color(0.16f, 0.15f, 0.14f),
+        });
     }
 
     private static MeshInstance3D Box(Node3D parent, Vector3 size, Vector3 offset, Color color)

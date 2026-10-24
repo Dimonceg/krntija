@@ -275,6 +275,7 @@ public partial class Car : RigidBody3D
             _audio.Rpm = Session.DriveTrain.Rpm;
             _audio.SpeedMps = SpeedMps;
             _audio.Load = input.Throttle;
+            Sfx.SetWind(0.16f + Mathf.Clamp(SpeedMps / 35f, 0f, 1f) * 0.5f);
             _audio.Running = Session.Vehicle.EngineRunning;
         }
 
