@@ -107,6 +107,8 @@ public static class PlayerHouse
         Slab(root, new Vector3(0.08f, 0.9f, 1.1f), new Vector3(-Width / 2 + 0.02f, WallHeight + 0.9f, 0f),
             new Color(0.55f, 0.68f, 0.75f), solid: false);
 
+        BuildCellar(root);
+
         // --- мебель ---
         BuildFurniture(root);
 
@@ -238,6 +240,37 @@ public static class PlayerHouse
                     new Vector3(side * Width / 2, WallHeight + stepHeight / 2 + step * stepHeight, 0), Wall, solid: false);
             }
         }
+    }
+
+    /// <summary>Погреб за домом: пристройка с полками, вход со двора.</summary>
+    private static void BuildCellar(Node3D root)
+    {
+        const float width = 4.4f;
+        const float depth = 3.2f;
+        const float height = 2.1f;
+        float z = Depth / 2 + depth / 2 + 1.2f;
+
+        Slab(root, new Vector3(width, 0.2f, depth), new Vector3(0, -0.1f, z), Floor);
+        Slab(root, new Vector3(width, 0.2f, depth), new Vector3(0, height, z), Floor, solid: false);
+
+        Slab(root, new Vector3(width, height, 0.25f), new Vector3(0, height / 2, z + depth / 2), Wall);
+        Slab(root, new Vector3(0.25f, height, depth), new Vector3(-width / 2, height / 2, z), Wall);
+        Slab(root, new Vector3(0.25f, height, depth), new Vector3(width / 2, height / 2, z), Wall);
+
+        // Вход со стороны дома: две стены с проёмом 1.2 м.
+        float door = 1.2f;
+        float half = width / 2;
+        Slab(root, new Vector3(half - door / 2, height, 0.25f),
+            new Vector3(-(door / 2 + (half - door / 2) / 2), height / 2, z - depth / 2), Wall);
+        Slab(root, new Vector3(half - door / 2, height, 0.25f),
+            new Vector3(door / 2 + (half - door / 2) / 2, height / 2, z - depth / 2), Wall);
+
+        // Полки вдоль дальней стены.
+        for (int i = 0; i < 3; i++)
+            Slab(root, new Vector3(width - 0.8f, 0.08f, 0.5f), new Vector3(0, 0.5f + i * 0.55f, z + depth / 2 - 0.35f),
+                Furniture, solid: false);
+
+        AddLight(root, new Vector3(0, 1.8f, z), 1.2f);
     }
 
     private static void BuildFurniture(Node3D parent)

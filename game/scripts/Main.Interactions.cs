@@ -477,6 +477,13 @@ public partial class Main
             return;
         }
 
+        if (Core.WorldActions.TryCraft(session, out string crafted) == Core.ActionResult.Done)
+        {
+            _hud.Toast($"Собрано: {crafted}");
+            Sfx.PlayDoor(_car.GlobalPosition);
+            return;
+        }
+
         _hud.Toast("Чинить нечего, улучшений нет");
     }
 

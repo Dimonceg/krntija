@@ -83,6 +83,40 @@ public static class WorldActions
         return result;
     }
 
+    /// <summary>Рецепты верстака: из хлама собираем нужное.</summary>
+    public static readonly (string Result, string[] Ingredients)[] Recipes =
+    {
+        ("spare_tire", new[] { "scrap_metal", "scrap_metal", "scrap_metal", ItemIds.DuctTape, ItemIds.DuctTape }),
+        ("spark_plug", new[] { "radio_part", "scrap_metal" }),
+        ("medkit", new[] { ItemIds.DuctTape, "water" }),
+    };
+
+    /// <summary>Собрать, что получается из того, что лежит в кармане.</summary>
+    public static ActionResult TryCraft(GameSession session, out string crafted)
+    {
+        crafted = string.Empty;
+
+        foreach (var recipe in Recipes)
+        {
+            var need = recipe.Ingredients
+                .GroupBy(id => id)
+                .Select(group => (Id: group.Key, Count: group.Count()))
+                .ToList();
+
+            if (need.Any(item => session.Inventory.Count(item.Id) < item.Count))
+                continue;
+
+            foreach (var item in need)
+                session.Inventory.Remove(item.Id, item.Count);
+
+            session.Inventory.TryAdd(recipe.Result, 1);
+            crafted = ItemCatalog.Get(recipe.Result).Name;
+            return ActionResult.Done;
+        }
+
+        return ActionResult.NothingToDo;
+    }
+
     /// <summary>Починка закрытого выезда: 60 € и моток изоленты.</summary>
     public static ActionResult TryRepairExit(Wallet wallet, Inventory bag) =>
         PayWithTape(wallet, bag, ExitRepairPrice);
