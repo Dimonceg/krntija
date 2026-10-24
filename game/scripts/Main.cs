@@ -85,7 +85,7 @@ public partial class Main : Node3D
         GameSettings.Apply();
         BuildWorld();
 
-        var session = GameSession.NewGame();
+        var session = GameSession.NewGame(car: SelectedCar());
 
         _car = Car.Build(session);
         AddChild(_car);
@@ -633,6 +633,18 @@ public partial class Main : Node3D
         session.Clock.SetTotalMinutes(morning);
 
         _hud.Toast("Выспались. Утро, силы восстановлены");
+    }
+
+    /// <summary>Машина из --car=&lt;id&gt;: нужно для отладки и скриншотов разных кузовов.</summary>
+    private static CarSpec SelectedCar()
+    {
+        foreach (string arg in OS.GetCmdlineUserArgs())
+        {
+            if (arg.StartsWith("--car=", StringComparison.Ordinal))
+                return CarCatalog.Get(arg["--car=".Length..]);
+        }
+
+        return CarCatalog.Zastava101;
     }
 
     /// <summary>Переключение вида: от первого лица / от третьего.</summary>
