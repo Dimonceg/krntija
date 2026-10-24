@@ -94,7 +94,7 @@ public static class PlayerHouse
         for (int i = 0; i < 12; i++)
         {
             float y = 0.11f + i * 0.225f;
-            Slab(root, new Vector3(2.6f, 0.22f, 0.28f), new Vector3(3.6f, y, 3.4f - i * 0.26f), Floor, solid: false);
+            Slab(root, new Vector3(2.6f, 0.22f, 0.28f), new Vector3(3.6f, y, 3.4f - i * 0.26f), Floor);
         }
 
         // --- мебель ---
