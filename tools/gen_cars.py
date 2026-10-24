@@ -171,9 +171,9 @@ def build_body(spec):
         return ring(z, half_width, y_bottom, y_top, round_ratio)
 
     rings = [
-        sec(front, half * nose, 0.36, 0.62),
-        sec(front + 0.22, half * 0.96, 0.30, 0.76),
-        sec(front + 0.60, half, 0.26, 0.82),
+        sec(front, half * nose, 0.36, 0.58),
+        sec(front + 0.22, half * 0.96, 0.30, 0.72),
+        sec(front + 0.60, half, 0.26, 0.78),
         sec(cabin_front - 0.25, half, sill, 0.84),
         sec(cabin_front - 0.05, half * 0.99, sill, 0.90),
         sec(cabin_front + 0.28, half * 0.96, sill, roof * 0.93),
@@ -209,15 +209,15 @@ def build_body(spec):
         pairs = ((cabin_front + 0.06, cabin_front + 0.56), (cabin_front + 0.66, cabin_back - 0.02))
         for z0, z1 in pairs:
             glass.quad(
-                (x, 0.80, z0),
-                (x, 0.80, z1),
+                (x, 0.77, z0),
+                (x, 0.77, z1),
                 (x, roof - 0.05, z1),
                 (x, roof - 0.05, z0),
             )
 
         # Стойка между окнами.
-        trim.box((side * (half * 0.96), (0.80 + roof - 0.05) / 2, cabin_front + 0.61),
-                 (0.02, roof - 0.85, 0.07))
+        trim.box((side * (half * 0.96), (0.77 + roof - 0.05) / 2, cabin_front + 0.61),
+                 (0.015, roof - 0.82, 0.05))
 
         # Молдинг по борту и колёсные арки.
         trim.box((side * (half + 0.006), 0.54, 0), (0.02, 0.05, length * 0.62))
@@ -364,7 +364,7 @@ def build_glb(meshes):
 # ---------------------------------------------------------------- модели
 
 SPECS = {
-    "zastava_101": dict(length=3.96, width=1.58, roof=1.22, cabin_front=-0.62, cabin_back=0.95),
+    "zastava_101": dict(length=3.96, width=1.60, roof=1.16, cabin_front=-0.95, cabin_back=0.85, round=0.95, nose=0.97),
     "golf_2": dict(length=4.02, width=1.66, roof=1.26, cabin_front=-0.70, cabin_back=1.02),
     "vaz_2106": dict(length=4.04, width=1.60, roof=1.24, cabin_front=-0.66, cabin_back=0.98),
     "zaz_968": dict(length=3.72, width=1.54, roof=1.18, cabin_front=-0.58, cabin_back=0.90),
