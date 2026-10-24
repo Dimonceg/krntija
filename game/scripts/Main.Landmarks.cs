@@ -62,7 +62,7 @@ public partial class Main
         AddMotel(village, new Vector3(-6f, 0, 9.5f));
     }
 
-    /// <summary>Мотель у села: переночевать за 15 €, проснуться утром.</summary>
+    /// <summary>Мотель у села: переночевать за плату, проснуться утром.</summary>
     private void AddMotel(Node3D parent, Vector3 position)
     {
         var motel = new Node3D { Position = position, Rotation = new Vector3(0, 0.18f, 0) };

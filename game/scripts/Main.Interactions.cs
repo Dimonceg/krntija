@@ -67,13 +67,13 @@ public partial class Main
         InteractionKind.Drink => "[E] попить из колодца",
         InteractionKind.Pet => "[E] погладить собаку",
         InteractionKind.Talk => "[E] поговорить",
-        InteractionKind.RepairExit => $"[E] починить выезд ({WorldActions.ExitRepairPrice:F0} € + изолента)",
+        InteractionKind.RepairExit => $"[E] починить выезд ({Krntija.Core.Economy.Money.Format(WorldActions.ExitRepairPrice)} + изолента)",
         InteractionKind.ClearCollapse => "[E] разобрать завал",
         InteractionKind.Chest => "[E] открыть сундук",
-        InteractionKind.Workbench => $"[E] верстак: починить деталь ({WorldActions.WorkbenchPrice:F0} € + изолента)",
+        InteractionKind.Workbench => $"[E] верстак: починить деталь ({Krntija.Core.Economy.Money.Format(WorldActions.WorkbenchPrice)} + изолента)",
         InteractionKind.SleepHome => "[E] поспать дома",
-        InteractionKind.Gate => point.Gate is { IsOpen: true } ? "[E] шлагбаум открыт" : $"[E] заплатить {WorldActions.GateToll:F0} € за проезд",
-        InteractionKind.Sleep => $"[E] переночевать ({WorldActions.MotelPrice:F0} €)",
+        InteractionKind.Gate => point.Gate is { IsOpen: true } ? "[E] шлагбаум открыт" : $"[E] заплатить {Krntija.Core.Economy.Money.Format(WorldActions.GateToll)} за проезд",
+        InteractionKind.Sleep => $"[E] переночевать ({Krntija.Core.Economy.Money.Format(WorldActions.MotelPrice)})",
         InteractionKind.Door => point.Door is { IsOpen: true } ? "[E] закрыть дверь" : "[E] открыть дверь",
         InteractionKind.Loot => point.LootId is not null
             ? $"[E] поднять {Core.Items.ItemCatalog.Get(point.LootId).Name}"
@@ -208,11 +208,11 @@ public partial class Main
         {
             gate.Open();
             MarkWorld(point.StateId);
-            _hud.Toast($"Проезд оплачен: {WorldActions.GateToll:F0} €");
+            _hud.Toast($"Проезд оплачен: {Krntija.Core.Economy.Money.Format(WorldActions.GateToll)}");
         }
         else
         {
-            _hud.Toast($"Нет {WorldActions.GateToll:F0} € на проезд");
+            _hud.Toast($"Нет {Krntija.Core.Economy.Money.Format(WorldActions.GateToll)} на проезд");
         }
     }
 
@@ -227,7 +227,7 @@ public partial class Main
             if (_car.GlobalPosition.DistanceTo(point.Position) > 25f) continue;
 
             if (!WorldActions.TryRewardPlace(_car.Session, i)) continue;
-            _hud.Toast($"{point.Segment.Title}: +{WorldActions.PlaceReward:F0} €");
+            _hud.Toast($"{point.Segment.Title}: +{Krntija.Core.Economy.Money.Format(WorldActions.PlaceReward)}");
         }
     }
 
@@ -235,7 +235,7 @@ public partial class Main
     {
         _hud.Toast(WorldActions.TrySleepAtMotel(_car.Session)
             ? "Выспались. Утро, силы восстановлены"
-            : $"Ночлег стоит {WorldActions.MotelPrice:F0} €");
+            : $"Ночлег стоит {Krntija.Core.Economy.Money.Format(WorldActions.MotelPrice)}");
     }
 
     private float DistanceToCar() =>
@@ -270,7 +270,7 @@ public partial class Main
             Sfx.PlayPour(_car.GlobalPosition);
 
         _hud.Toast(liters > 0.01
-            ? $"Залито {liters:F1} л за {cost:F0} €"
+            ? $"Залито {liters:F1} л за {Krntija.Core.Economy.Money.Format(cost)}"
             : session.Wallet.Money < TradeService.FuelPricePerLiter * need
                 ? "Не хватает денег"
                 : "Бак полный");
@@ -321,7 +321,7 @@ public partial class Main
         double price = PartCatalog.All[item.DefId].Price * 0.5;
 
         _hud.Toast(TradeService.TrySellPart(session.Inventory, session.Wallet, item.DefId)
-            ? $"Сдано: {name} за {price:F0} €"
+            ? $"Сдано: {name} за {Krntija.Core.Economy.Money.Format(price)}"
             : "Не получилось сдать");
     }
 
@@ -387,7 +387,7 @@ public partial class Main
         Sfx.PlayUi();
     }
 
-    /// <summary>Починка выезда: 60 € и изолента. Открывает шлагбаум и убирает стену.</summary>
+    /// <summary>Починка выезда: плата и изолента. Открывает шлагбаум и убирает стену.</summary>
     private void TryRepairExit(InteractionPoint point)
     {
         if (int.TryParse(point.LootId, out int index) && index >= 0 && index < _exitGates.Count)
@@ -403,7 +403,7 @@ public partial class Main
             switch (WorldActions.TryRepairExit(session.Wallet, session.Inventory))
             {
                 case ActionResult.NotEnoughMoney:
-                    _hud.Toast($"Нужно {WorldActions.ExitRepairPrice:F0} €");
+                    _hud.Toast($"Нужно {Krntija.Core.Economy.Money.Format(WorldActions.ExitRepairPrice)}");
                     return;
                 case ActionResult.NoDuctTape:
                     _hud.Toast("Нужна изолента");
@@ -441,7 +441,7 @@ public partial class Main
         _hud.Toast("Дом: склад открыт");
     }
 
-    /// <summary>Верстак: починить самую изношенную деталь за 25 € и изоленту.</summary>
+    /// <summary>Верстак: починить самую изношенную деталь за плату и изоленту.</summary>
     private void RepairAtWorkbench()
     {
         switch (WorldActions.TryRepairAtWorkbench(_car.Session, out var part))
@@ -450,7 +450,7 @@ public partial class Main
                 InstallUpgradeFromBag();
                 break;
             case ActionResult.NotEnoughMoney:
-                _hud.Toast($"Нужно {WorldActions.WorkbenchPrice:F0} €");
+                _hud.Toast($"Нужно {Krntija.Core.Economy.Money.Format(WorldActions.WorkbenchPrice)}");
                 break;
             case ActionResult.NoDuctTape:
                 _hud.Toast("Нужна изолента");
@@ -509,7 +509,7 @@ public partial class Main
 
         int total = pocketCount + trunkCount;
         _hud.Toast(total > 0
-            ? $"Скупщик забрал {total} шт. за {pocketMoney + trunkMoney:F0} €"
+            ? $"Скупщик забрал {total} шт. за {Krntija.Core.Economy.Money.Format(pocketMoney + trunkMoney)}"
             : "Скупщику нечего предложить");
 
         _backpack.Refresh(_car.Session.Inventory, _car.Session.Trunk);
@@ -525,7 +525,7 @@ public partial class Main
 
         int total = pocketCount + trunkCount;
         _hud.Toast(total > 0
-            ? $"Продано {total} шт. за {pocketMoney + trunkMoney:F0} €"
+            ? $"Продано {total} шт. за {Krntija.Core.Economy.Money.Format(pocketMoney + trunkMoney)}"
             : "Нечего продавать");
 
         _backpack.Refresh(_car.Session.Inventory, _car.Session.Trunk);

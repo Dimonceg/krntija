@@ -209,7 +209,7 @@ public partial class RoadEvents : Node3D
         spot.Done = true;
         _car.Session.Wallet.Earn(12);
         spot.Node.QueueFree();
-        _hud.Toast("Подобрали попутчика: +12 €");
+        _hud.Toast($"Подобрали попутчика: +{Krntija.Core.Economy.Money.Format(12)}");
     }
 
     private void BreakDown(Spot spot)
@@ -232,7 +232,7 @@ public partial class RoadEvents : Node3D
             const double fine = 15;
             if (_car.Session.Wallet.TrySpend(fine))
             {
-                _hud.Toast("Контроль: штраф 15 € за скорость");
+                _hud.Toast($"Контроль: штраф {Krntija.Core.Economy.Money.Format(15)} за скорость");
             }
             else
             {
