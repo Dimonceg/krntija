@@ -133,81 +133,111 @@ def cap(mesh, ring_points, reverse=False):
 
 # ---------------------------------------------------------------- кузов
 
+def arch(mesh, x, z_center, y_center, inner, outer, segments=10):
+    """Плоская дуга над колесом: намёк на колёсную арку."""
+    for i in range(segments):
+        a0 = math.pi * i / segments
+        a1 = math.pi * (i + 1) / segments
+
+        def point(angle, radius):
+            return (x, y_center + radius * math.sin(angle), z_center + radius * math.cos(angle))
+
+        mesh.quad(point(a0, inner), point(a0, outer), point(a1, outer), point(a1, inner))
+
+
 def build_body(spec):
-    """Возвращает словарь: имя материала -> список (mesh, material)."""
     length = spec["length"]
     width = spec["width"]
     roof = spec["roof"]
-    cabin_back = spec["cabin_back"]
     cabin_front = spec["cabin_front"]
+    cabin_back = spec["cabin_back"]
 
     front = -length / 2
     rear = length / 2
     half = width / 2
+    sill = 0.20
 
-    paint = Mesh(center=(0, 0.6, 0))
-    glass = Mesh(center=(0, 0.9, 0))
-    trim = Mesh(center=(0, 0.3, 0))
-    lamp = Mesh(center=(0, 0.5, front))
-    tail = Mesh(center=(0, 0.5, rear))
+    paint = Mesh(center=(0, 0.62, 0))
+    glass = Mesh(center=(0, 0.95, 0))
+    trim = Mesh(center=(0, 0.30, 0))
+    lamp = Mesh(center=(0, 0.55, front))
+    tail = Mesh(center=(0, 0.55, rear))
 
-    # Сечения вдоль кузова: нос, капот, лобовое, крыша, заднее стекло, багажник.
+    # Сечения: нос, капот, лобовое со наклоном, крыша, наклон задней стойки, корма.
     rings = [
-        ring(front, half * 0.82, 0.30, 0.58),
-        ring(front + 0.28, half * 0.95, 0.24, 0.72),
-        ring(front + 0.75, half, 0.20, 0.80),
-        ring(cabin_front - 0.10, half, 0.18, 0.86),
-        ring(cabin_front, half * 0.97, 0.18, roof * 0.86),
-        ring(cabin_front + 0.18, half * 0.94, 0.18, roof),
-        ring(cabin_back - 0.18, half * 0.94, 0.18, roof),
-        ring(cabin_back, half * 0.96, 0.18, roof * 0.82),
-        ring(cabin_back + 0.25, half, 0.18, 0.84),
-        ring(rear - 0.30, half * 0.98, 0.22, 0.76),
-        ring(rear, half * 0.82, 0.30, 0.62),
+        ring(front, half * 0.86, 0.36, 0.62),
+        ring(front + 0.22, half * 0.96, 0.30, 0.76),
+        ring(front + 0.60, half, 0.26, 0.82),
+        ring(cabin_front - 0.25, half, sill, 0.84),
+        ring(cabin_front - 0.05, half * 0.99, sill, 0.90),
+        ring(cabin_front + 0.28, half * 0.96, sill, roof * 0.93),
+        ring(cabin_front + 0.55, half * 0.94, sill, roof),
+        ring(cabin_back - 0.45, half * 0.94, sill, roof),
+        ring(cabin_back - 0.20, half * 0.95, sill, roof * 0.97),
+        ring(cabin_back + 0.10, half * 0.97, sill, roof * 0.72),
+        ring(cabin_back + 0.40, half * 0.99, sill, 0.82),
+        ring(rear - 0.25, half * 0.99, 0.24, 0.78),
+        ring(rear, half * 0.82, 0.32, 0.62),
     ]
 
     loft(paint, rings)
     cap(paint, rings[0], reverse=True)
     cap(paint, rings[-1])
 
-    # Стёкла: лобовое, заднее и два боковых, чуть вынесены наружу.
+    # Лобовое и заднее стекло — по наклону сечений.
     glass.quad(
-        (-half * 0.80, 0.86, cabin_front - 0.10),
-        (half * 0.80, 0.86, cabin_front - 0.10),
-        (half * 0.72, roof - 0.02, cabin_front + 0.20),
-        (-half * 0.72, roof - 0.02, cabin_front + 0.20),
+        (-half * 0.84, 0.88, cabin_front - 0.04),
+        (half * 0.84, 0.88, cabin_front - 0.04),
+        (half * 0.78, roof - 0.02, cabin_front + 0.52),
+        (-half * 0.78, roof - 0.02, cabin_front + 0.52),
     )
     glass.quad(
-        (half * 0.80, 0.86, cabin_back + 0.24),
-        (-half * 0.80, 0.86, cabin_back + 0.24),
-        (-half * 0.72, roof - 0.02, cabin_back - 0.18),
-        (half * 0.72, roof - 0.02, cabin_back - 0.18),
+        (half * 0.80, roof - 0.03, cabin_back - 0.16),
+        (-half * 0.80, roof - 0.03, cabin_back - 0.16),
+        (-half * 0.78, 0.88, cabin_back + 0.40),
+        (half * 0.78, 0.88, cabin_back + 0.40),
     )
-    for side in (-1, 1):
-        x = side * (half * 0.95 + 0.004)
-        glass.quad(
-            (x, 0.90, cabin_front + 0.02),
-            (x, 0.90, cabin_back - 0.02),
-            (x, roof - 0.06, cabin_back - 0.05),
-            (x, roof - 0.06, cabin_front + 0.05),
-        )
 
-    # Бамперы, решётка, порог.
-    trim.box((0, 0.34, front + 0.02), (width * 0.92, 0.16, 0.12))
-    trim.box((0, 0.34, rear - 0.02), (width * 0.92, 0.16, 0.12))
-    trim.box((0, 0.56, front - 0.01), (width * 0.55, 0.14, 0.05))
-    trim.box((0, 0.16, 0), (width * 0.94, 0.10, length * 0.78))
+    # Боковые окна: два, с центральной стойкой.
+    for side in (-1, 1):
+        x = side * (half * 0.955 + 0.004)
+        pairs = ((cabin_front + 0.06, cabin_front + 0.56), (cabin_front + 0.66, cabin_back - 0.02))
+        for z0, z1 in pairs:
+            glass.quad(
+                (x, 0.86, z0),
+                (x, 0.86, z1),
+                (x, roof - 0.05, z1),
+                (x, roof - 0.05, z0),
+            )
+
+        # Стойка между окнами.
+        trim.box((side * (half * 0.96), (0.86 + roof - 0.05) / 2, cabin_front + 0.61),
+                 (0.02, roof - 0.91, 0.07))
+
+        # Молдинг по борту и колёсные арки.
+        trim.box((side * (half + 0.006), 0.54, 0), (0.02, 0.05, length * 0.62))
+        arch(trim, side * (half + 0.004), -1.35, 0.34, 0.36, 0.43)
+        arch(trim, side * (half + 0.004), 1.35, 0.34, 0.36, 0.43)
+
+    # Бамперы, решётка, порог, номер.
+    trim.box((0, 0.36, front + 0.03), (width * 0.94, 0.16, 0.12))
+    trim.box((0, 0.36, rear - 0.03), (width * 0.94, 0.16, 0.12))
+    trim.box((0, 0.58, front - 0.005), (width * 0.52, 0.15, 0.05))
+    trim.box((0, sill - 0.02, 0), (width * 0.96, 0.08, length * 0.72))
+    trim.box((0, 0.42, front - 0.02), (0.34, 0.12, 0.02))
 
     # Фары и стопы.
     for side in (-1, 1):
-        lamp.box((side * half * 0.62, 0.62, front - 0.005), (0.30, 0.16, 0.04))
-        tail.box((side * half * 0.64, 0.60, rear + 0.005), (0.28, 0.14, 0.04))
+        lamp.box((side * half * 0.60, 0.64, front - 0.004), (0.32, 0.17, 0.05))
+        lamp.box((side * half * 0.84, 0.52, front - 0.004), (0.12, 0.10, 0.05))
+        tail.box((side * half * 0.62, 0.62, rear + 0.004), (0.30, 0.15, 0.05))
 
-    # Номерной знак.
-    trim.box((0, 0.40, front - 0.02), (0.34, 0.12, 0.02))
+    # По контракту начало координат — центр шасси: низ кузова на -0.15.
+    shift = -0.15 - min(p[1] for p in paint.positions)
+    for mesh in (paint, glass, trim, lamp, tail):
+        mesh.positions = [(x, y + shift, z) for (x, y, z) in mesh.positions]
 
     return {"paint": paint, "glass": glass, "trim": trim, "lamp": lamp, "tail": tail}
-
 
 def material(color, metallic, roughness, emissive=None):
     entry = {"pbrMetallicRoughness": {
@@ -329,10 +359,10 @@ def build_glb(meshes):
 # ---------------------------------------------------------------- модели
 
 SPECS = {
-    "zastava_101": dict(length=3.96, width=1.58, roof=1.34, cabin_front=-0.42, cabin_back=0.86),
-    "golf_2": dict(length=4.02, width=1.66, roof=1.38, cabin_front=-0.50, cabin_back=0.92),
-    "vaz_2106": dict(length=4.04, width=1.60, roof=1.36, cabin_front=-0.46, cabin_back=0.88),
-    "zaz_968": dict(length=3.72, width=1.54, roof=1.30, cabin_front=-0.38, cabin_back=0.80),
+    "zastava_101": dict(length=3.96, width=1.58, roof=1.22, cabin_front=-0.62, cabin_back=0.95),
+    "golf_2": dict(length=4.02, width=1.66, roof=1.26, cabin_front=-0.70, cabin_back=1.02),
+    "vaz_2106": dict(length=4.04, width=1.60, roof=1.24, cabin_front=-0.66, cabin_back=0.98),
+    "zaz_968": dict(length=3.72, width=1.54, roof=1.18, cabin_front=-0.58, cabin_back=0.90),
 }
 
 

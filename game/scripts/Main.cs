@@ -33,6 +33,7 @@ public partial class Main : Node3D
     private bool _shotDay;
     private bool _shotSettings;
     private bool _shotRain;
+    private bool _shotCar;
     private int _frames;
 
     private enum InteractionKind
@@ -100,12 +101,14 @@ public partial class Main : Node3D
                 || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-menu") >= 0
                 || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-day") >= 0
                 || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-settings") >= 0
-                || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-rain") >= 0;
+                || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-rain") >= 0
+                || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-car") >= 0;
         _openJournalInShot = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-ui") >= 0;
         _shotMenu = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-menu") >= 0;
         _shotDay = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-day") >= 0;
         _shotSettings = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-settings") >= 0;
         _shotRain = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-rain") >= 0;
+        _shotCar = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-car") >= 0;
         _car.Autopilot = _smoke || _selfTest;
 
         _menu = new MenuUi();
@@ -141,12 +144,21 @@ public partial class Main : Node3D
             _car.GlobalPosition = road.Centerline[index] + Vector3.Up * 0.6f;
             _car.Rotation = new Vector3(0, -road.Headings[index] + 0.35f, 0);
             _camera.GlobalPosition = _car.GlobalPosition + _car.GlobalBasis.Z * 9f + Vector3.Up * 4f;
-            _car.Session.Clock.SetTotalMinutes((_shotDay ? 12.0 : 18.75) * 60);
+            _car.Session.Clock.SetTotalMinutes((_shotDay || _shotCar ? 12.0 : 18.75) * 60);
 
             if (_shotRain)
             {
                 _car.Session.Clock.SetTotalMinutes(15.0 * 60);
                 _car.Session.Weather.Restore(WeatherKind.Rain, wetness: 1, rain: 1, minutesUntilChange: 30);
+            }
+
+            if (_shotCar)
+            {
+                // Камера в три четверти: снимаем модель, а не дорогу.
+                _camera.ProcessMode = ProcessModeEnum.Disabled;
+                Transform3D basis = _car.GlobalTransform;
+                Vector3 eye = basis * new Vector3(-5.2f, 1.7f, -2.2f);
+                _camera.LookAtFromPosition(eye, _car.GlobalPosition + new Vector3(0, 0.7f, 0));
             }
         }
 
