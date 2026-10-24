@@ -1606,9 +1606,20 @@ public partial class Main : Node3D
             start.Y = _houseGroundY - 0.1f;
             body.GlobalPosition = start;
 
-            for (int i = 0; i < 180; i++)
+            for (int i = 0; i < 220; i++)
             {
                 body.Velocity = inward * 2.2f - Vector3.Up * 0.25f;
+
+                // Шаг вверх, как у игрока: пороги и крыльцо.
+                if (body.IsOnFloor())
+                {
+                    var raised = new Transform3D(body.GlobalBasis, body.GlobalPosition + Vector3.Up * 0.34f);
+                    if (body.TestMove(body.GlobalTransform, inward * 0.35f)
+                        && !body.TestMove(raised, inward * 0.35f)
+                        && body.TestMove(raised, Vector3.Down * 0.46f))
+                        body.GlobalPosition += Vector3.Up * 0.34f;
+                }
+
                 body.MoveAndSlide();
             }
 
@@ -1648,9 +1659,20 @@ public partial class Main : Node3D
             Vector3 direction = (topWorld - startWorld).Normalized();
             climb.GlobalPosition = startWorld;
 
-            for (int i = 0; i < 220; i++)
+            for (int i = 0; i < 420; i++)
             {
-                climb.Velocity = direction * 1.8f - Vector3.Up * 0.2f;
+                climb.Velocity = direction * 2.4f - Vector3.Up * 0.2f;
+
+                // Тот же шаг вверх: иначе тест не повторит путь игрока.
+                if (climb.IsOnFloor())
+                {
+                    var raised = new Transform3D(climb.GlobalBasis, climb.GlobalPosition + Vector3.Up * 0.34f);
+                    if (climb.TestMove(climb.GlobalTransform, direction * 0.35f)
+                        && !climb.TestMove(raised, direction * 0.35f)
+                        && climb.TestMove(raised, Vector3.Down * 0.46f))
+                        climb.GlobalPosition += Vector3.Up * 0.34f;
+                }
+
                 climb.MoveAndSlide();
             }
 

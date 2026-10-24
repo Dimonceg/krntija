@@ -11,6 +11,10 @@ public partial class Player : CharacterBody3D
     private const float RunSpeed = 5.8f;
     private const float Gravity = 22f;
     private const float MouseSensitivity = 0.0035f;
+    private const float JumpSpeed = 5.2f;
+    private const float StepHeight = 0.34f;
+
+    private bool _jumpRequested;
 
     public float Yaw { get; set; }
 
@@ -52,8 +56,13 @@ public partial class Player : CharacterBody3D
     public override void _UnhandledInput(InputEvent @event)
     {
         if (Input.MouseMode != Input.MouseModeEnum.Captured) return;
+
         if (@event is InputEventMouseMotion motion)
             Yaw -= motion.Relative.X * MouseSensitivity * GameSettings.MouseSensitivity;
+
+        // Пробел пешком — прыжок (в машине он остаётся ручником).
+        if (@event is InputEventKey { Pressed: true, Echo: false, Keycode: Key.Space })
+            _jumpRequested = true;
     }
 
     public override void _PhysicsProcess(double delta)
@@ -73,6 +82,30 @@ public partial class Player : CharacterBody3D
         velocity.X = forward.X * move * speed + right.X * strafe * speed * 0.8f;
         velocity.Z = forward.Z * move * speed + right.Z * strafe * speed * 0.8f;
         velocity.Y -= Gravity * dt;
+
+        if (IsOnFloor() && _jumpRequested)
+        {
+            velocity.Y = JumpSpeed;
+            Sfx.PlayStep(GlobalPosition);
+        }
+
+        _jumpRequested = false;
+
+        // Шаг вверх: капсула не умеет переступать пороги, поэтому поднимаем её
+        // сама, если впереди упор, а на высоте ступени путь свободен и есть опора.
+        Vector3 horizontal = new(velocity.X, 0, velocity.Z);
+        if (IsOnFloor() && horizontal.LengthSquared() > 0.04f)
+        {
+            Vector3 dir = horizontal.Normalized();
+            if (TestMove(GlobalTransform, dir * 0.35f))
+            {
+                var raised = new Transform3D(GlobalBasis, GlobalPosition + Vector3.Up * StepHeight);
+                bool freeAtStep = !TestMove(raised, dir * 0.35f);
+                bool supportAhead = TestMove(raised, Vector3.Down * (StepHeight + 0.12f));
+
+                if (freeAtStep && supportAhead) GlobalPosition += Vector3.Up * StepHeight;
+            }
+        }
 
         Velocity = velocity;
         MoveAndSlide();
