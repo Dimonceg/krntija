@@ -8,6 +8,8 @@ $KrntijaRoot = Split-Path -Parent $PSScriptRoot
 $DotnetRoot = 'C:\Tools\dotnet'
 $GodotDir = 'C:\Tools\Godot4\Godot_v4.7.2-stable_mono_win64'
 $GodotExe = Join-Path $GodotDir 'Godot_v4.7.2-stable_mono_win64.exe'
+# Консольная сборка: печатает логи в терминал, в отличие от оконной.
+$GodotConsoleExe = Join-Path $GodotDir 'Godot_v4.7.2-stable_mono_win64_console.exe'
 
 if (-not (Test-Path (Join-Path $DotnetRoot 'dotnet.exe'))) {
     throw "dotnet not found in $DotnetRoot (see README)"
