@@ -1511,7 +1511,7 @@ public partial class Main : Node3D
         string featureId = feature.ToString().ToLowerInvariant();
         string? variant = PropFactory.PickVariant(PropVariants(featureId), poiIndex);
 
-        // Небольшой разворот и сдвиг: одинаковые пропы не должны стоять строем.
+        // Небольшой разворот; высота площадки фиксирована, чтобы не затопить настил землёй.
         var rng = new Pcg32((ulong)(20261024 + poiIndex), sequence: 5);
         float yawJitter = (float)rng.Range(-0.18, 0.18);
 
