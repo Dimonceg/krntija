@@ -546,6 +546,51 @@ public partial class Main
         Check(_player.IsOnFloor(), "пешеход стоит на земле");
     }
 
+    /// <summary>
+    /// Разбор сцены для бюджета: сколько мешей, мультимешей и материалов под каждым
+    /// корневым узлом. Запуск: --check-scene. Печатает таблицу и выходит.
+    /// </summary>
+    private void RunSceneReport()
+    {
+        var rows = new List<(string Name, int Meshes, int Multi, int Bodies, int Nodes)>();
+        var materials = new HashSet<ulong>();
+
+        foreach (var child in GetChildren())
+        {
+            int meshes = 0, multi = 0, bodies = 0, nodes = 0;
+            var stack = new Stack<Node>();
+            stack.Push(child);
+            while (stack.Count > 0)
+            {
+                var node = stack.Pop();
+                if (node.IsQueuedForDeletion()) continue;
+                nodes++;
+                if (node is MeshInstance3D { Mesh: not null } mesh)
+                {
+                    meshes++;
+                    if (mesh.MaterialOverride is { } m) materials.Add(m.GetInstanceId());
+                }
+                else if (node is MultiMeshInstance3D) multi++;
+                else if (node is CollisionObject3D) bodies++;
+
+                foreach (var next in node.GetChildren()) stack.Push(next);
+            }
+
+            rows.Add((child.Name, meshes, multi, bodies, nodes));
+        }
+
+        // Одинаковые генераторы дают много корней с похожими именами: группируем по префиксу.
+        foreach (var group in rows.GroupBy(r => new string(r.Name.TakeWhile(c => !char.IsDigit(c) && c != '@').ToArray()))
+                     .OrderByDescending(g => g.Sum(r => r.Meshes)).Take(25))
+        {
+            GD.Print($"[scene] {group.Key,-28} корней {group.Count(),4}  мешей {group.Sum(r => r.Meshes),5}  "
+                     + $"мультимешей {group.Sum(r => r.Multi),3}  тел {group.Sum(r => r.Bodies),4}  узлов {group.Sum(r => r.Nodes),5}");
+        }
+
+        GD.Print($"[scene] всего: мешей {rows.Sum(r => r.Meshes)}, мультимешей {rows.Sum(r => r.Multi)}, "
+                 + $"тел {rows.Sum(r => r.Bodies)}, узлов {rows.Sum(r => r.Nodes)}, разных материалов-override {materials.Count}");
+    }
+
     /// <summary>Высота первой твёрдой поверхности под точкой, без машины и пешехода.</summary>
     private float GroundY(Vector3 at)
     {

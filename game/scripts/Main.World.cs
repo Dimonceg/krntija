@@ -173,6 +173,23 @@ public partial class Main
         featureId + "_a", featureId + "_b", featureId + "_c", featureId,
     };
 
+    /// <summary>
+    /// Слить неподвижную геометрию мира: меньше вызовов отрисовки. Мокрая дорога
+    /// меняет свой материал во время игры, поэтому он сливается только сам с собой.
+    /// </summary>
+    private void BatchStaticGeometry()
+    {
+        // --no-batch: сравнить картинку и цифры без слияния.
+        if (HasArg("--no-batch")) return;
+
+        var dynamicMaterials = new HashSet<Material>();
+        if (_road?.RoadMaterial is { } road) dynamicMaterials.Add(road);
+
+        ulong started = Time.GetTicksMsec();
+        int removed = StaticBatcher.Merge(this, cellSize: 64f, dynamicMaterials);
+        GD.Print($"[batch] мешей убрано: {removed}, за {Time.GetTicksMsec() - started} мс");
+    }
+
     /// <summary>Точки карты: лут, скупщик, колодец, собака.</summary>
     private void RegisterMapUses(MapResult map)
     {
@@ -221,6 +238,7 @@ public partial class Main
                 new Pcg32(20261027, sequence: 9));
             _collapseNode = node;
             _collapseBody = body;
+            node.AddToGroup(StaticBatcher.SkipGroup); // завал разбирают — его меши не сливаем
 
             _interactions.Add(new InteractionPoint(position + Vector3.Up * 0.4f,
                 InteractionKind.ClearCollapse, 4f));

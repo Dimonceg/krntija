@@ -114,6 +114,7 @@ public partial class Main : Node3D
         // Дом игрока у старта: слева от дороги, со своими дверями и чердаком.
         BuildPlayerHouse();
         SpawnLoot();
+        BatchStaticGeometry();
 
         // Дорожные события: ямы, коровы, попутчики.
         if (_road is not null)
@@ -150,6 +151,13 @@ public partial class Main : Node3D
         }
 
         _car.Autopilot = DrivesItself;
+
+        if (HasArg("--check-scene"))
+        {
+            RunSceneReport();
+            GetTree().Quit(0);
+            return;
+        }
 
         // Проверка дверей: открываем все и через полсотни кадров меряем проёмы.
         if (_checkHouse)
