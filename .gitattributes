@@ -1,0 +1,7 @@
+# Godot сам переписывает эти файлы с LF. При core.autocrlf=true git иначе
+# считает их изменёнными после каждого импорта, хотя содержимое то же.
+*.import  text eol=lf
+*.uid     text eol=lf
+*.tscn    text eol=lf
+*.tres    text eol=lf
+*.godot   text eol=lf

@@ -5,28 +5,11 @@ using Krntija.Core.World;
 
 namespace Krntija.Game;
 
-/// <summary>Запись на карте: что за место и где оно (для миникарты и лута).</summary>
-public readonly record struct MapPlace(int Index, float Side, Vector3 Position, string Kind, string Label);
-
-/// <summary>Точка взаимодействия, которую карта просит зарегистрировать.</summary>
-public readonly record struct MapUse(Vector3 Position, string Kind, string? ItemId = null, int Count = 1);
-
-/// <summary>Итог генерации: места, дороги, точки взаимодействия.</summary>
-public sealed class MapResult
-{
-    public List<MapPlace> Places { get; } = new();
-    public List<List<Vector3>> Branches { get; } = new();
-    public List<MapUse> Uses { get; } = new();
-    public List<Door> Doors { get; } = new();
-    public List<int> ClosedExits { get; } = new();
-    public Vector3? Settlement { get; set; }
-}
-
 /// <summary>
-/// Второй слой карты: сеть грунтовых дорог, поселение, интерьеры и события.
+/// Глубинка за трассой: сеть грунтовых дорог, поселение, интерьеры и события.
 /// Всё по сиду, поэтому карта одинаковая у всех и в тестах.
 /// </summary>
-public static class WorldMap2
+public static class BackcountryMap
 {
     private static readonly Color Wood = new(0.42f, 0.31f, 0.2f);
     private static readonly Color Stone = new(0.55f, 0.53f, 0.5f);
@@ -89,7 +72,7 @@ public static class WorldMap2
         Pcg32 rng, int index, float side, out float length)
     {
         var path = new List<Vector3>();
-        Vector3 start = WorldMap.PointAt(centerline, headings, index, side, 6f);
+        Vector3 start = RoadsideMap.PointAt(centerline, headings, index, side, 6f);
         float heading = headings[index] + side * Mathf.Pi / 2f;
 
         Vector3 position = start;
@@ -163,7 +146,7 @@ public static class WorldMap2
     {
         int index = centerline.Count * 2 / 5;
         float side = -1f;
-        Vector3 center = WorldMap.PointAt(centerline, headings, index, side, 58f);
+        Vector3 center = RoadsideMap.PointAt(centerline, headings, index, side, 58f);
         result.Settlement = center;
 
         // Площадь и колодец в центре.
@@ -222,21 +205,21 @@ public static class WorldMap2
     {
         // Брошенная машина: кузов на земле и запчасти рядом.
         int carIndex = centerline.Count / 3;
-        Vector3 carSpot = WorldMap.PointAt(centerline, headings, carIndex, 1f, 12f);
+        Vector3 carSpot = RoadsideMap.PointAt(centerline, headings, carIndex, 1f, 12f);
         BuildWreck(parent, carSpot, headings[carIndex] + 0.6f);
         result.Places.Add(new MapPlace(carIndex, 1f, carSpot, "wreck", "Брошенная машина"));
         result.Uses.Add(new MapUse(carSpot + Vector3.Up * 0.2f, "loot", "spare_tire", 1));
 
         // Сломанный трактор у сарая.
         int tractorIndex = centerline.Count / 7;
-        Vector3 tractorSpot = WorldMap.PointAt(centerline, headings, tractorIndex, -1f, 34f);
+        Vector3 tractorSpot = RoadsideMap.PointAt(centerline, headings, tractorIndex, -1f, 34f);
         BuildTractor(parent, tractorSpot, headings[tractorIndex] - 0.4f);
         result.Places.Add(new MapPlace(tractorIndex, -1f, tractorSpot, "tractor", "Трактор"));
         result.Uses.Add(new MapUse(tractorSpot + Vector3.Up * 0.2f, "loot", "spark_plug", 2));
 
         // Собака у сарая: можно погладить.
         int dogIndex = centerline.Count * 3 / 4;
-        Vector3 barnSpot = WorldMap.PointAt(centerline, headings, dogIndex, 1f, 40f);
+        Vector3 barnSpot = RoadsideMap.PointAt(centerline, headings, dogIndex, 1f, 40f);
         BuildStructure(parent, barnSpot, headings[dogIndex] + 0.4f, "barn", rng, result: result);
         Vector3 dog = barnSpot + new Vector3(2.4f, 0, 2.6f);
         BuildDog(parent, dog);
