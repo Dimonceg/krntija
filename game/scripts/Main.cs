@@ -56,6 +56,7 @@ public partial class Main : Node3D
     private float _offroadStartY;
     private float _playerStartY;
     private float _handbrakeSpeed;
+    private Vector3 _creepPosition;
 
     public override void _Ready()
     {
@@ -168,10 +169,11 @@ public partial class Main : Node3D
             if (_frames == 120) RunSelfTest();
             if (_frames == 230) CheckReverse();
             if (_frames == 240) SetupHandbrakeCheck();
-            if (_frames == 300) { CheckHandbrake(); SetupOffroadCheck(); }
-            if (_frames == 320) { CheckOffroad(); SetupPlayerCheck(); }
-            if (_frames == 390) CheckPlayerOffroad();
-            if (_frames >= 400)
+            if (_frames == 300) CheckHandbrake();
+            if (_frames == 380) CheckCreep();
+            if (_frames == 400) { CheckOffroad(); SetupPlayerCheck(); }
+            if (_frames == 470) CheckPlayerOffroad();
+            if (_frames >= 480)
             {
                 _smokeDone = true;
                 GetTree().Quit(_selfTestOk ? 0 : 1);
@@ -664,8 +666,21 @@ public partial class Main : Node3D
     {
         float speed = _car.SpeedMps;
         Check(speed < 6f, $"ручник тормозит ({speed:F1} м/с из {_handbrakeSpeed:F0})");
-        _car.ForcedInput = null;
+
+        // Ручник остаётся включённым: машина должна стоять на уклоне.
         _car.LinearVelocity = Vector3.Zero;
+        _car.ForcedInput = new DriveInput(Handbrake: true);
+        _creepPosition = _car.GlobalPosition;
+    }
+
+    /// <summary>Машина стоит с ручником — не должна скатываться.</summary>
+    private void CheckCreep()
+    {
+        float moved = _car.GlobalPosition.DistanceTo(_creepPosition);
+        Check(moved < 1.5f, $"ручник держит на уклоне (сдвиг {moved:F2} м)");
+
+        _car.ForcedInput = null;
+        SetupOffroadCheck();
     }
 
     /// <summary>Ставим машину на площадку у заправки: там раньше проваливалась.</summary>

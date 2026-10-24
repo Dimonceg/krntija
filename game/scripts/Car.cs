@@ -47,6 +47,11 @@ public partial class Car : RigidBody3D
     /// <summary>Ручник нажат — для индикатора в HUD.</summary>
     public bool HandbrakeActive { get; private set; }
 
+    private bool _handbrakeOn;
+
+    /// <summary>Ручник взведён (стояночный режим).</summary>
+    public bool HandbrakeOn => _handbrakeOn;
+
     /// <summary>Мокрое полотно держит хуже: множитель приходит из погоды.</summary>
     public float GripScale { get; set; } = 1f;
 
@@ -229,6 +234,9 @@ public partial class Car : RigidBody3D
                 ? new DriveInput(Ignition: true, Throttle: 0.65, Steer: AutopilotSteer())
                 : ReadInput());
 
+        // Ручник — переключатель: нажал и стоит, нажал ещё раз — отпустил.
+        input = input with { Handbrake = input.Handbrake || _handbrakeOn };
+
         var sample = new VehicleSample(LinearVelocity.Length(), AmbientC: 20);
 
         float forwardSpeed = LinearVelocity.Dot(-GlobalBasis.Z);
@@ -250,7 +258,23 @@ public partial class Car : RigidBody3D
         }
 
         ApplyForces(dt, input, forwardSpeed, reversing);
+
+        // Стояночный тормоз действительно держит: на уклоне машина не катится.
+        float horizontal = new Vector2(LinearVelocity.X, LinearVelocity.Z).Length();
+        if (_handbrakeOn && GroundedWheels > 0 && horizontal < 1.2f)
+        {
+            LinearVelocity = new Vector3(0, LinearVelocity.Y, 0);
+            AngularVelocity = new Vector3(0, AngularVelocity.Y * 0.5f, 0);
+        }
+
         SpinWheels(dt);
+    }
+
+    public override void _UnhandledInput(InputEvent @event)
+    {
+        if (Autopilot || ForcedInput is not null) return;
+        if (@event.IsActionPressed("handbrake"))
+            _handbrakeOn = !_handbrakeOn;
     }
 
     private DriveInput ReadInput() => Driven
@@ -258,8 +282,7 @@ public partial class Car : RigidBody3D
             Ignition: Input.IsActionJustPressed("ignition"),
             Throttle: Input.GetActionStrength("accelerate"),
             Brake: Input.GetActionStrength("brake"),
-            Steer: Input.GetAxis("steer_left", "steer_right"),
-            Handbrake: Input.IsActionPressed("handbrake"))
+            Steer: Input.GetAxis("steer_left", "steer_right"))
         : default;
 
     private void ApplyForces(float dt, in DriveInput input, float forwardSpeed, bool reversing)
@@ -344,8 +367,8 @@ public partial class Car : RigidBody3D
                 ApplyForce(back * brake * MaxBrakeForce * 0.25f, point - com);
             }
 
-            // Ручник держит задние колёса: сильное торможение и никакой тяги.
-            if (input.Handbrake && i >= 2 && Mathf.Abs(forwardSpeed) > 0.4f)
+            // Ручник держит задние колёса: тормозит и на ходу, и на последних сантиметрах.
+            if (input.Handbrake && i >= 2 && SpeedMps > 0.05f)
             {
                 Vector3 back = -LinearVelocity.Normalized();
                 ApplyForce(back * 7000f, point - com);
