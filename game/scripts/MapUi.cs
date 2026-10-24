@@ -21,6 +21,12 @@ public partial class MapUi : Control
 
     public bool IsOpen => Visible;
 
+    /// <summary>Компактный режим — маленькая карта в углу HUD.</summary>
+    public bool Compact { get; set; }
+
+    private float _redrawTimer;
+
+
     public override void _Ready()
     {
         SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
@@ -56,7 +62,9 @@ public partial class MapUi : Control
         if (_road.Count < 2) return;
 
         ComputeBounds();
-        var panel = new Rect2(Size.X * 0.12f, Size.Y * 0.08f, Size.X * 0.76f, Size.Y * 0.84f);
+        var panel = Compact
+            ? new Rect2(2, 2, Size.X - 4, Size.Y - 4)
+            : new Rect2(Size.X * 0.12f, Size.Y * 0.08f, Size.X * 0.76f, Size.Y * 0.84f);
         DrawRect(panel, new Color(0.16f, 0.18f, 0.14f, 0.95f));
         DrawRect(panel, new Color(0.7f, 0.65f, 0.5f, 0.9f), false, 2f);
 
@@ -103,6 +111,8 @@ public partial class MapUi : Control
             DrawCircle(player, 4.5f, new Color(0.95f, 0.95f, 0.95f));
             DrawCircle(player, 2.5f, new Color(0.2f, 0.6f, 0.9f));
         }
+
+        if (Compact) return;
 
         var font = ThemeDB.FallbackFont;
         DrawString(font, new Vector2(panel.Position.X + 10, panel.Position.Y + 22),

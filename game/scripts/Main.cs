@@ -43,6 +43,13 @@ public partial class Main : Node3D
     private BackpackUi _backpack = null!;
     private MapUi _mapUi = null!;
     private MapResult _map = new();
+    private readonly List<(Vector3 Position, Door Barrier, Node3D Wall)> _exitGates = new();
+    private Node3D? _collapseNode;
+    private Node3D? _collapseBody;
+    private Vector3? _wolvesCenter;
+    private float _wolfCooldown;
+    private MapUi _miniMap = null!;
+    private float _miniMapTimer;
     private LootItem? _hoveredLoot;
     private bool _cursorFree;
     private bool _shotBackpack;
@@ -67,6 +74,9 @@ public partial class Main : Node3D
         SellAll,
         Drink,
         Pet,
+        Talk,
+        RepairExit,
+        ClearCollapse,
     }
 
     private sealed record InteractionPoint(Vector3 Position, InteractionKind Kind, float Radius,
@@ -144,6 +154,18 @@ public partial class Main : Node3D
         AddChild(_mapUi);
         if (_road is not null)
             _mapUi.SetData(_road.Centerline, _map.Branches, _map.Places, _map.ClosedExits);
+
+        // Маленькая карта в углу: видна всегда.
+        _miniMap = new MapUi { Compact = true };
+        AddChild(_miniMap);
+        _miniMap.SetAnchorsPreset(Control.LayoutPreset.TopRight);
+        _miniMap.OffsetLeft = -246;
+        _miniMap.OffsetTop = 10;
+        _miniMap.OffsetRight = -12;
+        _miniMap.OffsetBottom = 170;
+        _miniMap.Visible = true;
+        if (_road is not null)
+            _miniMap.SetData(_road.Centerline, _map.Branches, _map.Places, _map.ClosedExits);
 
         // Дом игрока у старта: слева от дороги, со своими дверями и чердаком.
         BuildPlayerHouse();
@@ -550,6 +572,25 @@ public partial class Main : Node3D
 
         if (_mapUi is not null && _mapUi.IsOpen)
             _mapUi.UpdatePlayer(_car.GlobalPosition);
+
+        // Маленькая карта обновляется четыре раза в секунду, чтобы не грузить кадр.
+        _miniMapTimer -= (float)delta;
+        if (_miniMap is not null && _miniMapTimer <= 0f)
+        {
+            _miniMapTimer = 0.25f;
+            _miniMap.UpdatePlayer(_car.GlobalPosition);
+        }
+
+        // Волки: подошёл близко — теряешь здоровье.
+        _wolfCooldown = Mathf.Max(0f, _wolfCooldown - (float)delta);
+        if (_wolvesCenter is { } wolves && _wolfCooldown <= 0f
+            && _car.GlobalPosition.DistanceTo(wolves) < 13f)
+        {
+            _wolfCooldown = 5f;
+            _car.Session.Survival.Health = Mathf.Max(0f, _car.Session.Survival.Health - 0.05f);
+            _hud.Toast("Волки! Отъезжай");
+        }
+
         UpdateSky();
         ApplyWeather();
         RewardNewPlaces();
@@ -738,6 +779,9 @@ public partial class Main : Node3D
         InteractionKind.SellAll => "[E] сдать всё скупщику",
         InteractionKind.Drink => "[E] попить из колодца",
         InteractionKind.Pet => "[E] погладить собаку",
+        InteractionKind.Talk => "[E] поговорить",
+        InteractionKind.RepairExit => "[E] починить выезд (60 € + изолента)",
+        InteractionKind.ClearCollapse => "[E] разобрать завал",
         InteractionKind.Gate => point.Gate is { IsOpen: true } ? "[E] шлагбаум открыт" : "[E] заплатить 15 € за проезд",
         InteractionKind.Sleep => "[E] переночевать (15 €)",
         InteractionKind.Door => point.Door is { IsOpen: true } ? "[E] закрыть дверь" : "[E] открыть дверь",
@@ -819,6 +863,27 @@ public partial class Main : Node3D
             case InteractionKind.Door:
                 point.Door?.Toggle();
                 Sfx.PlayUi();
+                break;
+
+            case InteractionKind.Drink:
+                DrinkFromWell();
+                break;
+
+            case InteractionKind.Pet:
+                _hud.Toast("Собака виляет хвостом");
+                Sfx.PlayUi();
+                break;
+
+            case InteractionKind.Talk:
+                TalkToResident(point);
+                break;
+
+            case InteractionKind.RepairExit:
+                TryRepairExit(point);
+                break;
+
+            case InteractionKind.ClearCollapse:
+                ClearCollapse();
                 break;
 
             default:
@@ -1624,7 +1689,12 @@ public partial class Main : Node3D
         AddRoadBoundaries(road);
         _mapPlaces = WorldMap.Build(road.Centerline, road.Headings, this, seed: 20261023);
         _map = WorldMap2.Build(road.Centerline, road.Headings, this, seed: 20261023);
+        MapLife.BuildForkSigns(this, road.Centerline, road.Headings, _map.Branches, _map);
+        MapLife.BuildResidents(this, _map, new Pcg32(20261025, sequence: 5));
+        _exitGates.AddRange(MapLife.BuildClosedExits(this, road.Centerline, road.Headings, _map,
+            new Pcg32(20261026, sequence: 6)));
         RegisterMapUses(_map);
+        SpawnMapEvents();
 
         var target = road.Points.Count > 0 ? road.Points[^1] : null;
         if (target is not null)
@@ -1922,10 +1992,21 @@ public partial class Main : Node3D
                 case "dog":
                     _interactions.Add(new InteractionPoint(use.Position, InteractionKind.Pet, 3f));
                     break;
+                case "talk":
+                    _interactions.Add(new InteractionPoint(use.Position, InteractionKind.Talk, 3f,
+                        LootId: use.ItemId));
+                    break;
+                case "exit":
+                    _interactions.Add(new InteractionPoint(use.Position, InteractionKind.RepairExit, 3.5f,
+                        LootId: use.ItemId));
+                    break;
             }
         }
 
-        GD.Print($"[map] лута на карте: {loot}, всего точек: {map.Uses.Count}");
+        foreach (var door in map.Doors)
+            _interactions.Add(new InteractionPoint(door.GlobalPosition, InteractionKind.Door, 2.8f, Door: door));
+
+        GD.Print($"[map] лута на карте: {loot}, дверей: {map.Doors.Count}, всего точек: {map.Uses.Count}");
     }
 
     /// <summary>Вода из колодца: немного восстанавливает жажду.</summary>
@@ -1934,6 +2015,88 @@ public partial class Main : Node3D
         _car.Session.Survival.Thirst = Mathf.Min(1f, _car.Session.Survival.Thirst + 0.35f);
         _hud.Toast("Вода холодная, жажда утолена");
         Sfx.PlayUi();
+    }
+
+    /// <summary>Житель говорит одну из своих реплик.</summary>
+    private void TalkToResident(InteractionPoint point)
+    {
+        int index = int.TryParse(point.LootId, out int parsed) ? parsed : 0;
+        string line = MapLife.ResidentLines[Math.Abs(index) % MapLife.ResidentLines.Length];
+        _hud.Toast(line);
+        Sfx.PlayUi();
+    }
+
+    /// <summary>Починка выезда: 60 € и изолента. Открывает шлагбаум и убирает стену.</summary>
+    private void TryRepairExit(InteractionPoint point)
+    {
+        if (int.TryParse(point.LootId, out int index) && index >= 0 && index < _exitGates.Count)
+        {
+            var gate = _exitGates[index];
+            if (gate.Wall is null || !IsInstanceValid(gate.Wall))
+            {
+                _hud.Toast("Выезд уже открыт");
+                return;
+            }
+
+            var session = _car.Session;
+            if (session.Wallet.Money < 60)
+            {
+                _hud.Toast("Нужно 60 €");
+                return;
+            }
+
+            if (session.Inventory.Count("duct_tape") < 1)
+            {
+                _hud.Toast("Нужна изолента");
+                return;
+            }
+
+            session.Wallet.TrySpend(60);
+            session.Inventory.Remove("duct_tape", 1);
+            if (!gate.Barrier.IsOpen) gate.Barrier.Toggle();
+            gate.Wall.QueueFree();
+            _hud.Toast("Выезд открыт: дальше новый край");
+            Sfx.PlayUi();
+        }
+    }
+
+    /// <summary>Разобрать завал на ветке: убирает камни и освобождает дорогу.</summary>
+    private void ClearCollapse()
+    {
+        if (_collapseNode is null || !IsInstanceValid(_collapseNode)) return;
+
+        _collapseNode.QueueFree();
+        _collapseNode = null;
+        _collapseBody = null;
+        _hud.Toast("Завал разобран, дорога свободна");
+        Sfx.PlayUi();
+    }
+
+    /// <summary>События карты: завал на первой ветке и волки у сарая с собакой.</summary>
+    private void SpawnMapEvents()
+    {
+        if (_map.Branches.Count > 0)
+        {
+            var (position, node, body) = MapLife.BuildCollapse(this, _map.Branches[0],
+                new Pcg32(20261027, sequence: 9));
+            _collapseNode = node;
+            _collapseBody = body;
+
+            _interactions.Add(new InteractionPoint(position + Vector3.Up * 0.4f,
+                InteractionKind.ClearCollapse, 4f));
+            GD.Print($"[map] завал на ветке: {position}");
+        }
+
+        foreach (var place in _map.Places)
+        {
+            if (place.Kind != "dog") continue;
+
+            Vector3 center = place.Position + new Vector3(-2f, 0, 3f);
+            _wolvesCenter = center;
+            MapLife.BuildWolves(this, center, new Pcg32(20261028, sequence: 11));
+            GD.Print($"[map] волки у сарая: {center}");
+            break;
+        }
     }
 
     /// <summary>Скупщик берёт всё, кроме инструментов, по 70 % цены.</summary>
