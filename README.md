@@ -61,6 +61,9 @@ powershell -ExecutionPolicy Bypass -File tools\play.ps1 -RebuildAssets
 Остальные проверки:
 
 ```powershell
+# всё перед слиянием: тесты, сборка, headless-проверки
+powershell -ExecutionPolicy Bypass -File tools\check.ps1
+
 # тесты ядра
 powershell -ExecutionPolicy Bypass -File tools\test.ps1
 
