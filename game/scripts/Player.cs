@@ -15,6 +15,7 @@ public partial class Player : CharacterBody3D
     private const float StepHeight = 0.34f;
 
     private bool _jumpRequested;
+    private float _stepCooldown;
 
     public float Yaw { get; set; }
 
@@ -92,18 +93,28 @@ public partial class Player : CharacterBody3D
         _jumpRequested = false;
 
         // Шаг вверх: капсула не умеет переступать пороги, поэтому поднимаем её
-        // сама, если впереди упор, а на высоте ступени путь свободен и есть опора.
+        // сама. Только на земле, только при движении и не чаще раза в 0.25 с —
+        // иначе шаг превращается в рывки вверх при упоре в мебель.
         Vector3 horizontal = new(velocity.X, 0, velocity.Z);
-        if (IsOnFloor() && horizontal.LengthSquared() > 0.04f)
+        _stepCooldown = Mathf.Max(0f, _stepCooldown - dt);
+
+        if (IsOnFloor() && _stepCooldown <= 0f && horizontal.Length() > 0.8f && velocity.Y < 0.5f)
         {
             Vector3 dir = horizontal.Normalized();
-            if (TestMove(GlobalTransform, dir * 0.35f))
+            if (TestMove(GlobalTransform, dir * 0.3f))
             {
                 var raised = new Transform3D(GlobalBasis, GlobalPosition + Vector3.Up * StepHeight);
-                bool freeAtStep = !TestMove(raised, dir * 0.35f);
-                bool supportAhead = TestMove(raised, Vector3.Down * (StepHeight + 0.12f));
+                bool freeAtStep = !TestMove(raised, dir * 0.3f);
+                bool supportAhead = TestMove(raised, Vector3.Down * (StepHeight + 0.1f));
 
-                if (freeAtStep && supportAhead) GlobalPosition += Vector3.Up * StepHeight;
+                // Опора должна быть почти сразу под ногой, а не на столе в метре.
+                bool lowStep = TestMove(GlobalTransform, Vector3.Down * 0.05f);
+
+                if (freeAtStep && supportAhead && lowStep)
+                {
+                    GlobalPosition += Vector3.Up * (StepHeight * 0.75f);
+                    _stepCooldown = 0.25f;
+                }
             }
         }
 
