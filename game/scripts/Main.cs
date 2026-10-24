@@ -50,9 +50,10 @@ public partial class Main : Node3D
         Shop,
         Gate,
         Sleep,
+        Door,
     }
 
-    private sealed record InteractionPoint(Vector3 Position, InteractionKind Kind, float Radius, CheckpointGate? Gate = null);
+    private sealed record InteractionPoint(Vector3 Position, InteractionKind Kind, float Radius, CheckpointGate? Gate = null, Door? Door = null);
 
     private readonly List<InteractionPoint> _interactions = new();
     private RoadBuildResult? _road;
@@ -117,6 +118,9 @@ public partial class Main : Node3D
 
         _hud = new Hud { Car = _car };
         AddChild(_hud);
+
+        // Дом игрока у старта: слева от дороги, со своими дверями и чердаком.
+        BuildPlayerHouse();
 
         // Дорожные события: ямы, коровы, попутчики.
         if (_road is not null)
@@ -600,6 +604,7 @@ public partial class Main : Node3D
         InteractionKind.Shop => "[E] зайти в лавку",
         InteractionKind.Gate => point.Gate is { IsOpen: true } ? "[E] шлагбаум открыт" : "[E] заплатить 15 € за проезд",
         InteractionKind.Sleep => "[E] переночевать (15 €)",
+        InteractionKind.Door => point.Door is { IsOpen: true } ? "[E] закрыть дверь" : "[E] открыть дверь",
         _ => "[E] заправить",
     };
 
@@ -655,6 +660,11 @@ public partial class Main : Node3D
 
             case InteractionKind.Sleep:
                 TrySleep();
+                break;
+
+            case InteractionKind.Door:
+                point.Door?.Toggle();
+                Sfx.PlayUi();
                 break;
 
             default:
@@ -1500,6 +1510,24 @@ public partial class Main : Node3D
     {
         featureId + "_a", featureId + "_b", featureId + "_c", featureId,
     };
+
+    /// <summary>Дом игрока у старта: слева от дороги, с дверями и чердаком.</summary>
+    private void BuildPlayerHouse()
+    {
+        if (_road is not { Centerline.Count: > 20 }) return;
+
+        int index = 10;
+        Vector3 anchor = _road.Centerline[index];
+        var right = new Vector3(Mathf.Cos(_road.Headings[index]), 0, Mathf.Sin(_road.Headings[index]));
+        Vector3 spot = anchor - right * 15f;
+        spot.Y = TerrainBuilder.SurfaceHeight(anchor.Y, -15f, spot);
+
+        var doors = PlayerHouse.Build(this, spot, -_road.Headings[index] + Mathf.Pi * 0.5f);
+        foreach (var (position, door) in doors)
+            _interactions.Add(new InteractionPoint(position, InteractionKind.Door, 2.6f, Door: door));
+
+        GD.Print($"[house] дом игрока: {doors.Count} дверей, {spot}");
+    }
 
     /// <summary>Дорожный указатель с названием места: «Село», «Рушевине» и т.п.</summary>
     private void AddFeatureSign(Vector3 roadPoint, float heading, string title)
