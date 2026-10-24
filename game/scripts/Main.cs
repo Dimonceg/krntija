@@ -177,6 +177,20 @@ public partial class Main : Node3D
         _shotCars = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-cars") >= 0;
         _selfTestCars = Array.IndexOf(OS.GetCmdlineUserArgs(), "--selftest-cars") >= 0;
         _checkHouse = Array.IndexOf(OS.GetCmdlineUserArgs(), "--check-house") >= 0;
+
+        // Диагностика звука: печатает драйвер, шину и состояние плееров.
+        if (Array.IndexOf(OS.GetCmdlineUserArgs(), "--check-sound") >= 0)
+        {
+            Sfx.PlayUi();
+            GD.Print($"[sound] драйвер: {AudioServer.GetDriverName()}");
+            GD.Print($"[sound] устройство: {AudioServer.GetOutputDeviceList()}");
+            GD.Print($"[sound] шин: {AudioServer.GetBusCount()}, мастер: {AudioServer.GetBusVolumeDb(0):F1} дБ, "
+                     + $"mute={AudioServer.IsBusMute(0)}");
+            GD.Print($"[sound] частота микса: {AudioServer.GetMixRate()} Гц");
+            GetTree().Quit(0);
+            return;
+        }
+
         _perf = Array.IndexOf(OS.GetCmdlineUserArgs(), "--perf") >= 0;
         _car.Autopilot = _smoke || _selfTest || _perf || _selfTestCars;
 
