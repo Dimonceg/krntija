@@ -24,6 +24,25 @@ public static class WorldGenerator
 
     public static RoadCurve Curve(ulong worldSeed) => new(worldSeed);
 
+    /// <summary>
+    /// Независимые потоки ГПСЧ одного места: у каждой цели своя последовательность
+    /// PCG. Раньше потоки различались смещением номера места (+1, +3, +11), и
+    /// ГПСЧ одного места совпадал с ГПСЧ другого (тип места 0 = основной поток места 2).
+    /// </summary>
+    private enum Stream : ulong
+    {
+        Count = 1,
+        Place = 2,
+        Kind = 3,
+        Loot = 4,
+    }
+
+    /// <summary>Номер «места» для решений уровня куска (сколько мест в нём).</summary>
+    private const int ChunkLevel = -1;
+
+    private static Pcg32 Rng(ulong worldSeed, int chunkIndex, int placeIndex, Stream stream) =>
+        new(Hash.Mix(worldSeed, chunkIndex, placeIndex), (ulong)stream);
+
     /// <summary>План куска. Отрицательные куски не существуют.</summary>
     public static ChunkPlan Plan(ulong worldSeed, int chunkIndex)
     {
@@ -51,7 +70,7 @@ public static class WorldGenerator
         if (chunkIndex == 1) return 2;   // заправка
         if (chunkIndex == 2) return 2;   // блокпост
 
-        var rng = new Pcg32(Hash.Mix(worldSeed, chunkIndex, 1));
+        var rng = Rng(worldSeed, chunkIndex, ChunkLevel, Stream.Count);
         int tier = Tier(chunkIndex * ChunkLength);
         int count = 1 + (int)(rng.NextDouble() * (1 + Math.Min(tier, 3)));
         return Math.Clamp(count, 1, 3);
@@ -67,7 +86,7 @@ public static class WorldGenerator
 
         double startS = chunkIndex * ChunkLength;
         var curve = Curve(worldSeed);
-        var rng = new Pcg32(Hash.Mix(worldSeed, chunkIndex, placeIndex + 1));
+        var rng = Rng(worldSeed, chunkIndex, placeIndex, Stream.Place);
 
         PlaceKind kind = PickKind(worldSeed, chunkIndex, placeIndex, out double lateral, out double alongInChunk, out bool onRoad);
         double s = startS + alongInChunk;
@@ -129,7 +148,7 @@ public static class WorldGenerator
         }
 
         // Дальше — обычные места: тип и сторону выбирает ГПСЧ этого места.
-        var kindRng = new Pcg32(Hash.Mix(worldSeed, chunkIndex, placeIndex + 3));
+        var kindRng = Rng(worldSeed, chunkIndex, placeIndex, Stream.Kind);
         PlaceKind[] kinds =
         {
             PlaceKind.Village, PlaceKind.Ruins, PlaceKind.Farm,
@@ -149,7 +168,7 @@ public static class WorldGenerator
     private static List<LootPlan> BuildLoot(ulong worldSeed, int chunkIndex, int placeIndex,
         PlaceKind kind, int tier)
     {
-        var rng = new Pcg32(Hash.Mix(worldSeed, chunkIndex, placeIndex + 11));
+        var rng = Rng(worldSeed, chunkIndex, placeIndex, Stream.Loot);
         var table = TableFor(kind);
 
         var result = new List<LootPlan>();

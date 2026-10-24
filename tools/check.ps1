@@ -46,9 +46,11 @@ try {
 
     Step 'Тесты ядра' {
         $out = & $DotnetExe run --project core\Krntija.Core.Tests -c Debug 2>&1 | Out-String
-        $summary = $out -split "`n" | Where-Object { $_ -match 'Total:|\[FAIL\]|error' }
+        $code = $LASTEXITCODE
+        $summary = $out -split "`n" | Where-Object { $_ -match 'Total:|\[FAIL\]|: (error|warning) ' } | Select-Object -Unique
         $summary | ForEach-Object { Write-Host "  $($_.Trim())" }
-        $LASTEXITCODE -eq 0
+        # Предупреждения в тестах тоже не пропускаем, как и в сборке игры.
+        $code -eq 0 -and -not ($summary -match ': warning ')
     }
 
     Step 'Сборка игры' {
