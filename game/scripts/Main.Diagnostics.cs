@@ -69,6 +69,9 @@ public partial class Main
         _smoke = HasArg("--smoke");
         _selfTest = HasArg("--selftest");
         _perf = HasArg("--perf");
+
+        // Без этого --perf меряет частоту монитора, а не запас по кадру.
+        if (_perf) DisplayServer.WindowSetVsyncMode(DisplayServer.VSyncMode.Disabled);
         _selfTestCars = HasArg("--selftest-cars");
         _checkHouse = HasArg("--check-house");
 
