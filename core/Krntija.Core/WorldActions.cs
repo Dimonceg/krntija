@@ -1,0 +1,102 @@
+using Krntija.Core.Economy;
+using Krntija.Core.Items;
+using Krntija.Core.Parts;
+using Krntija.Core.World;
+
+namespace Krntija.Core;
+
+/// <summary>Чем закончилось платное действие: игра по этому выбирает подсказку.</summary>
+public enum ActionResult
+{
+    Done,
+    NothingToDo,
+    NotEnoughMoney,
+    NoDuctTape,
+}
+
+/// <summary>
+/// Правила действий игрока в мире: шлагбаум, ночлег, колодец, верстак, выезды.
+/// Цены и эффекты живут здесь, а не в сцене: их можно проверить тестом,
+/// а в коопе их применит хост.
+/// </summary>
+public static class WorldActions
+{
+    public const double GateToll = 15;
+    public const double MotelPrice = 15;
+    public const double WorkbenchPrice = 25;
+    public const double ExitRepairPrice = 60;
+    public const double PlaceReward = 40;
+    public const double ObjectiveReward = 80;
+
+    public const double SleepHours = 8;
+    public const double WakeUpHour = 7;
+    public const double HomeSleepHeal = 0.2;
+    public const double WellHydration = 0.35;
+
+    /// <summary>Верстак берётся только за детали, изношенные сильнее этого.</summary>
+    public const double WorkbenchThreshold = 0.95;
+
+    public static bool TryPayToll(Wallet wallet) => wallet.TrySpend(GateToll);
+
+    /// <summary>Мотель: 15 €, восемь часов сна и подъём в 7 утра.</summary>
+    public static bool TrySleepAtMotel(GameSession session)
+    {
+        if (!session.Wallet.TrySpend(MotelPrice))
+            return false;
+
+        session.Survival.Sleep(SleepHours);
+
+        double now = session.Clock.TotalMinutes;
+        double dayStart = Math.Floor(now / GameClock.MinutesPerDay) * GameClock.MinutesPerDay;
+        double morning = dayStart + WakeUpHour * 60;
+        if (morning <= now) morning += GameClock.MinutesPerDay;
+        session.Clock.SetTotalMinutes(morning);
+        return true;
+    }
+
+    /// <summary>Сон дома: бесплатно, восемь игровых часов, силы и немного здоровья.</summary>
+    public static void SleepAtHome(GameSession session)
+    {
+        session.Clock.SetTotalMinutes(session.Clock.TotalMinutes + SleepHours * 60);
+        session.Survival.Sleep(SleepHours);
+        session.Survival.Fatigue = 1.0;
+        session.Survival.Heal(HomeSleepHeal);
+    }
+
+    public static void DrinkFromWell(GameSession session) => session.Survival.Drink(WellHydration);
+
+    /// <summary>Верстак: самая изношенная деталь становится как новая за 25 € и изоленту.</summary>
+    public static ActionResult TryRepairAtWorkbench(GameSession session, out Part? repaired)
+    {
+        repaired = session.Vehicle.Parts.Values
+            .Where(part => part.Condition < WorkbenchThreshold)
+            .OrderBy(part => part.Condition)
+            .FirstOrDefault();
+
+        if (repaired is null)
+            return ActionResult.NothingToDo;
+
+        var result = PayWithTape(session.Wallet, session.Inventory, WorkbenchPrice);
+        if (result == ActionResult.Done)
+            repaired.SetCondition(1);
+
+        return result;
+    }
+
+    /// <summary>Починка закрытого выезда: 60 € и моток изоленты.</summary>
+    public static ActionResult TryRepairExit(Wallet wallet, Inventory bag) =>
+        PayWithTape(wallet, bag, ExitRepairPrice);
+
+    private static ActionResult PayWithTape(Wallet wallet, Inventory bag, double price)
+    {
+        if (!wallet.CanAfford(price))
+            return ActionResult.NotEnoughMoney;
+
+        if (bag.Count(ItemIds.DuctTape) < 1)
+            return ActionResult.NoDuctTape;
+
+        wallet.TrySpend(price);
+        bag.Remove(ItemIds.DuctTape, 1);
+        return ActionResult.Done;
+    }
+}

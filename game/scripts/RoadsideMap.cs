@@ -9,7 +9,7 @@ namespace Krntija.Game;
 /// Карта вокруг трассы: грунтовые съезды, постройки, руины, колодцы и забор
 /// по границе. Всё ставится по сиду, поэтому карта воспроизводима.
 /// </summary>
-public static class WorldMap
+public static class RoadsideMap
 {
     public const float BorderHalfWidth = 132f;
     private const float TrackWidth = 4.2f;

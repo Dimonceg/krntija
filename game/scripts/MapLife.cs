@@ -157,7 +157,7 @@ public static class MapLife
             if (index < 4 || index >= centerline.Count - 4) continue;
 
             float side = i % 2 == 0 ? 1f : -1f;
-            Vector3 point = WorldMap.PointAt(centerline, headings, index, side, 126f);
+            Vector3 point = RoadsideMap.PointAt(centerline, headings, index, side, 126f);
             float yaw = -headings[index] + Mathf.Pi / 2f;
 
             var root = new Node3D { Name = $"Exit_{i}", Position = point, Rotation = new Vector3(0, yaw, 0) };

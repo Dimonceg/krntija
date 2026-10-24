@@ -27,3 +27,6 @@ Thumbs.db
 desktop.ini
 __pycache__/
 *.pyc
+
+# Выводы отладочных прогонов в корне
+/*.txt
