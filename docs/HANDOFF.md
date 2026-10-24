@@ -107,6 +107,8 @@ godot --headless --path game -- --smoke --car=golf_2
 
 # производительность и баланс
 godot --path game -- --perf
+godot --headless --path game -- --check-scene      # меши, тела, узлы по частям сцены
+godot --path game -- --perf --no-batch              # то же без слияния геометрии
 tools\balance.ps1
 
 # скриншоты
