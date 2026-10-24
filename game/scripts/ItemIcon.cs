@@ -18,6 +18,11 @@ public partial class ItemIcon : Control
         get => _def;
         set
         {
+            if (_def?.Id != value?.Id)
+            {
+                _texture = null;
+                _textureChecked = false;
+            }
             _def = value;
             QueueRedraw();
         }
@@ -36,10 +41,16 @@ public partial class ItemIcon : Control
         DrawRect(new Rect2(2, 2, Size.X - 4, Size.Y - 4), new Color(tint, 0.18f));
 
         // Если арт-модель положила картинку предмета — рисуем её вместо фигуры.
-        _texture ??= LoadAuthoredIcon(_def.Id);
+        if (!_textureChecked)
+        {
+            _texture = LoadAuthoredIcon(_def.Id);
+            _textureChecked = true;
+        }
         if (_texture is not null)
         {
-            DrawTextureRect(_texture, new Rect2(Vector2.Zero, Size), false);
+            float edge = Mathf.Max(0, Mathf.Min(Size.X, Size.Y) - 4);
+            var iconSize = Vector2.One * edge;
+            DrawTextureRect(_texture, new Rect2((Size - iconSize) * .5f, iconSize), false);
             return;
         }
 
