@@ -17,7 +17,7 @@ public static class TerrainBuilder
     private const int RowStep = 2; // каждые 8 м вдоль дороги
 
     /// <summary>Колонки сгущаются у дороги и разрежаются к краю полосы.</summary>
-    private static readonly float[] HalfOffsets = { 0f, 6f, 12f, 18f, 26f, 36f, 50f, 70f, 95f, 120f, 140f };
+    private static readonly float[] HalfOffsets = { 0f, 3.6f, 4.7f, 6.6f, 9.4f, 12f, 18f, 26f, 36f, 50f, 70f, 95f, 120f, 140f };
 
     private static readonly float[] Offsets = BuildOffsets();
 
@@ -71,6 +71,18 @@ public static class TerrainBuilder
             rows.Add(row);
         }
 
+        var normals = new Vector3[rows.Count][];
+        for (int i = 0; i < rows.Count; i++)
+        {
+            normals[i] = new Vector3[columns];
+            for (int j = 0; j < columns; j++)
+            {
+                var across = rows[i][Mathf.Min(j + 1, columns - 1)] - rows[i][Mathf.Max(j - 1, 0)];
+                var along = rows[Mathf.Min(i + 1, rows.Count - 1)][j] - rows[Mathf.Max(i - 1, 0)][j];
+                normals[i][j] = across.Cross(along).Normalized();
+            }
+        }
+
         var st = new SurfaceTool();
         st.Begin(Mesh.PrimitiveType.Triangles);
 
@@ -94,29 +106,18 @@ public static class TerrainBuilder
                 Vector3 c = rows[i + 1][j];
                 Vector3 d = rows[i + 1][j + 1];
 
-                Vector3 normal = (c - a).Cross(b - a).Normalized();
-
-                AddTriangle(st, faces, a, b, c, normal, rowColors[i][j], rowColors[i][j + 1], rowColors[i + 1][j]);
-                AddTriangle(st, faces, b, d, c, normal, rowColors[i][j + 1], rowColors[i + 1][j + 1], rowColors[i + 1][j]);
+                AddTriangle(st, faces, a, b, c, normals[i][j], normals[i][j+1], normals[i+1][j], rowColors[i][j], rowColors[i][j + 1], rowColors[i + 1][j], Offsets[j], Offsets[j+1], Offsets[j]);
+                AddTriangle(st, faces, b, d, c, normals[i][j+1], normals[i+1][j+1], normals[i+1][j], rowColors[i][j + 1], rowColors[i + 1][j + 1], rowColors[i + 1][j], Offsets[j+1], Offsets[j+1], Offsets[j]);
             }
         }
 
         parent.AddChild(new MeshInstance3D
         {
-            Mesh = st.Commit(),
-            MaterialOverride = new StandardMaterial3D
-            {
-                // Нейтральная текстура + цвет вершины: трава и гравий одной сеткой.
-                AlbedoTexture = ProcTexture.Noise(0.07f, new Color(0.42f, 0.45f, 0.38f), new Color(0.66f, 0.68f, 0.56f)),
-                Uv1Triplanar = true,
-                Uv1Scale = new Vector3(0.05f, 0.05f, 0.05f),
-                VertexColorUseAsAlbedo = true,
-                Roughness = 1f,
-                CullMode = BaseMaterial3D.CullModeEnum.Disabled,
-            },
+            Name = "LandscapeGround", Mesh = st.Commit(),
+            MaterialOverride = LandscapeArt.GroundMaterial(),
         });
 
-        var body = new StaticBody3D();
+        var body = new StaticBody3D { Name = "LandscapeGroundCollision" };
         body.AddChild(new CollisionShape3D
         {
             // Двусторонняя коллизия: иначе, заехав в склон, машина проваливается.
@@ -125,7 +126,7 @@ public static class TerrainBuilder
         parent.AddChild(body);
     }
 
-    private static readonly Color GrassColor = new(0.44f, 0.52f, 0.28f);
+    private static readonly Color GrassColor = new(0.29f, 0.37f, 0.16f);
     private static readonly Color GravelColor = new(0.42f, 0.36f, 0.28f);
     private static readonly Color WheatColor = new(0.70f, 0.61f, 0.33f);
     private static readonly Color PlowedColor = new(0.40f, 0.31f, 0.23f);
@@ -156,15 +157,19 @@ public static class TerrainBuilder
     }
 
     private static void AddTriangle(SurfaceTool st, List<Vector3> faces, Vector3 a, Vector3 b, Vector3 c,
-        Vector3 normal, Color ca, Color cb, Color cc)
+        Vector3 na, Vector3 nb, Vector3 nc, Color ca, Color cb, Color cc, float ua, float ub, float uc)
     {
         var vertices = new[] { a, b, c };
         var colors = new[] { ca, cb, cc };
+        var normals = new[] { na, nb, nc };
+        var lateral = new[] { ua, ub, uc };
 
-        for (int i = 0; i < 3; i++)
+        // Godot front faces use clockwise winding; keep the supplied upward normal.
+        foreach (int i in new[] { 0, 2, 1 })
         {
-            st.SetNormal(normal);
+            st.SetNormal(normals[i]);
             st.SetColor(colors[i]);
+            st.SetUV(new Vector2(lateral[i], 0));
             st.AddVertex(vertices[i]);
             faces.Add(vertices[i]);
         }

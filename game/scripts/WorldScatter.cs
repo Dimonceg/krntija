@@ -231,51 +231,7 @@ void fragment() {
     /// <summary>Дальние холмы за пределами полосы террейна: горизонт не плоский.</summary>
     public static void ScatterHills(List<Vector3> centerline, List<float> headings, Node3D parent, ulong seed)
     {
-        var rng = new Pcg32(seed, sequence: 77);
-        var spots = new List<(Vector3 Position, Vector3 Scale, float Yaw)>();
-
-        for (int i = 8; i < centerline.Count; i += 14)
-        {
-            for (int side = -1; side <= 1; side += 2)
-            {
-                if (!rng.Chance(0.55)) continue;
-
-                float offset = (float)rng.Range(150, 330);
-                var right = new Vector3(Mathf.Cos(headings[i]), 0, Mathf.Sin(headings[i]));
-                Vector3 hill = centerline[i] + right * offset * side;
-
-                float edge = TerrainBuilder.SurfaceHeight(centerline[i].Y, TerrainBuilder.HalfWidth, hill);
-                hill.Y = edge - 14f;
-
-                spots.Add((
-                    hill,
-                    new Vector3((float)rng.Range(70, 160), (float)rng.Range(16, 40), (float)rng.Range(70, 160)),
-                    (float)rng.Range(0, Mathf.Tau)));
-            }
-        }
-
-        if (spots.Count == 0) return;
-
-        var sphere = new SphereMesh { Radius = 1f, Height = 2f, RadialSegments = 10, Rings = 6 };
-        var mm = new MultiMesh
-        {
-            TransformFormat = MultiMesh.TransformFormatEnum.Transform3D,
-            Mesh = sphere,
-            InstanceCount = spots.Count,
-        };
-
-        for (int i = 0; i < spots.Count; i++)
-        {
-            var (position, scale, yaw) = spots[i];
-            var basis = new Basis(Vector3.Up, yaw).Scaled(scale);
-            mm.SetInstanceTransform(i, new Transform3D(basis, position));
-        }
-
-        parent.AddChild(new MultiMeshInstance3D
-        {
-            Multimesh = mm,
-            MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.22f, 0.28f, 0.20f), Roughness = 1f },
-        });
+        LandscapeArt.Mountains(centerline, headings, parent);
     }
 
     /// <summary>Дорожные знаки: столбик и табличка, иногда круглый ограничитель.</summary>

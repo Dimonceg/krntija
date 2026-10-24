@@ -16,6 +16,8 @@ func hits(model: Node3D, center: Vector3, size: Vector3) -> int:
     shape.size = size
     var query := PhysicsShapeQueryParameters3D.new()
     query.shape = shape
+    # Match player/car physics; layer 2 contains mouse-picking targets for loot.
+    query.collision_mask = 1
     query.transform = Transform3D(model.global_basis, model.to_global(center))
     return world.get_world_3d().direct_space_state.intersect_shape(query).size()
 
