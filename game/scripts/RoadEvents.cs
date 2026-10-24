@@ -42,6 +42,16 @@ public partial class RoadEvents : Node3D
     private Hud _hud = null!;
     private double _punctureToast;
 
+    /// <summary>
+    /// Машину пересоздали (новая игра или загрузка сейва) — обновляем ссылки,
+    /// иначе события продолжают толкать удалённый узел.
+    /// </summary>
+    public void Rebind(Car car, Hud hud)
+    {
+        _car = car;
+        _hud = hud;
+    }
+
     public void Setup(List<Vector3> centerline, List<float> headings, Car car, Hud hud)
     {
         _car = car;
