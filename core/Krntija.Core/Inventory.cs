@@ -19,31 +19,38 @@ public sealed record ItemDef(
     string Name,
     double WeightKg,
     bool Stackable = true,
-    int MaxStack = 10);
+    int MaxStack = 10,
+    ItemCategory Category = ItemCategory.Junk,
+    int Value = 0);
 
 public static class ItemCatalog
 {
     private static readonly Dictionary<string, ItemDef> Items =
         new(StringComparer.OrdinalIgnoreCase)
         {
-            ["wrench"] = new("wrench", "Ключ", 1.2, false),
-            ["duct_tape"] = new("duct_tape", "Изолента", 0.3, true, 3),
-            ["spark_plug"] = new("spark_plug", "Свеча", 0.1, true, 4),
-            ["jerry_can"] = new("jerry_can", "Канистра", 5.0, false),
-            ["motor_oil"] = new("motor_oil", "Масло", 4.5, true, 2),
-            ["bread"] = new("bread", "Хлеб", 0.4, true, 5),
-            ["water"] = new("water", "Вода", 0.6, true, 5),
-            ["medkit"] = new("medkit", "Аптечка", 1.0, true, 2),
-            ["spare_tire"] = new("spare_tire", "Запаска", 12.0, false),
-            ["cigarettes"] = new("cigarettes", "Сигареты", 0.05, true, 20),
-            ["map"] = new("map", "Карта", 0.2, false),
+            ["wrench"] = new("wrench", "Ключ", 1.2, false, 1, ItemCategory.Tool, 45),
+            ["duct_tape"] = new("duct_tape", "Изолента", 0.3, true, 3, ItemCategory.Part, 8),
+            ["spark_plug"] = new("spark_plug", "Свеча", 0.1, true, 4, ItemCategory.Part, 12),
+            ["jerry_can"] = new("jerry_can", "Канистра", 5.0, false, 1, ItemCategory.Consumable, 20),
+            ["motor_oil"] = new("motor_oil", "Масло", 4.5, true, 2, ItemCategory.Part, 25),
+            ["bread"] = new("bread", "Хлеб", 0.4, true, 5, ItemCategory.Consumable, 3),
+            ["water"] = new("water", "Вода", 0.6, true, 5, ItemCategory.Consumable, 4),
+            ["medkit"] = new("medkit", "Аптечка", 1.0, true, 2, ItemCategory.Consumable, 30),
+            ["spare_tire"] = new("spare_tire", "Запаска", 12.0, false, 1, ItemCategory.Part, 60),
+            ["cigarettes"] = new("cigarettes", "Сигареты", 0.05, true, 20, ItemCategory.Consumable, 2),
+            ["map"] = new("map", "Карта", 0.2, false, 1, ItemCategory.Tool, 25),
+            ["cassette"] = new("cassette", "Кассета", 0.15, true, 8, ItemCategory.Junk, 5),
+            ["radio_part"] = new("radio_part", "Радиодеталь", 0.2, true, 8, ItemCategory.Junk, 9),
+            ["scrap_metal"] = new("scrap_metal", "Металлолом", 1.4, true, 10, ItemCategory.Junk, 6),
+            ["bottle_cap"] = new("bottle_cap", "Пробка", 0.02, true, 40, ItemCategory.Junk, 1),
         };
 
     static ItemCatalog()
     {
         // Любую деталь можно держать в руках и нести — она становится предметом.
         foreach (var part in Parts.PartCatalog.All.Values)
-            Items[part.Id] = new ItemDef(part.Id, part.Name, part.MassKg, Stackable: false);
+            Items[part.Id] = new ItemDef(part.Id, part.Name, part.MassKg, Stackable: false, 1,
+                ItemCategory.Part, (int)Math.Round(part.MassKg * 18));
     }
 
     public static IReadOnlyDictionary<string, ItemDef> All => Items;

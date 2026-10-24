@@ -40,6 +40,10 @@ public partial class Main : Node3D
     private bool _shotCar;
     private bool _shotLineup;
     private string? _shotProp;
+    private BackpackUi _backpack = null!;
+    private LootItem? _hoveredLoot;
+    private bool _cursorFree;
+    private bool _shotBackpack;
     private bool _shotCars;
     private bool _selfTestCars;
     private bool _checkHouse;
@@ -54,9 +58,11 @@ public partial class Main : Node3D
         Gate,
         Sleep,
         Door,
+        Loot,
     }
 
-    private sealed record InteractionPoint(Vector3 Position, InteractionKind Kind, float Radius, CheckpointGate? Gate = null, Door? Door = null);
+    private sealed record InteractionPoint(Vector3 Position, InteractionKind Kind, float Radius,
+        CheckpointGate? Gate = null, Door? Door = null, string? LootId = null, Node3D? Node = null);
 
     private readonly List<InteractionPoint> _interactions = new();
     private RoadBuildResult? _road;
@@ -122,8 +128,13 @@ public partial class Main : Node3D
         _hud = new Hud { Car = _car };
         AddChild(_hud);
 
+        _backpack = new BackpackUi();
+        _backpack.Clicked += OnBackpackClick;
+        AddChild(_backpack);
+
         // Дом игрока у старта: слева от дороги, со своими дверями и чердаком.
         BuildPlayerHouse();
+        SpawnLoot();
 
         // Дорожные события: ямы, коровы, попутчики.
         if (_road is not null)
@@ -161,7 +172,9 @@ public partial class Main : Node3D
                 || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-car") >= 0
                 || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-lineup") >= 0
                 || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-cars") >= 0
+                || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-backpack") >= 0
                 || _shotProp is not null;
+        _shotBackpack = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-backpack") >= 0;
         _openJournalInShot = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-ui") >= 0;
         _shotMenu = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-menu") >= 0;
         _shotDay = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-day") >= 0;
@@ -292,6 +305,12 @@ public partial class Main : Node3D
 
             if (_shotLineup)
                 BuildLineup(road, index);
+
+            if (_shotBackpack)
+            {
+                _backpack.Toggle(_car.Session.Inventory, _car.Session.Trunk);
+                _hud.Visible = false;
+            }
 
             if (_shotProp is not null)
                 BuildPropPreview(road, index, _shotProp);
@@ -563,6 +582,28 @@ public partial class Main : Node3D
 
     public override void _UnhandledInput(InputEvent @event)
     {
+        // Правая кнопка мыши — свободный курсор: можно навести на предмет и щёлкнуть.
+        if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Right })
+        {
+            SetCursorFree(!_cursorFree);
+            return;
+        }
+
+        if (_cursorFree)
+        {
+            if (@event is InputEventMouseMotion motion)
+            {
+                UpdateHover(motion.Position);
+                return;
+            }
+
+            if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left })
+            {
+                PickHoveredLoot();
+                return;
+            }
+        }
+
         if (@event is not InputEventKey { Pressed: true, Echo: false } key)
             return;
 
@@ -587,6 +628,13 @@ public partial class Main : Node3D
         switch (key.Keycode)
         {
             case Key.Escape:
+                if (_backpack.IsOpen) _backpack.Close();
+                break;
+            case Key.B:
+                ToggleBackpack();
+                break;
+            case Key.X when _hud.Screen == HudScreen.Shop:
+                SellJunk();
                 break;
             case Key.E:
                 Interact();
@@ -644,6 +692,9 @@ public partial class Main : Node3D
         InteractionKind.Gate => point.Gate is { IsOpen: true } ? "[E] шлагбаум открыт" : "[E] заплатить 15 € за проезд",
         InteractionKind.Sleep => "[E] переночевать (15 €)",
         InteractionKind.Door => point.Door is { IsOpen: true } ? "[E] закрыть дверь" : "[E] открыть дверь",
+        InteractionKind.Loot => point.LootId is not null
+            ? $"[E] поднять {Core.Items.ItemCatalog.Get(point.LootId).Name}"
+            : "[E] поднять",
         _ => "[E] заправить",
     };
 
@@ -706,6 +757,10 @@ public partial class Main : Node3D
 
             case InteractionKind.Sleep:
                 TrySleep();
+                break;
+
+            case InteractionKind.Loot:
+                PickUpLoot(point);
                 break;
 
             case InteractionKind.Door:
@@ -1628,6 +1683,9 @@ public partial class Main : Node3D
             start.Y = _houseGroundY - 0.1f;
             body.GlobalPosition = start;
 
+            Vector3 previous = body.GlobalPosition;
+            string trace = string.Empty;
+
             for (int i = 0; i < 220; i++)
             {
                 body.Velocity = inward * 2.2f - Vector3.Up * 0.25f;
@@ -1642,7 +1700,24 @@ public partial class Main : Node3D
                         body.GlobalPosition += Vector3.Up * 0.34f;
                 }
 
+                previous = body.GlobalPosition;
                 body.MoveAndSlide();
+
+                // Первый кадр, где тело встало: печатаем, во что упёрлось.
+                if (trace.Length == 0 && i > 5 && body.GlobalPosition.DistanceTo(previous) < 0.01f
+                    && body.GetSlideCollisionCount() > 0)
+                {
+                    for (int c = 0; c < body.GetSlideCollisionCount(); c++)
+                    {
+                        var collision = body.GetSlideCollision(c);
+                        if (collision.GetCollider() is Node3D hit)
+                        {
+                            Vector3 local = hit.GetParent() is Node3D parentNode ? parentNode.Position : hit.Position;
+                            trace += $"{hit.Name}@({local.X:F1}; {local.Y:F1}; {local.Z:F1}) "
+                                     + $"нормаль {collision.GetNormal()} ";
+                        }
+                    }
+                }
             }
 
             float depth = (body.GlobalPosition - door.GlobalPosition).Dot(inward);
@@ -1665,7 +1740,7 @@ public partial class Main : Node3D
                 }
             }
 
-            GD.Print($"[housewalk] {door.Name,-12} {depth,5:F2} м — {(inside ? "зашёл" : "НЕ ЗАШЁЛ")} {blocked.Trim()}");
+            GD.Print($"[housewalk] {door.Name,-12} {depth,5:F2} м — {(inside ? "зашёл" : "НЕ ЗАШЁЛ")} {trace.Trim()} {blocked.Trim()}");
             body.QueueFree();
         }
 
@@ -1681,6 +1756,9 @@ public partial class Main : Node3D
             Vector3 direction = (topWorld - startWorld).Normalized();
             climb.GlobalPosition = startWorld;
 
+            Vector3 climbPrevious = climb.GlobalPosition;
+            string climbTrace = string.Empty;
+
             for (int i = 0; i < 420; i++)
             {
                 climb.Velocity = direction * 2.4f - Vector3.Up * 0.2f;
@@ -1695,18 +1773,210 @@ public partial class Main : Node3D
                         climb.GlobalPosition += Vector3.Up * 0.34f;
                 }
 
+                climbPrevious = climb.GlobalPosition;
                 climb.MoveAndSlide();
+
+                if (climbTrace.Length == 0 && i > 5 && climb.GlobalPosition.DistanceTo(climbPrevious) < 0.01f
+                    && climb.GetSlideCollisionCount() > 0)
+                {
+                    for (int c = 0; c < climb.GetSlideCollisionCount(); c++)
+                    {
+                        var collision = climb.GetSlideCollision(c);
+                        if (collision.GetCollider() is Node3D hit)
+                        {
+                            Vector3 local = house.ToLocal(hit.GlobalPosition);
+                            climbTrace += $"{hit.Name}@({local.X:F1}; {local.Y:F1}; {local.Z:F1}) "
+                                          + $"нормаль {collision.GetNormal()} ";
+                        }
+                    }
+                }
             }
 
             float height = house.ToLocal(climb.GlobalPosition).Y;
             bool reached = height > 2.3f;
             ok &= reached;
-            GD.Print($"[houseclimb] чердак: поднялся на {height:F2} м — {(reached ? "ок" : "НЕ ПОДНЯЛСЯ")}");
+            GD.Print($"[houseclimb] чердак: {height:F2} м — {(reached ? "ок" : "НЕ ПОДНЯЛСЯ")} {climbTrace.Trim()}");
             climb.QueueFree();
         }
 
         GD.Print(ok ? "[housecheck] OK" : "[housecheck] FAIL");
         GetTree().Quit(ok ? 0 : 1);
+    }
+
+    /// <summary>Клик в рюкзаке: использовать, переложить в багажник или забрать обратно.</summary>
+    private void OnBackpackClick(string itemId, bool fromTrunk)
+    {
+        var session = _car.Session;
+        string name = Core.Items.ItemCatalog.Get(itemId).Name;
+
+        if (fromTrunk)
+        {
+            if (!session.Inventory.TryAdd(itemId))
+            {
+                _hud.Toast("В кармане нет места");
+                return;
+            }
+
+            session.Trunk.Remove(itemId, 1);
+            _hud.Toast($"Из багажника: {name}");
+        }
+        else if (Core.Items.ItemUseService.TryUse(session, itemId, out string message))
+        {
+            _hud.Toast(message);
+        }
+        else if (session.Trunk.TryAdd(itemId))
+        {
+            session.Inventory.Remove(itemId, 1);
+            _hud.Toast($"В багажник: {name}");
+        }
+        else
+        {
+            _hud.Toast("Багажник полон");
+        }
+
+        _backpack.Refresh(session.Inventory, session.Trunk);
+    }
+
+    /// <summary>Скупка всего хлама — и из кармана, и из багажника.</summary>
+    private void SellJunk()
+    {
+        var (pocketCount, pocketMoney) =
+            Core.Economy.TradeService.SellJunk(_car.Session.Inventory, _car.Session.Wallet);
+        var (trunkCount, trunkMoney) =
+            Core.Economy.TradeService.SellJunk(_car.Session.Trunk, _car.Session.Wallet);
+
+        int total = pocketCount + trunkCount;
+        _hud.Toast(total > 0
+            ? $"Продано {total} шт. за {pocketMoney + trunkMoney:F0} €"
+            : "Нечего продавать");
+
+        _backpack.Refresh(_car.Session.Inventory, _car.Session.Trunk);
+    }
+
+    /// <summary>Рюкзак: открыть/закрыть, заодно отпустить или захватить мышь.</summary>
+    private void ToggleBackpack()
+    {
+        _backpack.Toggle(_car.Session.Inventory, _car.Session.Trunk);
+        SetCursorFree(_backpack.IsOpen);
+    }
+
+    private bool _orbitBeforeFree;
+
+    /// <summary>Свободный курсор: обзор не крутится, мышь видна.</summary>
+    private void SetCursorFree(bool free)
+    {
+        if (_cursorFree == free) return;
+
+        _cursorFree = free;
+        Input.MouseMode = free ? Input.MouseModeEnum.Visible : Input.MouseModeEnum.Captured;
+
+        if (free)
+        {
+            _orbitBeforeFree = _camera.OrbitWithMouse;
+            _camera.OrbitWithMouse = false;
+        }
+        else
+        {
+            _camera.OrbitWithMouse = _orbitBeforeFree;
+            ClearHover();
+        }
+    }
+
+    /// <summary>Луч из камеры под курсор: что за предмет, подсветить и запомнить.</summary>
+    private void UpdateHover(Vector2 screenPosition)
+    {
+        var camera = GetViewport().GetCamera3D();
+        var space = GetWorld3D()?.DirectSpaceState;
+        if (camera is null || space is null) return;
+
+        Vector3 from = camera.ProjectRayOrigin(screenPosition);
+        Vector3 to = from + camera.ProjectRayNormal(screenPosition) * 9f;
+
+        var query = new PhysicsRayQueryParameters3D { From = from, To = to, CollisionMask = 2 };
+        var hit = space.IntersectRay(query);
+
+        LootItem? found = null;
+        if (hit.Count > 0 && hit["collider"].As<GodotObject>() is Node3D body)
+            found = body.GetParent() as LootItem;
+
+        if (found == _hoveredLoot) return;
+
+        ClearHover();
+        _hoveredLoot = found;
+
+        if (found is not null)
+        {
+            found.Scale = Vector3.One * 1.45f;
+            _hud.Toast($"{Core.Items.ItemCatalog.Get(found.ItemId).Name} — ЛКМ поднять");
+        }
+    }
+
+    private void ClearHover()
+    {
+        if (_hoveredLoot is not null) _hoveredLoot.Scale = Vector3.One;
+        _hoveredLoot = null;
+    }
+
+    private void PickHoveredLoot()
+    {
+        if (_hoveredLoot is null) return;
+
+        var point = _interactions.FirstOrDefault(p => p.Node == _hoveredLoot);
+        if (point is not null) PickUpLoot(point);
+
+        ClearHover();
+    }
+
+    /// <summary>Подобрать предмет: в инвентарь, узел убрать, точку взаимодействия снять.</summary>
+    private void PickUpLoot(InteractionPoint point)
+    {
+        if (point.LootId is null || point.Node is null) return;
+
+        int count = point.Node is LootItem item ? item.Count : 1;
+        string name = Core.Items.ItemCatalog.Get(point.LootId).Name;
+
+        if (!_car.Session.Inventory.TryAdd(point.LootId, count))
+        {
+            _hud.Toast("Инвентарь полон");
+            return;
+        }
+
+        _hud.Toast($"Подобрано: {name} ×{count}");
+        Sfx.PlayUi();
+        _interactions.Remove(point);
+        point.Node.QueueFree();
+    }
+
+    /// <summary>Разложить лут у точек интереса и внутри дома.</summary>
+    private void SpawnLoot()
+    {
+        if (_road is null) return;
+
+        int placed = 0;
+        foreach (var (position, itemId, count) in LootSpawner.PlanLandmarks(_road.Points))
+        {
+            AddLoot(position, itemId, count);
+            placed++;
+        }
+
+        int inHouse = 0;
+        if (GetNodeOrNull<Node3D>("PlayerHouse") is { } house)
+            foreach (var (position, itemId, count) in LootSpawner.PlanHouse(house))
+            {
+                AddLoot(position, itemId, count);
+                inHouse++;
+            }
+
+        GD.Print($"[loot] предметов: {placed} у мест, {inHouse} в доме");
+    }
+
+    private void AddLoot(Vector3 position, string itemId, int count)
+    {
+        var item = LootItem.Create(itemId, count, position);
+        AddChild(item);
+
+        _interactions.Add(new InteractionPoint(position + Vector3.Up * 0.25f, InteractionKind.Loot, 2.2f,
+            LootId: itemId, Node: item));
     }
 
     /// <summary>Дом игрока у старта: слева от дороги, с дверями и чердаком.</summary>

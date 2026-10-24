@@ -84,6 +84,26 @@ public static class TradeService
         return bag.WeightKg > before;
     }
 
+    /// <summary>Скупка хлама: всё из категории «хлам» уходит за половину цены.</summary>
+    public static (int Count, double Money) SellJunk(Inventory bag, Wallet wallet)
+    {
+        int count = 0;
+        double money = 0;
+
+        foreach (var stack in bag.Items.Where(i => i.Definition.Category == ItemCategory.Junk).ToList())
+        {
+            int amount = stack.Count;
+            if (!bag.Remove(stack.DefId, amount)) continue;
+
+            double earned = Math.Round(stack.Definition.Value * 0.5 * amount, 2);
+            wallet.Earn(earned);
+            count += amount;
+            money += earned;
+        }
+
+        return (count, Math.Round(money, 2));
+    }
+
     /// <summary>Скупка: деталь можно сдать за половину цены.</summary>
     public static bool TrySellPart(Inventory bag, Wallet wallet, string partDefId)
     {
