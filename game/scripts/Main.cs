@@ -49,6 +49,7 @@ public partial class Main : Node3D
     private Vector3? _wolvesCenter;
     private float _wolfCooldown;
     private MapUi _miniMap = null!;
+    private Vector3? _housePosition;
     private float _miniMapTimer;
     private LootItem? _hoveredLoot;
     private bool _cursorFree;
@@ -77,6 +78,9 @@ public partial class Main : Node3D
         Talk,
         RepairExit,
         ClearCollapse,
+        Chest,
+        Workbench,
+        SleepHome,
     }
 
     private sealed record InteractionPoint(Vector3 Position, InteractionKind Kind, float Radius,
@@ -347,7 +351,7 @@ public partial class Main : Node3D
 
             if (_shotBackpack)
             {
-                _backpack.Toggle(_car.Session.Inventory, _car.Session.Trunk);
+                _backpack.Toggle(_car.Session.Inventory, _car.Session.Trunk, _car.Session.Home);
                 _hud.Visible = false;
             }
 
@@ -782,6 +786,9 @@ public partial class Main : Node3D
         InteractionKind.Talk => "[E] поговорить",
         InteractionKind.RepairExit => "[E] починить выезд (60 € + изолента)",
         InteractionKind.ClearCollapse => "[E] разобрать завал",
+        InteractionKind.Chest => "[E] открыть сундук",
+        InteractionKind.Workbench => "[E] верстак: починить деталь (25 € + изолента)",
+        InteractionKind.SleepHome => "[E] поспать дома",
         InteractionKind.Gate => point.Gate is { IsOpen: true } ? "[E] шлагбаум открыт" : "[E] заплатить 15 € за проезд",
         InteractionKind.Sleep => "[E] переночевать (15 €)",
         InteractionKind.Door => point.Door is { IsOpen: true } ? "[E] закрыть дверь" : "[E] открыть дверь",
@@ -884,6 +891,18 @@ public partial class Main : Node3D
 
             case InteractionKind.ClearCollapse:
                 ClearCollapse();
+                break;
+
+            case InteractionKind.Chest:
+                OpenHomeChest();
+                break;
+
+            case InteractionKind.Workbench:
+                RepairAtWorkbench();
+                break;
+
+            case InteractionKind.SleepHome:
+                SleepAtHome();
                 break;
 
             default:
@@ -1936,38 +1955,56 @@ public partial class Main : Node3D
         GetTree().Quit(ok ? 0 : 1);
     }
 
-    /// <summary>Клик в рюкзаке: использовать, переложить в багажник или забрать обратно.</summary>
-    private void OnBackpackClick(string itemId, bool fromTrunk)
+    /// <summary>Клик в рюкзаке: использовать, переложить в багажник, домой или забрать.</summary>
+    private void OnBackpackClick(string itemId, string source)
     {
         var session = _car.Session;
         string name = Core.Items.ItemCatalog.Get(itemId).Name;
 
-        if (fromTrunk)
+        switch (source)
         {
-            if (!session.Inventory.TryAdd(itemId))
-            {
-                _hud.Toast("В кармане нет места");
-                return;
-            }
+            case "trunk":
+            case "home":
+                if (!session.Inventory.TryAdd(itemId))
+                {
+                    _hud.Toast("В кармане нет места");
+                    return;
+                }
 
-            session.Trunk.Remove(itemId, 1);
-            _hud.Toast($"Из багажника: {name}");
-        }
-        else if (Core.Items.ItemUseService.TryUse(session, itemId, out string message))
-        {
-            _hud.Toast(message);
-        }
-        else if (session.Trunk.TryAdd(itemId))
-        {
-            session.Inventory.Remove(itemId, 1);
-            _hud.Toast($"В багажник: {name}");
-        }
-        else
-        {
-            _hud.Toast("Багажник полон");
+                (source == "trunk" ? session.Trunk : session.Home).Remove(itemId, 1);
+                _hud.Toast($"{(source == "trunk" ? "Из багажника" : "Из дома")}: {name}");
+                break;
+
+            case "to_home":
+                if (!session.Home.TryAdd(itemId))
+                {
+                    _hud.Toast("Дома нет места");
+                    return;
+                }
+
+                session.Inventory.Remove(itemId, 1);
+                _hud.Toast($"Домой: {name}");
+                break;
+
+            default:
+                if (Core.Items.ItemUseService.TryUse(session, itemId, out string message))
+                {
+                    _hud.Toast(message);
+                }
+                else if (session.Trunk.TryAdd(itemId))
+                {
+                    session.Inventory.Remove(itemId, 1);
+                    _hud.Toast($"В багажник: {name}");
+                }
+                else
+                {
+                    _hud.Toast("Багажник полон");
+                }
+
+                break;
         }
 
-        _backpack.Refresh(session.Inventory, session.Trunk);
+        RefreshBackpack();
     }
 
     /// <summary>Точки карты: лут, скупщик, колодец, собака.</summary>
@@ -2072,6 +2109,61 @@ public partial class Main : Node3D
         Sfx.PlayUi();
     }
 
+    /// <summary>Сундук дома: рюкзак с третьей колонкой — складом.</summary>
+    private void OpenHomeChest()
+    {
+        if (_backpack.IsOpen) return;
+
+        _backpack.Toggle(_car.Session.Inventory, _car.Session.Trunk, _car.Session.Home);
+        SetCursorFree(true);
+        _hud.Toast("Дом: склад открыт");
+    }
+
+    /// <summary>Верстак: починить самую изношенную деталь за 25 € и изоленту.</summary>
+    private void RepairAtWorkbench()
+    {
+        var session = _car.Session;
+
+        var worst = session.Vehicle.Parts.Values
+            .Where(part => part.Condition < 0.95)
+            .OrderBy(part => part.Condition)
+            .FirstOrDefault();
+
+        if (worst is null)
+        {
+            _hud.Toast("Всё в порядке, чинить нечего");
+            return;
+        }
+
+        if (session.Wallet.Money < 25)
+        {
+            _hud.Toast("Нужно 25 €");
+            return;
+        }
+
+        if (session.Inventory.Count("duct_tape") < 1)
+        {
+            _hud.Toast("Нужна изолента");
+            return;
+        }
+
+        session.Wallet.TrySpend(25);
+        session.Inventory.Remove("duct_tape", 1);
+        worst.SetCondition(1);
+        _hud.Toast($"Починено: {worst.Definition.Name}");
+        Sfx.PlayDoor(_car.GlobalPosition);
+    }
+
+    /// <summary>Сон дома: бесплатно, но время идёт.</summary>
+    private void SleepAtHome()
+    {
+        var session = _car.Session;
+        session.Clock.Advance(8 * 3600.0);
+        session.Survival.Fatigue = 1.0;
+        session.Survival.Health = Mathf.Min(1.0, session.Survival.Health + 0.2);
+        _hud.Toast("Выспался дома: 8 часов");
+    }
+
     /// <summary>События карты: завал на первой ветке и волки у сарая с собакой.</summary>
     private void SpawnMapEvents()
     {
@@ -2134,8 +2226,18 @@ public partial class Main : Node3D
     /// <summary>Рюкзак: открыть/закрыть, заодно отпустить или захватить мышь.</summary>
     private void ToggleBackpack()
     {
-        _backpack.Toggle(_car.Session.Inventory, _car.Session.Trunk);
+        _backpack.Toggle(_car.Session.Inventory, _car.Session.Trunk, AtHome ? _car.Session.Home : null);
         SetCursorFree(_backpack.IsOpen);
+    }
+
+    /// <summary>Игрок рядом с домом: тогда в рюкзаке виден склад.</summary>
+    private bool AtHome => _housePosition is { } home
+                           && _car.GlobalPosition.DistanceTo(home) < 45f;
+
+    private void RefreshBackpack()
+    {
+        _backpack.Refresh(_car.Session.Inventory, _car.Session.Trunk,
+            AtHome ? _car.Session.Home : null);
     }
 
     private bool _orbitBeforeFree;
@@ -2367,6 +2469,7 @@ public partial class Main : Node3D
         _houseGroundY = spot.Y;
 
         var doors = PlayerHouse.Build(this, spot, -_road.Headings[index] + Mathf.Pi * 0.5f);
+        _housePosition = spot;
         foreach (var (position, door) in doors)
         {
             // Подсказка ищется от центра полотна, а не от петли: у петли радиус мал.
@@ -2375,6 +2478,17 @@ public partial class Main : Node3D
         }
 
         GD.Print($"[house] дом игрока: {doors.Count} дверей, {spot}");
+
+        // База: сундук на кухне, верстак в гараже, кровать на чердаке.
+        if (GetNodeOrNull<Node3D>("PlayerHouse") is { } home)
+        {
+            _interactions.Add(new InteractionPoint(home.ToGlobal(new Vector3(-4.3f, 0.7f, 2.0f)),
+                InteractionKind.Chest, 3f));
+            _interactions.Add(new InteractionPoint(home.ToGlobal(new Vector3(4.3f, 0.7f, -0.6f)),
+                InteractionKind.Workbench, 3f));
+            _interactions.Add(new InteractionPoint(home.ToGlobal(new Vector3(-3.6f, 3.0f, -1.8f)),
+                InteractionKind.SleepHome, 3f));
+        }
     }
 
     /// <summary>Дорожный указатель с названием места: «Село», «Рушевине» и т.п.</summary>

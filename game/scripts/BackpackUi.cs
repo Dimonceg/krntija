@@ -13,10 +13,12 @@ public partial class BackpackUi : Control
 {
     private GridContainer _pocket = null!;
     private GridContainer _trunk = null!;
+    private GridContainer _home = null!;
+    private VBoxContainer _homeBox = null!;
     private Label _title = null!;
 
-    /// <summary>Клик по предмету: id и откуда (true — из багажника).</summary>
-    public event Action<string, bool>? Clicked;
+    /// <summary>Клик по предмету: id и откуда — "pocket", "trunk", "home" или "to_home".</summary>
+    public event Action<string, string>? Clicked;
 
     public bool IsOpen => Visible;
 
@@ -70,10 +72,17 @@ public partial class BackpackUi : Control
         trunkBox.AddChild(_trunk);
         columns.AddChild(trunkBox);
 
+        _homeBox = new VBoxContainer { Visible = false };
+        _homeBox.AddChild(Title("Дом"));
+        _home = new GridContainer { Columns = 6 };
+        _home.AddThemeConstantOverride("h_separation", 8);
+        _homeBox.AddChild(_home);
+        columns.AddChild(_homeBox);
+
         var hint = new Label
         {
             Text = "Клик в кармане — использовать или переложить в багажник. "
-                   + "Клик в багажнике — забрать. B или Esc — закрыть.",
+                   + "Клик в багажнике — забрать, ПКМ — отправить домой. B или Esc — закрыть.",
             AutowrapMode = TextServer.AutowrapMode.WordSmart,
         };
         hint.AddThemeFontSizeOverride("font_size", 13);
@@ -89,31 +98,37 @@ public partial class BackpackUi : Control
         return label;
     }
 
-    public void Toggle(Inventory pocket, Inventory trunk)
+    public void Toggle(Inventory pocket, Inventory trunk, Inventory? home = null)
     {
         Visible = !Visible;
-        if (Visible) Refresh(pocket, trunk);
+        if (Visible) Refresh(pocket, trunk, home);
     }
 
     public void Close() => Visible = false;
 
-    public void Refresh(Inventory pocket, Inventory trunk)
+    public void Refresh(Inventory pocket, Inventory trunk, Inventory? home = null)
     {
-        _title.Text = $"Рюкзак — {pocket.WeightKg:F1} / {pocket.MaxWeightKg:F0} кг"
+        string text = $"Рюкзак — {pocket.WeightKg:F1} / {pocket.MaxWeightKg:F0} кг"
                       + $"      Багажник — {trunk.WeightKg:F1} / {trunk.MaxWeightKg:F0} кг";
 
-        Fill(_pocket, pocket, fromTrunk: false);
-        Fill(_trunk, trunk, fromTrunk: true);
+        if (home is not null) text += $"      Дом — {home.WeightKg:F1} / {home.MaxWeightKg:F0} кг";
+        _title.Text = text;
+
+        _homeBox.Visible = home is not null;
+
+        Fill(_pocket, pocket, "pocket");
+        Fill(_trunk, trunk, "trunk");
+        if (home is not null) Fill(_home, home, "home");
     }
 
-    private void Fill(GridContainer grid, Inventory bag, bool fromTrunk)
+    private void Fill(GridContainer grid, Inventory bag, string source)
     {
         foreach (Node child in grid.GetChildren()) child.QueueFree();
 
         bool any = false;
         foreach (ItemStack stack in bag.Items)
         {
-            grid.AddChild(Tile(stack, fromTrunk));
+            grid.AddChild(Tile(stack, source));
             any = true;
         }
 
@@ -125,7 +140,7 @@ public partial class BackpackUi : Control
         }
     }
 
-    private Control Tile(ItemStack stack, bool fromTrunk)
+    private Control Tile(ItemStack stack, string source)
     {
         var button = new Button
         {
@@ -151,7 +166,12 @@ public partial class BackpackUi : Control
         });
 
         button.AddChild(column);
-        button.Pressed += () => Clicked?.Invoke(stack.DefId, fromTrunk);
+        button.Pressed += () => Clicked?.Invoke(stack.DefId, source);
+        button.GuiInput += @event =>
+        {
+            if (@event is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Right })
+                Clicked?.Invoke(stack.DefId, "to_home");
+        };
         return button;
     }
 }

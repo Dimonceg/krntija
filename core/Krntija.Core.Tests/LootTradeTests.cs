@@ -78,4 +78,18 @@ public class LootTradeTests
         Assert.True(Encumbrance.SpeedFactor(45, 45) < 0.7f);
         Assert.True(Encumbrance.SpeedFactor(60, 45) >= 0.55f, "ниже 55 % скорость не падает");
     }
+
+    [Fact]
+    public void HomeStorageSurvivesSaveRoundTrip()
+    {
+        var session = GameSession.NewGame();
+        session.Home.TryAdd("scrap_metal", 4);
+        session.Home.TryAdd("wrench");
+
+        var restored = GameSession.FromSave(session.ToSave());
+
+        Assert.Equal(4, restored.Home.Count("scrap_metal"));
+        Assert.Equal(1, restored.Home.Count("wrench"));
+        Assert.Equal(0, restored.Home.Count("bread"));
+    }
 }
