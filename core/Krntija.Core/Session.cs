@@ -48,6 +48,9 @@ public sealed class GameSession
 
     /// <summary>Склад в доме игрока: сюда можно сгрузить всё лишнее.</summary>
     public Inventory Home { get; }
+
+    /// <summary>Установленные улучшения машины и дома.</summary>
+    public HashSet<string> Upgrades { get; } = new(StringComparer.OrdinalIgnoreCase);
     public GameClock Clock { get; }
     public Pcg32 Rng { get; }
     public Wallet Wallet { get; }
@@ -71,6 +74,34 @@ public sealed class GameSession
             new Pcg32(seed),
             new Wallet(120));
     }
+
+    /// <summary>
+    /// Поставить улучшение. Возвращает текст для игрока или null, если нельзя.
+    /// </summary>
+    public string? ApplyUpgrade(string id)
+    {
+        if (!UpgradeCatalog.TryGet(id, out var def)) return null;
+        if (Upgrades.Contains(id)) return $"{def.Name}: уже установлено";
+
+        switch (id)
+        {
+            case UpgradeCatalog.FuelTank:
+                Vehicle.Fuel.RaiseCapacity(6);
+                break;
+            case UpgradeCatalog.Springs:
+                Trunk.RaiseCapacity(15);
+                break;
+            case UpgradeCatalog.Toolbox:
+                Inventory.RaiseCapacity(10);
+                break;
+        }
+
+        Upgrades.Add(id);
+        return $"{def.Name}: установлено ({def.Description})";
+    }
+
+    /// <summary>Вспомнить уже установленное улучшение при загрузке: эффекты в сейве.</summary>
+    public void RememberUpgrade(string id) => Upgrades.Add(id);
 
     public void Step(double dt, in VehicleSample sample, in DriveInput input, bool reversing = false)
     {
@@ -112,6 +143,7 @@ public sealed class GameSession
         TrunkItems = Trunk.Items
             .Select(i => new ItemSave { DefId = i.DefId, Count = i.Count, Condition = i.Condition, Liters = i.Liters })
             .ToList(),
+        UpgradeIds = Upgrades.ToList(),
         HomeItems = Home.Items
             .Select(i => new ItemSave { DefId = i.DefId, Count = i.Count, Condition = i.Condition, Liters = i.Liters })
             .ToList(),
@@ -170,6 +202,7 @@ public sealed class GameSession
             home.TryAdd(item.DefId, item.Count, item.Condition, item.Liters);
 
         var session = new GameSession(vehicle, survival, inventory, clock, rng, new Wallet(data.Money), trunk, home);
+        foreach (var upgrade in data.UpgradeIds) session.RememberUpgrade(upgrade);
 
         if (Enum.TryParse<WeatherKind>(data.WeatherKind, out var kind))
             session.Weather.Restore(kind, data.Wetness, data.RainIntensity, data.WeatherTimer);
@@ -211,6 +244,7 @@ public sealed class SaveData
     public List<ItemSave> Items { get; set; } = new();
     public List<ItemSave> TrunkItems { get; set; } = new();
     public List<ItemSave> HomeItems { get; set; } = new();
+    public List<string> UpgradeIds { get; set; } = new();
     public ulong RngState { get; set; }
 }
 

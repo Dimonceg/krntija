@@ -94,6 +94,19 @@ public static class PlayerHouse
             Slab(root, new Vector3(2.6f, 0.12f, 0.34f), new Vector3(3.6f, y, 3.7f - i * 0.16f), Floor);
         }
 
+        // Перила вокруг проёма: с чердака не свалиться вниз.
+        for (int i = 0; i <= 8; i++)
+        {
+            float z = 0.4f + i * 0.4f;
+            Slab(root, new Vector3(0.12f, 1.0f, 0.12f), new Vector3(3.15f, WallHeight + 0.5f, z), Furniture, solid: false);
+        }
+
+        Slab(root, new Vector3(0.1f, 0.12f, 3.4f), new Vector3(3.15f, WallHeight + 1.0f, 2.0f), Furniture, solid: false);
+
+        // Окно в торце чердака: свет и вид.
+        Slab(root, new Vector3(0.08f, 0.9f, 1.1f), new Vector3(-Width / 2 + 0.02f, WallHeight + 0.9f, 0f),
+            new Color(0.55f, 0.68f, 0.75f), solid: false);
+
         // --- мебель ---
         BuildFurniture(root);
 

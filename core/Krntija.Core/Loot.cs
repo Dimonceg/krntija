@@ -80,7 +80,8 @@ public static class LootTables
         new LootEntry("scrap_metal", 2, 5, 3),
         new LootEntry("radio_part", 1, 2, 2),
         new LootEntry("cassette", 1, 2, 1.5),
-        new LootEntry("bottle_cap", 2, 5, 2));
+        new LootEntry("bottle_cap", 2, 5, 2),
+        new LootEntry("upgrade_tank", 1, 1, 0.5));
 
     public static readonly LootTable Farm = new(
         "farm", 1, 3,
@@ -88,7 +89,9 @@ public static class LootTables
         new LootEntry("motor_oil", 1, 1, 1.5),
         new LootEntry("bread", 1, 2, 1.5),
         new LootEntry("duct_tape", 1, 1, 1),
-        new LootEntry("scrap_metal", 1, 3, 1.5));
+        new LootEntry("scrap_metal", 1, 3, 1.5),
+        new LootEntry("upgrade_springs", 1, 1, 0.4),
+        new LootEntry("upgrade_toolbox", 1, 1, 0.4));
 
     public static readonly LootTable House = new(
         "house", 3, 5,
