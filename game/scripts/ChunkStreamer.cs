@@ -25,6 +25,7 @@ public partial class ChunkStreamer : Node3D
         public required ChunkBuilder Builder;
         public Node3D? Root;
         public int NextStep;
+        public bool Silent; // замер --chunk-bench: в игру не регистрируется
         public bool Done => NextStep >= ChunkBuilder.StepCount;
     }
 
@@ -40,6 +41,15 @@ public partial class ChunkStreamer : Node3D
     /// <summary>Мир сдвинулся на −delta: всё, что держит позиции сцены, сдвигается так же.</summary>
     public event Action<Vector3>? OriginShifted;
 
+    /// <summary>Кусок достроен: можно регистрировать его места, лут и точки.</summary>
+    public event Action<int, Node3D, ChunkBuilder>? ChunkReady;
+
+    /// <summary>Кусок сейчас выгрузится: снять всё, что на него ссылается.</summary>
+    public event Action<int>? ChunkUnloading;
+
+    /// <summary>Набор кусков изменился (загрузка, выгрузка): карте пора перерисоваться.</summary>
+    public event Action? ChunksChanged;
+
     public int Shifts { get; private set; }
     public int StepsBuilt { get; private set; }
     public double PeakStepMs { get; private set; }
@@ -47,11 +57,29 @@ public partial class ChunkStreamer : Node3D
     public int LoadedChunks => _chunks.Count;
     public int CurrentChunk { get; private set; }
 
+    /// <summary>Кусок построен и не выгружен.</summary>
+    public bool IsLoaded(int index) => _chunks.TryGetValue(index, out var chunk) && chunk.Done;
+
+    /// <summary>Отрезок дороги, который сейчас построен полностью.</summary>
+    public (double StartS, double EndS) BuiltRange()
+    {
+        double start = double.MaxValue, end = double.MinValue;
+        foreach (var chunk in _chunks.Values)
+        {
+            if (!chunk.Done) continue;
+            start = Math.Min(start, chunk.Builder.Plan.StartS);
+            end = Math.Max(end, chunk.Builder.Plan.EndS);
+        }
+
+        return start <= end ? (start, end) : (0, 0);
+    }
+
     public override void _Ready()
     {
         Curve = WorldGenerator.Curve(Seed);
         // Слияние статичной геометрии (StaticBatcher) кусков не касается: их выгружают.
         AddToGroup(StaticBatcher.SkipGroup);
+        PlaceBuilder.Preload();
     }
 
     // ------------------------------------------------------------ дорога в координатах сцены
@@ -130,9 +158,12 @@ public partial class ChunkStreamer : Node3D
 
         foreach (int index in stale)
         {
+            if (_chunks[index].Done) ChunkUnloading?.Invoke(index);
             _chunks[index].Root?.QueueFree();
             _chunks.Remove(index);
         }
+
+        if (stale.Count > 0) ChunksChanged?.Invoke();
     }
 
     private void Step(Chunk chunk)
@@ -147,6 +178,12 @@ public partial class ChunkStreamer : Node3D
 
         chunk.Builder.BuildStep(chunk.NextStep, chunk.Root, RoadMaterial);
         chunk.NextStep++;
+
+        if (chunk.Done && !chunk.Silent)
+        {
+            ChunkReady?.Invoke(chunk.Builder.Plan.Index, chunk.Root, chunk.Builder);
+            ChunksChanged?.Invoke();
+        }
 
         double ms = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         StepsBuilt++;
@@ -175,7 +212,7 @@ public partial class ChunkStreamer : Node3D
     /// <summary>Замер для --chunk-bench: постройка куска по шагам, мс на каждый шаг.</summary>
     public double[] Bench(int index)
     {
-        var chunk = new Chunk { Builder = new ChunkBuilder(Curve, Seed, WorldGenerator.Plan(Seed, index)) };
+        var chunk = new Chunk { Builder = new ChunkBuilder(Curve, Seed, WorldGenerator.Plan(Seed, index)), Silent = true };
         var times = new double[ChunkBuilder.StepCount];
         for (int step = 0; step < ChunkBuilder.StepCount; step++)
         {

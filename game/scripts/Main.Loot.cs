@@ -221,10 +221,11 @@ public partial class Main
 
     private void PlaceLoot(LootSpawn spawn)
     {
-        var item = LootItem.Create(spawn.ItemId, spawn.Count, spawn.Position);
-        AddChild(item);
+        Node3D parent = spawn.Parent ?? this;
+        var item = LootItem.Create(spawn.ItemId, spawn.Count, parent.ToLocal(spawn.Position));
+        parent.AddChild(item);
 
         _interactions.Add(new InteractionPoint(spawn.Position + Vector3.Up * 0.25f, InteractionKind.Loot, 2.2f,
-            LootId: spawn.ItemId, Node: item, StateId: spawn.StateId));
+            LootId: spawn.ItemId, Node: item, StateId: spawn.StateId, Chunk: spawn.Chunk));
     }
 }

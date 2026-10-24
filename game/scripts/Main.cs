@@ -110,6 +110,7 @@ public partial class Main : Node3D
         _miniMap.Visible = true;
         if (_road is not null)
             _miniMap.SetData(_road.Centerline, _map.Branches, _map.Places, _map.ClosedExits);
+        RefreshChunkMap();
 
         // Дом игрока у старта: слева от дороги, со своими дверями и чердаком.
         BuildPlayerHouse();
@@ -155,6 +156,12 @@ public partial class Main : Node3D
         if (_chunkBench)
         {
             RunChunkBench();
+            return;
+        }
+
+        if (_checkChunkPlaces)
+        {
+            RunChunkPlacesCheck();
             return;
         }
 

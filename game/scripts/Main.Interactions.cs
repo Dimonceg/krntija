@@ -35,9 +35,10 @@ public partial class Main
     }
 
     /// <param name="StateId">Id в <see cref="WorldState"/>, если действие меняет мир и сохраняется.</param>
+    /// <param name="Chunk">Кусок мира, которому принадлежит точка: снимается при его выгрузке.</param>
     private sealed record InteractionPoint(Vector3 Position, InteractionKind Kind, float Radius,
         CheckpointGate? Gate = null, Door? Door = null, string? LootId = null, Node3D? Node = null,
-        string? StateId = null);
+        string? StateId = null, int Chunk = -1);
 
     private readonly List<InteractionPoint> _interactions = new();
 
@@ -219,6 +220,12 @@ public partial class Main
     /// <summary>За первое посещение каждого места — деньги: есть смысл ехать дальше.</summary>
     private void RewardNewPlaces()
     {
+        if (_streamer is not null)
+        {
+            RewardChunkPlaces();
+            return;
+        }
+
         if (_road is null) return;
 
         for (int i = 0; i < _road.Points.Count; i++)

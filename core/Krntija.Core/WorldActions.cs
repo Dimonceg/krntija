@@ -2,6 +2,7 @@ using Krntija.Core.Economy;
 using Krntija.Core.Items;
 using Krntija.Core.Parts;
 using Krntija.Core.World;
+using Krntija.Core.WorldGen;
 
 namespace Krntija.Core;
 
@@ -48,6 +49,23 @@ public static class WorldActions
         session.Wallet.Earn(PlaceReward);
         return true;
     }
+
+    /// <summary>Первое посещение места из плана (мир кусками). Платим только за заметные места.</summary>
+    public static bool TryRewardPlace(GameSession session, PlacePlan place)
+    {
+        if (!RewardsVisit(place.Kind) || !session.WorldState.MarkDone(WorldState.Place(place.Id)))
+            return false;
+
+        session.Wallet.Earn(PlaceReward);
+        return true;
+    }
+
+    /// <summary>
+    /// За какие места платим при первом посещении. Сараи, колодцы и брошенные дома
+    /// стоят в каждом куске: награда за них раздула бы экономику.
+    /// </summary>
+    public static bool RewardsVisit(PlaceKind kind) => kind is PlaceKind.GasStation or PlaceKind.Village
+        or PlaceKind.Checkpoint or PlaceKind.Ruins or PlaceKind.Farm;
 
     /// <summary>Мотель: плата, восемь часов сна и подъём в 7 утра.</summary>
     public static bool TrySleepAtMotel(GameSession session)
