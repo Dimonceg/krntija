@@ -59,6 +59,7 @@ public partial class Main : Node3D
         Sleep,
         Door,
         Loot,
+        SellAll,
     }
 
     private sealed record InteractionPoint(Vector3 Position, InteractionKind Kind, float Radius,
@@ -506,6 +507,13 @@ public partial class Main : Node3D
     {
         if (_hud is null || _car is null) return;
 
+        // Перегруз: полный карман замедляет пешехода, багажник на скорость не влияет.
+        if (_player is not null)
+        {
+            var bag = _car.Session.Inventory;
+            _player.SpeedMultiplier = Core.Items.Encumbrance.SpeedFactor(bag.WeightKg, bag.MaxWeightKg);
+        }
+
         _hud.Prompt = BuildPrompt();
         UpdateSky();
         ApplyWeather();
@@ -689,6 +697,7 @@ public partial class Main : Node3D
     private static string PromptFor(InteractionPoint point) => point.Kind switch
     {
         InteractionKind.Shop => "[E] зайти в лавку",
+        InteractionKind.SellAll => "[E] сдать всё скупщику",
         InteractionKind.Gate => point.Gate is { IsOpen: true } ? "[E] шлагбаум открыт" : "[E] заплатить 15 € за проезд",
         InteractionKind.Sleep => "[E] переночевать (15 €)",
         InteractionKind.Door => point.Door is { IsOpen: true } ? "[E] закрыть дверь" : "[E] открыть дверь",
@@ -753,6 +762,10 @@ public partial class Main : Node3D
 
             case InteractionKind.Gate:
                 PayForGate(point.Gate);
+                break;
+
+            case InteractionKind.SellAll:
+                SellEverythingToDealer();
                 break;
 
             case InteractionKind.Sleep:
@@ -1603,6 +1616,10 @@ public partial class Main : Node3D
                 else if (model.FindChild("SleepAnchor", true, false) is Node3D bed)
                     _interactions.Add(new InteractionPoint(bed.GlobalPosition, InteractionKind.Sleep, 4.5f));
                 else AddMotel(model, new Vector3(-6f, 0, 9.5f));
+
+                // Скупщик у села: берёт всё, платит хуже лавки.
+                _interactions.Add(new InteractionPoint(position + Vector3.Up * 0.2f,
+                    InteractionKind.SellAll, 5f));
                 break;
             case RoadFeature.Ruins: if (model is null) AddRuins(position, heading); break;
             case RoadFeature.Farm: if (model is null) AddFarm(position, heading); break;
@@ -1835,6 +1852,22 @@ public partial class Main : Node3D
         }
 
         _backpack.Refresh(session.Inventory, session.Trunk);
+    }
+
+    /// <summary>Скупщик берёт всё, кроме инструментов, по 70 % цены.</summary>
+    private void SellEverythingToDealer()
+    {
+        var (pocketCount, pocketMoney) =
+            Core.Economy.TradeService.SellEverything(_car.Session.Inventory, _car.Session.Wallet);
+        var (trunkCount, trunkMoney) =
+            Core.Economy.TradeService.SellEverything(_car.Session.Trunk, _car.Session.Wallet);
+
+        int total = pocketCount + trunkCount;
+        _hud.Toast(total > 0
+            ? $"Скупщик забрал {total} шт. за {pocketMoney + trunkMoney:F0} €"
+            : "Скупщику нечего предложить");
+
+        _backpack.Refresh(_car.Session.Inventory, _car.Session.Trunk);
     }
 
     /// <summary>Скупка всего хлама — и из кармана, и из багажника.</summary>

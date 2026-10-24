@@ -2,6 +2,22 @@ using Krntija.Core.World;
 
 namespace Krntija.Core.Items;
 
+/// <summary>Переносимый вес и его влияние на скорость пешехода.</summary>
+public static class Encumbrance
+{
+    /// <summary>До 80 % веса идёшь как обычно, дальше — всё медленнее, до 55 %.</summary>
+    public static float SpeedFactor(double weightKg, double maxWeightKg)
+    {
+        if (maxWeightKg <= 0) return 1f;
+
+        double load = weightKg / maxWeightKg;
+        if (load <= 0.8) return 1f;
+
+        double over = (load - 0.8) / 0.2;          // 0…1 при перегрузе
+        return (float)Math.Clamp(1.0 - over * 0.45, 0.55, 1.0);
+    }
+}
+
 /// <summary>Что это за вещь: от категории зависит иконка, цвет и кому продавать.</summary>
 public enum ItemCategory
 {

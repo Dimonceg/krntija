@@ -10,6 +10,8 @@ namespace Krntija.Game;
 public partial class ItemIcon : Control
 {
     private ItemDef? _def;
+    private Texture2D? _texture;
+    private bool _textureChecked;
 
     public ItemDef? Def
     {
@@ -32,6 +34,14 @@ public partial class ItemIcon : Control
 
         Color tint = CategoryColor(_def.Category);
         DrawRect(new Rect2(2, 2, Size.X - 4, Size.Y - 4), new Color(tint, 0.18f));
+
+        // Если арт-модель положила картинку предмета — рисуем её вместо фигуры.
+        _texture ??= LoadAuthoredIcon(_def.Id);
+        if (_texture is not null)
+        {
+            DrawTextureRect(_texture, new Rect2(Vector2.Zero, Size), false);
+            return;
+        }
 
         var center = Size / 2;
         float s = Mathf.Min(Size.X, Size.Y);
@@ -64,6 +74,13 @@ public partial class ItemIcon : Control
                 DrawLine(box.Position with { X = center.X }, box.End with { X = center.X }, new Color(0.12f, 0.12f, 0.13f), 2f);
                 break;
         }
+    }
+
+    /// <summary>Иконка от художника: props/icons/&lt;id&gt;.png. Нет — рисуем фигуру.</summary>
+    private static Texture2D? LoadAuthoredIcon(string itemId)
+    {
+        string path = $"res://assets/models/props/icons/{itemId}.png";
+        return ResourceLoader.Exists(path) ? GD.Load<Texture2D>(path) : null;
     }
 
     public static Color CategoryColor(ItemCategory category) => category switch
