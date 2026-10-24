@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using Godot;
+using Krntija.Core.Vehicle;
 
 namespace Krntija.Game;
 
@@ -9,7 +11,7 @@ namespace Krntija.Game;
 /// </summary>
 public partial class MenuUi : CanvasLayer
 {
-    public event Action? NewGameRequested;
+    public event Action<CarSpec>? NewGameRequested;
     public event Action? ContinueRequested;
     public event Action? ResumeRequested;
     public event Action? SaveRequested;
@@ -19,12 +21,15 @@ public partial class MenuUi : CanvasLayer
 
     private Control _root = null!;
     private VBoxContainer _buttons = null!;
+    private VBoxContainer _column = null!;
     private Label _title = null!;
     private Label _subtitle = null!;
+    private readonly List<Button> _carButtons = new();
 
     private bool _mainMode = true;
     private bool _hasSave;
     private bool _settingsMode;
+    private bool _carSelectMode;
 
     public bool IsOpen => _root.Visible;
 
@@ -45,9 +50,9 @@ public partial class MenuUi : CanvasLayer
         center.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         _root.AddChild(center);
 
-        var column = new VBoxContainer { CustomMinimumSize = new Vector2(380, 0) };
-        column.AddThemeConstantOverride("separation", 10);
-        center.AddChild(column);
+        _column = new VBoxContainer { CustomMinimumSize = new Vector2(380, 0) };
+        _column.AddThemeConstantOverride("separation", 10);
+        center.AddChild(_column);
 
         _title = new Label
         {
@@ -56,7 +61,7 @@ public partial class MenuUi : CanvasLayer
         };
         _title.AddThemeFontSizeOverride("font_size", 56);
         _title.AddThemeColorOverride("font_color", new Color(0.93f, 0.86f, 0.66f));
-        column.AddChild(_title);
+        _column.AddChild(_title);
 
         _subtitle = new Label
         {
@@ -65,13 +70,13 @@ public partial class MenuUi : CanvasLayer
         };
         _subtitle.AddThemeFontSizeOverride("font_size", 16);
         _subtitle.AddThemeColorOverride("font_color", new Color(0.7f, 0.68f, 0.6f));
-        column.AddChild(_subtitle);
+        _column.AddChild(_subtitle);
 
-        column.AddChild(new Control { CustomMinimumSize = new Vector2(0, 18) });
+        _column.AddChild(new Control { CustomMinimumSize = new Vector2(0, 18) });
 
         _buttons = new VBoxContainer();
         _buttons.AddThemeConstantOverride("separation", 8);
-        column.AddChild(_buttons);
+        _column.AddChild(_buttons);
 
         var hint = new Label
         {
@@ -80,15 +85,15 @@ public partial class MenuUi : CanvasLayer
         };
         hint.AddThemeFontSizeOverride("font_size", 13);
         hint.AddThemeColorOverride("font_color", new Color(0.55f, 0.53f, 0.48f));
-        column.AddChild(new Control { CustomMinimumSize = new Vector2(0, 18) });
-        column.AddChild(hint);
+        _column.AddChild(new Control { CustomMinimumSize = new Vector2(0, 18) });
+        _column.AddChild(hint);
     }
 
     public override void _UnhandledInput(InputEvent @event)
     {
         if (@event is not InputEventKey { Pressed: true, Echo: false, Keycode: Key.Escape }) return;
 
-        if (_settingsMode)
+        if (_settingsMode || _carSelectMode)
         {
             ShowMainMenu(_hasSave);
             return;
@@ -101,13 +106,15 @@ public partial class MenuUi : CanvasLayer
     {
         _mainMode = true;
         _settingsMode = false;
+        _carSelectMode = false;
         _hasSave = hasSave;
         _title.Text = "KRNTIJA";
         _subtitle.Text = "ржавая машина, плохая дорога";
+        _column.CustomMinimumSize = new Vector2(380, 0);
 
         Clear();
 
-        AddButton("Новая игра", () => NewGameRequested?.Invoke());
+        AddButton("Новая игра", ShowCarSelect);
         AddButton("Продолжить", () => ContinueRequested?.Invoke(), hasSave);
         AddButton("Настройки", ShowSettings);
         AddButton("Выход", () => QuitRequested?.Invoke());
@@ -115,12 +122,53 @@ public partial class MenuUi : CanvasLayer
         _root.Visible = true;
     }
 
+    /// <summary>
+    /// Экран выбора машины для новой игры. Слева — имя кнопкой, справа —
+    /// характеристики: видно, чем «двойка» отличается от «стоеднаестки»,
+    /// не залезая в документацию.
+    /// </summary>
+    public void ShowCarSelect()
+    {
+        _mainMode = false;
+        _settingsMode = false;
+        _carSelectMode = true;
+        _title.Text = "НА ЧЁМ ПОЕДЕМ";
+        _subtitle.Text = "четыре ведра, четыре характера";
+        _column.CustomMinimumSize = new Vector2(640, 0);
+
+        Clear();
+        _carButtons.Clear();
+
+        foreach (var spec in CarCatalog.All)
+        {
+            var car = spec;
+            var button = AddCarRow(car, () => NewGameRequested?.Invoke(car));
+            _carButtons.Add(button);
+        }
+
+        AddButton("Назад", () => ShowMainMenu(_hasSave));
+
+        _root.Visible = true;
+    }
+
+    /// <summary>Сколько машин предложено — для автотеста и проверок.</summary>
+    public int CarChoices => _carButtons.Count;
+
+    /// <summary>Нажать кнопку машины программно: проверки без живой мыши.</summary>
+    public void PressCar(int index)
+    {
+        if (index < 0 || index >= _carButtons.Count) return;
+        _carButtons[index].EmitSignal(BaseButton.SignalName.Pressed);
+    }
+
     public void ShowSettings()
     {
         _mainMode = false;
         _settingsMode = true;
+        _carSelectMode = false;
         _title.Text = "НАСТРОЙКИ";
         _subtitle.Text = "звук, мышь, экран";
+        _column.CustomMinimumSize = new Vector2(380, 0);
 
         Clear();
 
@@ -153,8 +201,10 @@ public partial class MenuUi : CanvasLayer
     {
         _mainMode = false;
         _settingsMode = false;
+        _carSelectMode = false;
         _title.Text = "ПАУЗА";
         _subtitle.Text = "дорога никуда не денется";
+        _column.CustomMinimumSize = new Vector2(380, 0);
 
         Clear();
 
@@ -176,7 +226,7 @@ public partial class MenuUi : CanvasLayer
             child.QueueFree();
     }
 
-    private void AddButton(string text, Action action, bool enabled = true)
+    private Button AddButton(string text, Action action, bool enabled = true)
     {
         var button = new Button
         {
@@ -191,6 +241,60 @@ public partial class MenuUi : CanvasLayer
             action();
         };
         _buttons.AddChild(button);
+        return button;
+    }
+
+    /// <summary>Строка выбора машины: кнопка с именем и подпись с характеристиками.</summary>
+    private Button AddCarRow(CarSpec spec, Action onPressed)
+    {
+        var row = new HBoxContainer();
+        row.AddThemeConstantOverride("separation", 16);
+
+        var button = new Button
+        {
+            Text = spec.Name,
+            CustomMinimumSize = new Vector2(300, 46),
+            SizeFlagsHorizontal = Control.SizeFlags.ShrinkBegin,
+            ClipText = true,
+        };
+        button.AddThemeFontSizeOverride("font_size", 19);
+        button.Pressed += () =>
+        {
+            Sfx.PlayUi();
+            onPressed();
+        };
+        row.AddChild(button);
+
+        var info = new Label
+        {
+            Text = CarSpecLine(spec),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        info.AddThemeFontSizeOverride("font_size", 15);
+        info.AddThemeColorOverride("font_color", new Color(0.72f, 0.70f, 0.62f));
+        row.AddChild(info);
+
+        _buttons.AddChild(row);
+        return button;
+    }
+
+    /// <summary>Характеристики в человеческих единицах: лошади, километры, литры.</summary>
+    private static string CarSpecLine(CarSpec spec)
+    {
+        int hp = (int)Math.Round(spec.PowerKw * 1.35962);
+        int kmh = (int)Math.Round(spec.TopSpeedMps * 3.6);
+        return $"{hp} л.с. · {spec.ChassisMassKg:F0} кг · {kmh} км/ч · {GearsText(spec.GearRatios.Count)} · бак {spec.FuelCapacityL:F0} л";
+    }
+
+    private static string GearsText(int count)
+    {
+        int tail = count % 100;
+        int last = count % 10;
+        string word = tail is >= 11 and <= 14 ? "передач"
+            : last == 1 ? "передача"
+            : last is >= 2 and <= 4 ? "передачи"
+            : "передач";
+        return $"{count} {word}";
     }
 
     private void AddSlider(string label, float min, float max, float step, float value, Action<float> onChanged)

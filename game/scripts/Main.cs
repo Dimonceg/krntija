@@ -39,6 +39,8 @@ public partial class Main : Node3D
     private bool _shotRain;
     private bool _shotCar;
     private bool _shotLineup;
+    private bool _shotCars;
+    private bool _selfTestCars;
     private int _frames;
 
     private enum InteractionKind
@@ -54,6 +56,7 @@ public partial class Main : Node3D
     private readonly List<InteractionPoint> _interactions = new();
     private RoadBuildResult? _road;
     private MenuUi _menu = null!;
+    private RoadEvents? _events;
     private RainFx _rain = null!;
     private DirectionalLight3D? _sun;
     private Godot.Environment? _environment;
@@ -89,10 +92,7 @@ public partial class Main : Node3D
 
         _car = Car.Build(session);
         AddChild(_car);
-        // Ставим машину не на самом краю полотна, иначе половина висит в воздухе.
-        Vector3 start = _road is { Centerline.Count: > 4 } ? _road.Centerline[4] : new Vector3(0, 0.6f, 0);
-        _car.GlobalPosition = start + Vector3.Up * 0.62f;
-        _car.Path = _road?.Centerline;
+        PlaceCarAtStart();
 
         _camera = new ChaseCamera { Target = _car };
         AddChild(_camera);
@@ -104,9 +104,9 @@ public partial class Main : Node3D
         // Дорожные события: ямы, коровы, попутчики.
         if (_road is not null)
         {
-            var events = new RoadEvents();
-            AddChild(events);
-            events.Setup(_road.Centerline, _road.Headings, _car, _hud);
+            _events = new RoadEvents();
+            AddChild(_events);
+            _events.Setup(_road.Centerline, _road.Headings, _car, _hud);
         }
 
         _rain = new RainFx();
@@ -135,7 +135,8 @@ public partial class Main : Node3D
                 || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-settings") >= 0
                 || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-rain") >= 0
                 || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-car") >= 0
-                || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-lineup") >= 0;
+                || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-lineup") >= 0
+                || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-cars") >= 0;
         _openJournalInShot = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-ui") >= 0;
         _shotMenu = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-menu") >= 0;
         _shotDay = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-day") >= 0;
@@ -143,8 +144,10 @@ public partial class Main : Node3D
         _shotRain = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-rain") >= 0;
         _shotCar = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-car") >= 0;
         _shotLineup = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-lineup") >= 0;
+        _shotCars = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-cars") >= 0;
+        _selfTestCars = Array.IndexOf(OS.GetCmdlineUserArgs(), "--selftest-cars") >= 0;
         _perf = Array.IndexOf(OS.GetCmdlineUserArgs(), "--perf") >= 0;
-        _car.Autopilot = _smoke || _selfTest || _perf;
+        _car.Autopilot = _smoke || _selfTest || _perf || _selfTestCars;
 
         _menu = new MenuUi();
         AddChild(_menu);
@@ -156,6 +159,13 @@ public partial class Main : Node3D
         _menu.QuitRequested += () => GetTree().Quit(0);
         _menu.EscapePressed += OnEscape;
 
+        // Проверка выбора машины: жмём кнопки и сверяем спеку. Без окна и мыши.
+        if (_selfTestCars)
+        {
+            RunCarSelectCheck();
+            return;
+        }
+
         // В автоматических прогонах меню не показываем: тесты должны ехать сразу.
         bool automated = _smoke || _selfTest || _shot || _perf;
         if (!automated)
@@ -163,6 +173,11 @@ public partial class Main : Node3D
             _menu.ShowMainMenu(HasSave());
             _hud.Visible = false;
             GetTree().Paused = true;
+        }
+        else if (_shotCars)
+        {
+            _menu.ShowCarSelect();
+            _hud.Visible = false;
         }
         else if (_shotMenu || _shotSettings)
         {
@@ -1027,18 +1042,28 @@ public partial class Main : Node3D
         _menu.Close();
     }
 
-    private void StartNewGame()
+    /// <summary>
+    /// Новая игра на выбранной машине: сессия собирается заново, поэтому
+    /// топливо, детали, деньги и задача начинаются с чистого листа.
+    /// Сцену не перезагружаем — мир (дорога, события, погода) остаётся тем же.
+    /// </summary>
+    private void StartNewGame(CarSpec spec)
     {
-        // Сцена перезагружается только при выходе в главное меню,
-        // поэтому здесь сессия уже свежая — просто снимаем паузу.
+        Respawn(GameSession.NewGame(car: spec));
+        PlaceCarAtStart();
+        _objectiveDone = false;
+        _hud.Objective = string.Empty;
+
         ResumeGame();
+        _hud.Toast($"Новая игра: {spec.Name}");
+        GD.Print($"[newgame] {spec.Id}");
     }
 
     private void ContinueGame()
     {
         if (!HasSave())
         {
-            StartNewGame();
+            _menu.ShowCarSelect();
             return;
         }
 
@@ -1151,6 +1176,52 @@ public partial class Main : Node3D
 
         _camera.Target = _car;
         _hud.Car = _car;
+
+        // События держат ссылку на машину: без Rebind ямы и коровы
+        // продолжали бы толкать удалённый объект после загрузки сейва.
+        _events?.Rebind(_car, _hud);
+    }
+
+    /// <summary>Поставить машину на старт дороги: новую игру всегда начинаем там.</summary>
+    private void PlaceCarAtStart()
+    {
+        // Не на самом краю полотна, иначе половина машины висит в воздухе.
+        Vector3 start = _road is { Centerline.Count: > 4 } ? _road.Centerline[4] : new Vector3(0, 0.6f, 0);
+        _car.GlobalPosition = start + Vector3.Up * 0.62f;
+        _car.LinearVelocity = Vector3.Zero;
+        _car.AngularVelocity = Vector3.Zero;
+        _car.Path = _road?.Centerline;
+    }
+
+    /// <summary>
+    /// Автопроверка экрана выбора машины: жмём каждую кнопку и убеждаемся,
+    /// что сессия собралась на нужной спеке с её стартовым топливом.
+    /// </summary>
+    private void RunCarSelectCheck()
+    {
+        bool ok = true;
+
+        _menu.ShowCarSelect();
+        GD.Print($"[carselftest] кнопок в меню: {_menu.CarChoices}, машин в каталоге: {CarCatalog.All.Count}");
+        ok &= _menu.CarChoices == CarCatalog.All.Count;
+
+        for (int i = 0; i < CarCatalog.All.Count; i++)
+        {
+            CarSpec expected = CarCatalog.All[i];
+            _menu.ShowCarSelect();
+            _menu.PressCar(i);
+
+            string actual = _car.Session.Vehicle.Spec.Id;
+            double fuel = _car.Session.Vehicle.Fuel.Liters;
+            bool match = actual == expected.Id && Math.Abs(fuel - expected.FuelStartL) < 0.001;
+
+            GD.Print($"[carselftest] {i}: ждали {expected.Id}/{expected.FuelStartL:F0} л, "
+                     + $"получили {actual}/{fuel:F0} л — {(match ? "ок" : "FAIL")}");
+            ok &= match;
+        }
+
+        GD.Print(ok ? "[carselftest] OK" : "[carselftest] FAIL");
+        GetTree().Quit(ok ? 0 : 1);
     }
 
     // ---------- мир ----------
