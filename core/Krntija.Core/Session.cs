@@ -151,6 +151,11 @@ public sealed class SaveData
     public long SavedAtUnix { get; set; }
     public string SpecId { get; set; } = CarCatalog.Zastava101.Id;
     public double Money { get; set; } = 120;
+    public bool ObjectiveDone { get; set; }
+    public double CarX { get; set; }
+    public double CarY { get; set; }
+    public double CarZ { get; set; }
+    public double CarYaw { get; set; }
     public double ClockMinutes { get; set; }
     public double FuelLiters { get; set; }
     public double FuelCapacityLiters { get; set; } = 36;

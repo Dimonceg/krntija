@@ -29,6 +29,8 @@ public partial class Main : Node3D
     private bool _selfTestOk;
     private bool _shot;
     private bool _openJournalInShot;
+    private bool _shotMenu;
+    private bool _shotDay;
     private int _frames;
 
     private enum InteractionKind
@@ -42,6 +44,7 @@ public partial class Main : Node3D
 
     private readonly List<InteractionPoint> _interactions = new();
     private RoadBuildResult? _road;
+    private MenuUi _menu = null!;
     private DirectionalLight3D? _sun;
     private Godot.Environment? _environment;
     private Vector3? _objectivePosition;
@@ -69,9 +72,37 @@ public partial class Main : Node3D
         _smoke = Array.IndexOf(OS.GetCmdlineUserArgs(), "--smoke") >= 0;
         _selfTest = Array.IndexOf(OS.GetCmdlineUserArgs(), "--selftest") >= 0;
         _shot = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot") >= 0
-                || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-ui") >= 0;
+                || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-ui") >= 0
+                || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-menu") >= 0
+                || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-day") >= 0;
         _openJournalInShot = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-ui") >= 0;
+        _shotMenu = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-menu") >= 0;
+        _shotDay = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-day") >= 0;
         _car.Autopilot = _smoke || _selfTest;
+
+        _menu = new MenuUi();
+        AddChild(_menu);
+        _menu.NewGameRequested += StartNewGame;
+        _menu.ContinueRequested += ContinueGame;
+        _menu.ResumeRequested += ResumeGame;
+        _menu.SaveRequested += SaveGame;
+        _menu.MainMenuRequested += GoToMainMenu;
+        _menu.QuitRequested += () => GetTree().Quit(0);
+        _menu.EscapePressed += OnEscape;
+
+        // В автоматических прогонах меню не показываем: тесты должны ехать сразу.
+        bool automated = _smoke || _selfTest || _shot;
+        if (!automated)
+        {
+            _menu.ShowMainMenu(HasSave());
+            _hud.Visible = false;
+            GetTree().Paused = true;
+        }
+        else if (_shotMenu)
+        {
+            _menu.ShowMainMenu(HasSave());
+            _hud.Visible = false;
+        }
 
         if (_shot && _road is { Centerline.Count: > 90 })
         {
@@ -81,7 +112,7 @@ public partial class Main : Node3D
             _car.GlobalPosition = road.Centerline[index] + Vector3.Up * 0.6f;
             _car.Rotation = new Vector3(0, -road.Headings[index] + 0.35f, 0);
             _camera.GlobalPosition = _car.GlobalPosition + _car.GlobalBasis.Z * 9f + Vector3.Up * 4f;
-            _car.Session.Clock.SetTotalMinutes(18.75 * 60);
+            _car.Session.Clock.SetTotalMinutes((_shotDay ? 12.0 : 18.75) * 60);
         }
 
         GD.Print($"[Krntija] старт. smoke={_smoke}, selftest={_selfTest}, машина: {session.Vehicle.Spec.Name}");
@@ -201,7 +232,6 @@ public partial class Main : Node3D
         switch (key.Keycode)
         {
             case Key.Escape:
-                GetTree().Quit(0);
                 break;
             case Key.E:
                 Interact();
@@ -565,12 +595,73 @@ public partial class Main : Node3D
         GD.PrintErr($"[selftest] FAIL: {what}");
     }
 
+    // ---------- меню и пауза ----------
+
+    private bool HasSave() => System.IO.File.Exists(ProjectSettings.GlobalizePath(SavePath));
+
+    private void OnEscape()
+    {
+        if (!_menu.IsOpen)
+        {
+            PauseGame();
+            return;
+        }
+
+        if (!_menu.InMainMode) ResumeGame();
+    }
+
+    private void PauseGame()
+    {
+        GetTree().Paused = true;
+        _hud.Visible = false;
+        _menu.ShowPause();
+    }
+
+    private void ResumeGame()
+    {
+        GetTree().Paused = false;
+        _hud.Visible = true;
+        _menu.Close();
+    }
+
+    private void StartNewGame()
+    {
+        // Сцена перезагружается только при выходе в главное меню,
+        // поэтому здесь сессия уже свежая — просто снимаем паузу.
+        ResumeGame();
+    }
+
+    private void ContinueGame()
+    {
+        if (!HasSave())
+        {
+            StartNewGame();
+            return;
+        }
+
+        ResumeGame();
+        LoadGame();
+    }
+
+    private void GoToMainMenu()
+    {
+        GetTree().Paused = false;
+        GetTree().ReloadCurrentScene();
+    }
+
     // ---------- игровые действия ----------
 
     private void SaveGame()
     {
         var path = ProjectSettings.GlobalizePath(SavePath);
-        SaveSerializer.SaveFile(path, _car.Session.ToSave());
+        var data = _car.Session.ToSave();
+        data.ObjectiveDone = _objectiveDone;
+        data.CarX = _car.GlobalPosition.X;
+        data.CarY = _car.GlobalPosition.Y;
+        data.CarZ = _car.GlobalPosition.Z;
+        data.CarYaw = _car.Rotation.Y;
+
+        SaveSerializer.SaveFile(path, data);
         _hud.Toast("Сохранено");
         GD.Print($"[save] {path}");
     }
@@ -584,8 +675,17 @@ public partial class Main : Node3D
             return;
         }
 
-        var session = GameSession.FromSave(SaveSerializer.LoadFile(path));
+        var data = SaveSerializer.LoadFile(path);
+        var session = GameSession.FromSave(data);
         Respawn(session);
+
+        _objectiveDone = data.ObjectiveDone;
+
+        _car.GlobalPosition = new Vector3((float)data.CarX, (float)data.CarY, (float)data.CarZ);
+        _car.Rotation = new Vector3(0, (float)data.CarYaw, 0);
+        _car.LinearVelocity = Vector3.Zero;
+        _car.AngularVelocity = Vector3.Zero;
+
         _hud.Toast("Загружено");
     }
 

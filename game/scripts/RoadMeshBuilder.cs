@@ -68,6 +68,8 @@ public static class RoadMeshBuilder
         body.AddChild(BuildCollision(centers, headingsAll));
         parent.AddChild(body);
 
+        AddCenterLine(centers, headingsAll, parent);
+
         AddRoadsidePosts(centers, headingsAll, parent);
 
         // Точки интереса ставим у начала своего сегмента.
@@ -78,6 +80,41 @@ public static class RoadMeshBuilder
         }
 
         return result;
+    }
+
+    /// <summary>Прерывистая осевая: каждый второй четырёхметровый шаг.</summary>
+    private static void AddCenterLine(List<Vector3> points, List<float> headings, Node3D parent)
+    {
+        var st = new SurfaceTool();
+        st.Begin(Mesh.PrimitiveType.Triangles);
+
+        for (int i = 0; i < points.Count - 1; i += 2)
+        {
+            Vector3 ra = new(Mathf.Cos(headings[i]), 0, Mathf.Sin(headings[i]));
+            Vector3 rb = new(Mathf.Cos(headings[i + 1]), 0, Mathf.Sin(headings[i + 1]));
+
+            Vector3 a1 = points[i] - ra * 0.09f;
+            Vector3 a2 = points[i] + ra * 0.09f;
+            Vector3 b1 = points[i + 1] - rb * 0.09f;
+            Vector3 b2 = points[i + 1] + rb * 0.09f;
+
+            foreach (var vertex in new[] { a1, b1, a2, a2, b1, b2 })
+            {
+                st.SetNormal(Vector3.Up);
+                st.AddVertex(new Vector3(vertex.X, 0.07f, vertex.Z));
+            }
+        }
+
+        parent.AddChild(new MeshInstance3D
+        {
+            Mesh = st.Commit(),
+            MaterialOverride = new StandardMaterial3D
+            {
+                AlbedoColor = new Color(0.82f, 0.8f, 0.72f),
+                ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+                CullMode = BaseMaterial3D.CullModeEnum.Disabled,
+            },
+        });
     }
 
     private static ArrayMesh BuildRibbon(List<Vector3> points, List<float> headings)
