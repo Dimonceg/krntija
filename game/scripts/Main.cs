@@ -1477,6 +1477,7 @@ public partial class Main : Node3D
         var plan = RoadPlanner.Generate(seed: 20261023, totalMeters: 2500);
         var road = RoadMeshBuilder.Build(plan, this);
         _road = road;
+        WorldArtGround.Configure(road.Points);
 
         int poiIndex = 0;
         foreach (var poi in road.Points)
@@ -1490,7 +1491,7 @@ public partial class Main : Node3D
 
         TerrainBuilder.Build(road.Centerline, road.Headings, this);
         WorldScatter.ScatterHills(road.Centerline, road.Headings, this, seed: 20261023);
-        WorldScatter.ScatterTrees(road.Centerline, road.Headings, this, seed: 20261023);
+        WorldScatter.ScatterTrees(road.Centerline, road.Headings, this, seed: 20261023, landmarks: road.Points);
         WorldScatter.ScatterPowerLine(road.Centerline, road.Headings, this, seed: 20261023);
         WorldScatter.AddKilometerPosts(road.Centerline, road.Headings, this);
         WorldScatter.ScatterSigns(road.Centerline, road.Headings, this, seed: 20261023);
@@ -1510,23 +1511,28 @@ public partial class Main : Node3D
         string featureId = feature.ToString().ToLowerInvariant();
         string? variant = PropFactory.PickVariant(PropVariants(featureId), poiIndex);
 
-        // Небольшой разворот и сдвиг: одинаковые пропы не должны стоять строем.
+        // Небольшой разворот; высота площадки фиксирована, чтобы не затопить настил землёй.
         var rng = new Pcg32((ulong)(20261024 + poiIndex), sequence: 5);
         float yawJitter = (float)rng.Range(-0.18, 0.18);
-        float sink = (float)rng.Range(-0.05, 0.05);
 
         Node3D? model = variant is null
             ? null
-            : PropFactory.Spawn(variant, position + Vector3.Up * sink, heading, solid: true, this, yawJitter);
+            : PropFactory.Spawn(variant, position, heading, solid: true, this, yawJitter);
+        if (model is not null) model.Name = $"Landmark_{feature}";
 
         switch (feature)
         {
             case RoadFeature.GasStation:
                 if (model is null) AddGasStation(position, heading);
-                else AddGasStationInteractions(position, heading);
+                else AddGasStationInteractions(model.Position, -model.Rotation.Y);
                 break;
 
-            case RoadFeature.Village: if (model is null) AddVillage(position, heading); break;
+            case RoadFeature.Village:
+                if (model is null) AddVillage(position, heading);
+                else if (model.FindChild("SleepAnchor", true, false) is Node3D bed)
+                    _interactions.Add(new InteractionPoint(bed.GlobalPosition, InteractionKind.Sleep, 4.5f));
+                else AddMotel(model, new Vector3(-6f, 0, 9.5f));
+                break;
             case RoadFeature.Ruins: if (model is null) AddRuins(position, heading); break;
             case RoadFeature.Farm: if (model is null) AddFarm(position, heading); break;
             case RoadFeature.Checkpoint: AddCheckpoint(position, heading, roadPoint, model is null); break;

@@ -1,0 +1,47 @@
+{
+  "gasstation": {
+    "triangles": 4064,
+    "colliders": 8,
+    "surfaces": 1
+  },
+  "village": {
+    "triangles": 6810,
+    "colliders": 3,
+    "surfaces": 1
+  },
+  "farm": {
+    "triangles": 3546,
+    "colliders": 3,
+    "surfaces": 1
+  },
+  "ruins": {
+    "triangles": 596,
+    "colliders": 3,
+    "surfaces": 1
+  },
+  "checkpoint": {
+    "triangles": 1381,
+    "colliders": 1,
+    "surfaces": 1
+  },
+  "tree_oak": {
+    "triangles": 720,
+    "colliders": 0,
+    "surfaces": 1
+  },
+  "tree_poplar": {
+    "triangles": 160,
+    "colliders": 0,
+    "surfaces": 1
+  },
+  "tree_pine": {
+    "triangles": 1040,
+    "colliders": 0,
+    "surfaces": 1
+  },
+  "shrub": {
+    "triangles": 60,
+    "colliders": 0,
+    "surfaces": 1
+  }
+}

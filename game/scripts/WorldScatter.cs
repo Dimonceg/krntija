@@ -15,8 +15,11 @@ public static class WorldScatter
     /// Деревья кусками вдоль дороги: у каждого куска свой AABB, поэтому
     /// движок отсекает то, что за спиной или далеко впереди.
     /// </summary>
-    public static void ScatterTrees(List<Vector3> centerline, List<float> headings, Node3D parent, ulong seed)
+    public static void ScatterTrees(List<Vector3> centerline, List<float> headings, Node3D parent, ulong seed,
+        List<RoadMeshBuilder.PointOfInterest>? landmarks = null)
     {
+        if (WorldVegetation.Scatter(centerline, headings, parent, seed, landmarks)) return;
+
         const int chunkPoints = 48;
 
         var rng = new Pcg32(seed, sequence: 99);
