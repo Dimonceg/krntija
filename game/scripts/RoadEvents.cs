@@ -20,6 +20,7 @@ public partial class RoadEvents : Node3D
         public Vector3 Position;
         public EventKind Kind;
         public bool Done;
+        public float SpeedLogged;
     }
 
     private enum EventKind
@@ -27,6 +28,8 @@ public partial class RoadEvents : Node3D
         Pothole,
         Cow,
         Hitchhiker,
+        Breakdown,
+        Control,
     }
 
     private readonly List<Spot> _spots = new();
@@ -43,7 +46,14 @@ public partial class RoadEvents : Node3D
         for (int i = 40; i < centerline.Count - 12; i += 26)
         {
             double roll = rng.NextDouble();
-            EventKind kind = roll < 0.6 ? EventKind.Pothole : roll < 0.85 ? EventKind.Cow : EventKind.Hitchhiker;
+            EventKind kind = roll switch
+            {
+                < 0.45 => EventKind.Pothole,
+                < 0.62 => EventKind.Cow,
+                < 0.76 => EventKind.Hitchhiker,
+                < 0.90 => EventKind.Breakdown,
+                _ => EventKind.Control,
+            };
 
             int side = rng.Chance(0.5) ? 1 : -1;
             var right = new Vector3(Mathf.Cos(headings[i]), 0, Mathf.Sin(headings[i]));
@@ -51,6 +61,7 @@ public partial class RoadEvents : Node3D
             {
                 EventKind.Pothole => (float)rng.Range(-2.8f, 2.8f),
                 EventKind.Cow => (float)rng.Range(-1.5f, 1.5f),
+                EventKind.Breakdown => (float)rng.Range(-1.0f, 1.0f),
                 _ => 6.4f * side,
             };
 
@@ -62,6 +73,8 @@ public partial class RoadEvents : Node3D
             {
                 EventKind.Pothole => BuildPothole(position, headings[i]),
                 EventKind.Cow => BuildCow(position, headings[i] + (float)rng.Range(-0.8f, 0.8f)),
+                EventKind.Breakdown => BuildBreakdown(position, headings[i]),
+                EventKind.Control => BuildControl(position, headings[i]),
                 _ => BuildHitchhiker(position, headings[i]),
             };
 
@@ -97,6 +110,15 @@ public partial class RoadEvents : Node3D
 
                 case EventKind.Hitchhiker when horizontal < 6f && speed < 0.8f:
                     TakeHitchhiker(spot);
+                    break;
+
+                case EventKind.Breakdown when horizontal < 1.6f && speed > 3f:
+                    BreakDown(spot);
+                    break;
+
+                // Пост контроля: медленно — пропустили, быстро — штраф.
+                case EventKind.Control when horizontal < 4f && spot.SpeedLogged == 0f:
+                    PassControl(spot, speed);
                     break;
             }
         }
@@ -136,9 +158,44 @@ public partial class RoadEvents : Node3D
     private void TakeHitchhiker(Spot spot)
     {
         spot.Done = true;
-        _car.Session.Wallet.Earn(30);
+        _car.Session.Wallet.Earn(12);
         spot.Node.QueueFree();
-        _hud.Toast("Подобрали попутчика: +30 €");
+        _hud.Toast("Подобрали попутчика: +12 €");
+    }
+
+    private void BreakDown(Spot spot)
+    {
+        spot.Done = true;
+
+        _car.Session.Vehicle.EngineRunning = false;
+        _car.Session.Vehicle.Parts[PartSlot.Radiator].Wear(0.04);
+        _car.Session.Vehicle.EngineTempC = Mathf.Min(120f, (float)_car.Session.Vehicle.EngineTempC + 25f);
+
+        _hud.Toast("Двигатель заглох. Зажигание — V, радиатор проверить");
+    }
+
+    private void PassControl(Spot spot, float speed)
+    {
+        spot.SpeedLogged = Mathf.Max(0.1f, speed);
+
+        if (speed > 6f)
+        {
+            const double fine = 15;
+            if (_car.Session.Wallet.TrySpend(fine))
+            {
+                _hud.Toast("Контроль: штраф 15 € за скорость");
+            }
+            else
+            {
+                _hud.Toast("Контроль: денег нет, записали в долг");
+            }
+
+            _car.Session.Vehicle.Parts[PartSlot.Body].Wear(0.005);
+        }
+        else
+        {
+            _hud.Toast("Контроль пройден");
+        }
     }
 
     // ------------------------------------------------------------- внешний вид
@@ -180,6 +237,50 @@ public partial class RoadEvents : Node3D
             for (int sz = -1; sz <= 1; sz += 2)
                 AddBox(root, new Vector3(0.14f, 0.7f, 0.14f), new Vector3(sx * 0.24f, 0.35f, sz * 0.55f), spots);
         }
+
+        return root;
+    }
+
+    private static Node3D BuildBreakdown(Vector3 position, float heading)
+    {
+        var root = new Node3D { Position = position, Rotation = new Vector3(0, -heading, 0) };
+
+        // Лужа масла на асфальте — видно, что тут кто-то встал.
+        root.AddChild(new MeshInstance3D
+        {
+            Mesh = new BoxMesh { Size = new Vector3(2.2f, 0.02f, 1.2f) },
+            Position = new Vector3(0, 0.02f, 0),
+            MaterialOverride = new StandardMaterial3D
+            {
+                AlbedoColor = new Color(0.06f, 0.05f, 0.04f),
+                ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+            },
+        });
+
+        return root;
+    }
+
+    private static Node3D BuildControl(Vector3 position, float heading)
+    {
+        var root = new Node3D { Position = position, Rotation = new Vector3(0, -heading, 0) };
+
+        var post = new Color(0.62f, 0.6f, 0.55f);
+        var board = new Color(0.86f, 0.83f, 0.7f);
+        var red = new Color(0.7f, 0.16f, 0.13f);
+
+        AddBox(root, new Vector3(0.12f, 2.6f, 0.12f), new Vector3(-2.6f, 1.3f, 0), post);
+        AddBox(root, new Vector3(0.12f, 2.6f, 0.12f), new Vector3(2.6f, 1.3f, 0), post);
+        AddBox(root, new Vector3(4.4f, 0.6f, 0.08f), new Vector3(0, 2.4f, 0), board);
+        AddBox(root, new Vector3(4.4f, 0.16f, 0.14f), new Vector3(0, 1.2f, 0), red);
+
+        root.AddChild(new Label3D
+        {
+            Text = "КОНТРОЛЬ",
+            FontSize = 52,
+            PixelSize = 0.004f,
+            Position = new Vector3(0, 2.4f, 0.07f),
+            Modulate = new Color(0.16f, 0.15f, 0.14f),
+        });
 
         return root;
     }
