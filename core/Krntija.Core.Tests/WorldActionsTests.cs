@@ -131,4 +131,50 @@ public class WorldActionsTests
 
         Assert.Equal(1.0, session.Survival.Thirst);
     }
+
+    private static GameSession SessionWith(Inventory bag) => new(
+        Vehicle.VehicleState.CreateDefault(), new Survival.SurvivalState(), bag,
+        new World.GameClock(), new World.Pcg32(1));
+
+    [Fact]
+    public void Craft_SpareTire_ConsumesScrapAndTape()
+    {
+        var bag = new Inventory(slots: 24, maxWeightKg: 100);
+        bag.TryAdd("scrap_metal", 3);
+        bag.TryAdd(ItemIds.DuctTape, 2);
+
+        var result = WorldActions.TryCraft(SessionWith(bag), out string crafted);
+
+        Assert.Equal(ActionResult.Done, result);
+        Assert.Equal(ItemCatalog.Get("spare_tire").Name, crafted);
+        Assert.Equal(1, bag.Count("spare_tire"));
+        Assert.Equal(0, bag.Count("scrap_metal"));
+        Assert.Equal(0, bag.Count(ItemIds.DuctTape));
+    }
+
+    [Fact]
+    public void Craft_ResultTooHeavy_KeepsIngredients()
+    {
+        // Запаска весит 12 кг и в такой карман не влезет даже после разбора хлама.
+        var bag = new Inventory(slots: 24, maxWeightKg: 10);
+        bag.TryAdd("scrap_metal", 3);
+        bag.TryAdd(ItemIds.DuctTape, 2);
+
+        var result = WorldActions.TryCraft(SessionWith(bag), out _);
+
+        Assert.Equal(ActionResult.NoRoom, result);
+        Assert.Equal(3, bag.Count("scrap_metal"));
+        Assert.Equal(2, bag.Count(ItemIds.DuctTape));
+        Assert.Equal(0, bag.Count("spare_tire"));
+    }
+
+    [Fact]
+    public void Craft_MissingIngredients_DoesNothing()
+    {
+        var bag = new Inventory(slots: 24, maxWeightKg: 100);
+        bag.TryAdd("scrap_metal", 2);
+
+        Assert.Equal(ActionResult.NothingToDo, WorldActions.TryCraft(SessionWith(bag), out _));
+        Assert.Equal(2, bag.Count("scrap_metal"));
+    }
 }
