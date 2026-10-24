@@ -781,7 +781,7 @@ public partial class Main : Node3D
             _camera.FirstPersonOffset = new Vector3(0f, 1.62f, 0f);
             _camera.OrbitWithMouse = true;
             _camera.PitchWithMouse = true;
-            _camera.UseTargetYaw = !_firstPerson;
+            _camera.UseTargetYaw = true;
             _player?.SetModelVisible(!_firstPerson);
         }
         else
@@ -814,7 +814,7 @@ public partial class Main : Node3D
         _camera.Fov = 66f;
         _camera.OrbitWithMouse = true;
         _camera.PitchWithMouse = true;
-        _camera.UseTargetYaw = !_firstPerson;
+        _camera.UseTargetYaw = true;
         _camera.FirstPersonOffset = new Vector3(0f, 1.62f, 0f);
         _player.SetModelVisible(!_firstPerson);
         _camera.ResetOrbit();
