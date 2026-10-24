@@ -22,6 +22,9 @@ random.seed(101)
 
 def xyz(p): return (p[0],-p[2],p[1])
 
+def anchor(name,p):
+ obj=bpy.data.objects.new(name,None);current.objects.link(obj);obj.location=xyz(p)
+
 palette={
  'plaster':(.64,.59,.46),'cream':(.76,.72,.59),'ochre':(.62,.42,.23),
  'white':(.81,.79,.68),'stone':(.34,.35,.31),'concrete':(.46,.47,.42),
@@ -286,6 +289,9 @@ def village():
  house(0,-1,6.0,5.0,1,'cream')
  house(-9,-7,6.4,5.6,2,'plaster')
  house(-7,8,5.6,4.8,1,'ochre')
+ box('motel sign',(-7,2.55,10.49),(3.4,.42,.10),'teal')
+ text('motel lettering','MOTEL',(-7,2.55,10.55),.30)
+ anchor('SleepAnchor',(-7,0,11.5))
  for x,z,l in [(-3.8,4.5,3.0),(.8,4.5,3),(-11,12,7.5)]:fence(x,z,l)
  fence(4.2,-4,8.5,'z')
  for x,z in [(-4.0,3),(3.3,2),(-12,5),(-10,11)]:shrub(x,z,1.1)
@@ -346,7 +352,8 @@ def checkpoint():
 
 def bake_export(name):
  objects=list(current.objects)
- visuals=[o for o in objects if o not in colliders]
+ anchors=[o for o in objects if o.type=='EMPTY']
+ visuals=[o for o in objects if o not in colliders and o not in anchors]
  bpy.ops.object.select_all(action='DESELECT')
  for ob in visuals:ob.select_set(True)
  bpy.context.view_layer.objects.active=visuals[0]
@@ -358,7 +365,7 @@ def bake_export(name):
  for polygon in merged.data.polygons:polygon.material_index=0
  merged.data.calc_loop_triangles()
  statistics[name]={'triangles':len(merged.data.loop_triangles),'colliders':len(colliders),'surfaces':1}
- for ob in colliders:ob.select_set(True)
+ for ob in colliders+anchors:ob.select_set(True)
  bpy.ops.export_scene.gltf(filepath=str(OUT/(name+'.glb')),export_format='GLB',use_selection=True,
   export_yup=True,export_apply=True,export_cameras=False,export_lights=False,export_all_vertex_colors=True)
  return merged

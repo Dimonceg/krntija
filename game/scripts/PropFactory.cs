@@ -44,7 +44,7 @@ public static class PropFactory
         model.Rotation = new Vector3(0, -heading + yawOffset, 0);
         parent.AddChild(model);
 
-        if (solid) AttachCollision(model, bounds, scale);
+        if (solid) AttachCollision(model, bounds);
         return model;
     }
 
@@ -84,12 +84,15 @@ public static class PropFactory
     }
 
     /// <summary>Прокси-коллайдер по габаритам: не требует тримеша от художника.</summary>
-    private static void AttachCollision(Node3D root, Aabb? bounds, float scale)
+    private static void AttachCollision(Node3D root, Aabb? bounds)
     {
         if (bounds is null) return;
+        // Authored compound proxies leave courtyards and forecourts accessible.
+        if (HasCollision(root)) return;
 
-        var size = bounds.Value.Size * scale;
-        var center = bounds.Value.GetCenter() * scale;
+        // The body's parent already carries the model scale.
+        var size = bounds.Value.Size;
+        var center = bounds.Value.GetCenter();
 
         // Совсем плоские пропы (знаки, кусты) не должны быть стеной.
         if (size.Y < 0.4f || size.X < 0.25f || size.Z < 0.25f) return;
@@ -97,6 +100,14 @@ public static class PropFactory
         var body = new StaticBody3D { Name = "PropCollision", Position = center };
         body.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = size } });
         root.AddChild(body);
+    }
+
+    private static bool HasCollision(Node node)
+    {
+        if (node is CollisionShape3D { Shape: not null, Disabled: false }) return true;
+        foreach (var child in node.GetChildren())
+            if (HasCollision(child)) return true;
+        return false;
     }
 
     private static IEnumerable<MeshInstance3D> FindMeshes(Node node)

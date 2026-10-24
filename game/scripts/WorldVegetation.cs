@@ -43,6 +43,11 @@ void fragment() {
         };
 
         var rng = new Pcg32(seed, sequence: 99);
+        Vector3? home = road.Count > 20
+            ? road[10] - new Vector3(Mathf.Cos(headings[10]), 0, Mathf.Sin(headings[10])) * 15f
+            : null;
+        bool Clear(Vector3 p) => InClearing(p, landmarks)
+            || (home is Vector3 h && new Vector2(p.X - h.X, p.Z - h.Z).LengthSquared() < 144);
         int instanceCount = 0;
         for (int start = 4; start < road.Count - 2; start += 48)
         {
@@ -60,7 +65,7 @@ void fragment() {
                     {
                         float offset = (float)rng.Range(13, 47) * side;
                         Vector3 p = road[i] + right * offset;
-                        if (!InClearing(p, landmarks))
+                        if (!Clear(p))
                         {
                             p.Y = TerrainBuilder.SurfaceHeight(road[i].Y, offset, p) - 0.08f;
                             int kind = rng.Chance(0.56) ? 0 : rng.Chance(0.5) ? 1 : 2;
@@ -74,7 +79,7 @@ void fragment() {
                     {
                         float offset = (float)rng.Range(8, 25) * side;
                         Vector3 p = road[i] + right * offset;
-                        if (InClearing(p, landmarks)) continue;
+                        if (Clear(p)) continue;
                         p.Y = TerrainBuilder.SurfaceHeight(road[i].Y, offset, p) - 0.05f;
                         groups[3].Add(new Spot(p, (float)rng.Range(0.55, 1.20),
                             (float)rng.Range(0, Mathf.Tau), Colors.White));
