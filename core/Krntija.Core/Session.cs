@@ -56,6 +56,9 @@ public sealed class GameSession
     public Wallet Wallet { get; }
     public WeatherState Weather { get; } = new();
 
+    /// <summary>Изменения мира: лут, места, шлагбаумы, выезды. Сохраняются.</summary>
+    public WorldState WorldState { get; } = new();
+
     public static GameSession NewGame(ulong seed = 20261023, CarSpec? car = null)
     {
         var inventory = new Inventory();
@@ -152,6 +155,7 @@ public sealed class GameSession
         Wetness = Weather.Wetness,
         RainIntensity = Weather.RainIntensity,
         WeatherTimer = Weather.MinutesUntilChange,
+        WorldDone = WorldState.Done.OrderBy(id => id, StringComparer.Ordinal).ToList(),
     };
 
     public static GameSession FromSave(SaveData data)
@@ -207,13 +211,15 @@ public sealed class GameSession
         if (Enum.TryParse<WeatherKind>(data.WeatherKind, out var kind))
             session.Weather.Restore(kind, data.Wetness, data.RainIntensity, data.WeatherTimer);
 
+        session.WorldState.Restore(data.WorldDone);
         return session;
     }
 }
 
 public sealed class SaveData
 {
-    public const int CurrentVersion = 1;
+    /// <summary>2 — добавлен WorldDone. Старые сейвы читаются: поле пустое.</summary>
+    public const int CurrentVersion = 2;
 
     public int Version { get; set; } = CurrentVersion;
     public long SavedAtUnix { get; set; }
@@ -246,6 +252,7 @@ public sealed class SaveData
     public List<ItemSave> HomeItems { get; set; } = new();
     public List<string> UpgradeIds { get; set; } = new();
     public ulong RngState { get; set; }
+    public List<string> WorldDone { get; set; } = new();
 }
 
 public sealed class PartSave

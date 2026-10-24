@@ -59,6 +59,7 @@ docs/                  ROADMAP, DEVLOG, ART, ZASTAVA_MODEL, HANDOFF
 | `Main.Interactions.cs` | точки E: подсказки, лавка, журнал, скупщик, дом |
 | `Main.Loot.cs` | раскладка лута, рюкзак, курсор и подбор мышью |
 | `Main.GameFlow.cs` | меню, пауза, новая игра, сейв и загрузка |
+| `Main.WorldState.cs` | что изменено в мире (лут, шлагбаумы, выезды) ↔ сцена |
 | `Main.Diagnostics.cs` | `--smoke`, `--selftest`, `--perf`, `--shot-*`, проверки |
 
 Новую механику кладите в подходящий файл или заводите свой `Main.<Тема>.cs`,
