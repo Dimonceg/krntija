@@ -42,6 +42,13 @@ func run():
         if child is RigidBody3D: child.freeze = true
         if child.get_script() == load("res://scripts/Player.cs"): player = child
     check(player != null, "actual game player spawned")
+    var hitchhikers := 0
+    for node in world.find_children("*", "Node3D", true, false):
+        if node.get_script() == load("res://scripts/TravellerVisual.cs") and node.get("Hitchhiking"):
+            hitchhikers += 1
+            check(node.find_child("RightUpperArm", true, false).rotation.z > 1.0,
+                "roadside traveller raises his arm")
+    check(hitchhikers > 0, "road events also use the new human model")
     if player == null:
         quit(1)
         return
@@ -56,6 +63,16 @@ func run():
         var knee = visual.find_child("LeftShin", true, false)
         for i in range(20): visual.call("Animate", .025, Vector3(0,0,-3.4), true)
         check(abs(thigh.rotation.x) > .1 or abs(knee.rotation.x) > .1, "walking moves articulated legs")
+        var soles_grounded = true
+        for i in range(40):
+            visual.call("Animate", .025, Vector3(0,0,-3.4), true)
+            var lowest = INF
+            for side in ["Left", "Right"]:
+                var shoe = visual.find_child(side + "Foot_Mesh", true, false)
+                var box = shoe.global_transform * shoe.mesh.get_aabb()
+                lowest = min(lowest, box.position.y - player.global_position.y)
+            soles_grounded = soles_grounded and abs(lowest) < .01
+        check(soles_grounded, "walking keeps a supporting sole at ground level")
         visual.call("Animate", .1, Vector3(0,3,0), false)
         check(knee.rotation.x < -.1, "jump pose bends knees")
     # Let the real CharacterBody settle, then walk on the real terrain.

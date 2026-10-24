@@ -10,6 +10,7 @@ public partial class TravellerVisual : Node3D
     private Node3D _hips = null!, _torso = null!, _head = null!;
     private readonly Node3D[] _arms = new Node3D[2], _elbows = new Node3D[2];
     private readonly Node3D[] _legs = new Node3D[2], _knees = new Node3D[2], _feet = new Node3D[2];
+    private readonly MeshInstance3D?[] _shoes = new MeshInstance3D?[2];
     private Vector3 _hipHome, _torsoHome;
     private float _phase, _time, _blend, _facing;
 
@@ -40,6 +41,8 @@ public partial class TravellerVisual : Node3D
             visual._legs[i] = Find(side + "Thigh")!;
             visual._knees[i] = Find(side + "Shin")!;
             visual._feet[i] = Find(side + "Foot")!;
+            foreach (var child in visual._feet[i].GetChildren())
+                if (child is MeshInstance3D shoe) visual._shoes[i] = shoe;
         }
         visual.Animate(0, Vector3.Zero, true);
         return visual;
@@ -81,6 +84,21 @@ public partial class TravellerVisual : Node3D
                 _knees[i].Rotation = new Vector3(-.28f, 0, 0);
                 _arms[i].Rotation = new Vector3(-.2f, 0, side * .18f);
             }
+        }
+        if (grounded)
+        {
+            // Rotating a straight leg shortens its vertical reach. Keep the lowest
+            // sole at the capsule's floor instead of making every walking pose float.
+            float floor = float.PositiveInfinity;
+            foreach (var shoe in _shoes)
+            {
+                if (shoe?.Mesh is null) continue;
+                var transform = Transform3D.Identity;
+                for (Node3D? node = shoe; node is not null && node != this; node = node.GetParent() as Node3D)
+                    transform = node.Transform * transform;
+                floor = Mathf.Min(floor, (transform * shoe.Mesh.GetAabb()).Position.Y);
+            }
+            if (float.IsFinite(floor)) _hips.Position -= Vector3.Up * floor;
         }
         if (Hitchhiking)
         {
