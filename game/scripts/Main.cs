@@ -44,6 +44,8 @@ public partial class Main : Node3D
     private LootItem? _hoveredLoot;
     private bool _cursorFree;
     private bool _shotBackpack;
+    private bool _shotMap;
+    private List<WorldMap.Place> _mapPlaces = new();
     private bool _shotCars;
     private bool _selfTestCars;
     private bool _checkHouse;
@@ -174,8 +176,10 @@ public partial class Main : Node3D
                 || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-lineup") >= 0
                 || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-cars") >= 0
                 || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-backpack") >= 0
+                || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-map") >= 0
                 || _shotProp is not null;
         _shotBackpack = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-backpack") >= 0;
+        _shotMap = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-map") >= 0;
         _openJournalInShot = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-ui") >= 0;
         _shotMenu = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-menu") >= 0;
         _shotDay = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-day") >= 0;
@@ -311,6 +315,16 @@ public partial class Main : Node3D
             {
                 _backpack.Toggle(_car.Session.Inventory, _car.Session.Trunk);
                 _hud.Visible = false;
+            }
+
+            if (_shotMap)
+            {
+                Vector3 middle = road.Centerline[road.Centerline.Count / 2];
+                _car.Visible = false;
+                _hud.Visible = false;
+                _camera.ProcessMode = ProcessModeEnum.Disabled;
+                _car.Session.Clock.SetTotalMinutes(12.5 * 60);
+                _camera.LookAtFromPosition(middle + new Vector3(0, 85, 55), middle);
             }
 
             if (_shotProp is not null)
@@ -1582,6 +1596,7 @@ public partial class Main : Node3D
         WorldScatter.ScatterSigns(road.Centerline, road.Headings, this, seed: 20261023);
 
         AddRoadBoundaries(road);
+        _mapPlaces = WorldMap.Build(road.Centerline, road.Headings, this, seed: 20261023);
 
         var target = road.Points.Count > 0 ? road.Points[^1] : null;
         if (target is not null)
@@ -2003,7 +2018,25 @@ public partial class Main : Node3D
                 inHouse++;
             }
 
-        GD.Print($"[loot] предметов: {placed} у мест, {inHouse} в доме");
+        // Лут у построек карты: у руин металлолом, у дома — кассеты, у сарая — запчасти.
+        int inMap = 0;
+        foreach (var place in _mapPlaces)
+        {
+            string itemId = place.Kind switch
+            {
+                "ruins" => "scrap_metal",
+                "barn" => "spark_plug",
+                "house" or "abandoned" => "cassette",
+                "well" => "bottle_cap",
+                _ => "duct_tape",
+            };
+
+            Vector3 spot = place.Position + new Vector3(0, 0.15f, 1.8f);
+            AddLoot(spot, itemId, 1 + place.Index % 2);
+            inMap++;
+        }
+
+        GD.Print($"[loot] предметов: {placed} у мест, {inHouse} в доме, {inMap} на карте");
     }
 
     private void AddLoot(Vector3 position, string itemId, int count)
