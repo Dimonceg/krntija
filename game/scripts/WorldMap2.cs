@@ -17,6 +17,7 @@ public sealed class MapResult
     public List<MapPlace> Places { get; } = new();
     public List<List<Vector3>> Branches { get; } = new();
     public List<MapUse> Uses { get; } = new();
+    public List<Door> Doors { get; } = new();
     public List<int> ClosedExits { get; } = new();
     public Vector3? Settlement { get; set; }
 }
@@ -72,7 +73,7 @@ public static class WorldMap2
                 Vector3 point = path[Mathf.Clamp(path.Count * k / 3, 1, path.Count - 1)];
                 float yaw = headings[index] + (float)rng.Range(-1, 1);
                 string kind = k == 1 ? "house" : (rng.Chance(0.5) ? "barn" : "ruins");
-                BuildStructure(parent, point, yaw, kind, rng);
+                BuildStructure(parent, point, yaw, kind, rng, result: result);
                 result.Places.Add(new MapPlace(index, side, point, kind, LabelFor(kind)));
                 result.Uses.Add(new MapUse(point + new Vector3(0, 0.2f, 2.2f), "loot", LootFor(kind), 1));
             }
@@ -185,7 +186,7 @@ public static class WorldMap2
             spot.Y = TerrainSurface(centerline[index], spot);
             float yaw = -angle + Mathf.Pi / 2f;
 
-            BuildStructure(parent, spot, yaw, "house", rng, interior: true);
+            BuildStructure(parent, spot, yaw, "house", rng, interior: true, result: result);
             result.Places.Add(new MapPlace(index, side, spot, "house", "Дом"));
             result.Uses.Add(new MapUse(spot + new Vector3(0, 0.2f, 2.4f), "loot", LootFor("house"), 2));
             result.Uses.Add(new MapUse(spot + new Vector3(0, 0.2f, -2.4f), "loot", "cassette", 1));
@@ -236,7 +237,7 @@ public static class WorldMap2
         // Собака у сарая: можно погладить.
         int dogIndex = centerline.Count * 3 / 4;
         Vector3 barnSpot = WorldMap.PointAt(centerline, headings, dogIndex, 1f, 40f);
-        BuildStructure(parent, barnSpot, headings[dogIndex] + 0.4f, "barn", rng);
+        BuildStructure(parent, barnSpot, headings[dogIndex] + 0.4f, "barn", rng, result: result);
         Vector3 dog = barnSpot + new Vector3(2.4f, 0, 2.6f);
         BuildDog(parent, dog);
         result.Places.Add(new MapPlace(dogIndex, 1f, barnSpot, "dog", "Собака у сарая"));
@@ -252,7 +253,7 @@ public static class WorldMap2
     // ------------------------------------------------------------ постройки
 
     private static void BuildStructure(Node3D parent, Vector3 position, float yaw, string kind, Pcg32 rng,
-        bool interior = false)
+        bool interior = false, MapResult? result = null)
     {
         var root = new Node3D { Name = kind, Position = position, Rotation = new Vector3(0, yaw, 0) };
         parent.AddChild(root);
@@ -261,11 +262,11 @@ public static class WorldMap2
         {
             case "ruins": BuildRuins(root, rng); return;
             case "barn": BuildBarn(root, rng); return;
-            default: BuildHouse(root, rng, kind == "abandoned", interior); return;
+            default: BuildHouse(root, rng, kind == "abandoned", interior, result); return;
         }
     }
 
-    private static void BuildHouse(Node3D root, Pcg32 rng, bool abandoned, bool interior)
+    private static void BuildHouse(Node3D root, Pcg32 rng, bool abandoned, bool interior, MapResult? result = null)
     {
         float width = (float)rng.Range(7.5, 9.5);
         float depth = (float)rng.Range(5.5, 7f);
@@ -295,15 +296,12 @@ public static class WorldMap2
 
         Roof(root, width + 0.8f, depth + 0.8f, height, abandoned ? new Color(0.35f, 0.3f, 0.27f) : new Color(0.45f, 0.24f, 0.19f));
 
-        // Простая дверная створка, приоткрытая: видно, что вход есть.
-        var doorMesh = new MeshInstance3D
-        {
-            Mesh = new BoxMesh { Size = new Vector3(door * 0.9f, 2.05f, 0.08f) },
-            Position = new Vector3(-door / 2f + door * 0.45f, 1.05f, -depth / 2f + 0.35f),
-            Rotation = new Vector3(0, 0.7f, 0),
-            MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.36f, 0.23f, 0.15f), Roughness = 0.8f },
-        };
-        root.AddChild(doorMesh);
+        // Настоящая дверь на петлях: открывается по E, как в доме игрока.
+        var swing = Door.Create("HouseDoor", Vector3.Zero, 0f, door * 0.95f, 2.05f,
+            new Color(0.36f, 0.23f, 0.15f));
+        swing.Position = new Vector3(-door / 2f, 0f, -depth / 2f);
+        root.AddChild(swing);
+        result?.Doors.Add(swing);
     }
 
     private static void BuildBarn(Node3D root, Pcg32 rng)

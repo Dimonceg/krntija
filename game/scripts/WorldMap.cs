@@ -244,12 +244,8 @@ public static class WorldMap
 
                 bool gate = System.Array.Exists(gateIndices, index => Math.Abs(index - i) < 6);
 
-                if (gate)
-                {
-                    if (Math.Abs(Array.IndexOf(gateIndices, i) % 2) == 0)
-                        BuildGate(root, post, headings[i], side);
-                    continue;
-                }
+                // Ворота на выездах строит MapLife: их можно починить и открыть.
+                if (gate) continue;
 
                 root.AddChild(new MeshInstance3D
                 {
