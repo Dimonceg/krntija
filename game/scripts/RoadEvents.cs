@@ -337,6 +337,12 @@ public partial class RoadEvents : Node3D
     private static Node3D BuildHitchhiker(Vector3 position, float heading)
     {
         var root = new Node3D { Position = position, Rotation = new Vector3(0, -heading, 0) };
+        var traveller = TravellerVisual.Create(hitchhiking: true);
+        if (traveller is not null)
+        {
+            root.AddChild(traveller);
+            return root;
+        }
 
         var shirt = new Color(0.42f, 0.36f, 0.28f);
         var skin = new Color(0.78f, 0.62f, 0.48f);

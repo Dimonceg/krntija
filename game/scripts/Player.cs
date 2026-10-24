@@ -20,10 +20,12 @@ public partial class Player : CharacterBody3D
     public float Yaw { get; set; }
 
     private float _stepTimer;
+    private TravellerVisual? _visual;
 
     /// <summary>Спрятать тело игрока в виде от первого лица.</summary>
     public void SetModelVisible(bool visible)
     {
+        if (_visual is not null) _visual.Visible = visible;
         foreach (var child in GetChildren())
         {
             if (child is MeshInstance3D mesh) mesh.Visible = visible;
@@ -37,6 +39,13 @@ public partial class Player : CharacterBody3D
             Shape = new CapsuleShape3D { Radius = 0.34f, Height = 1.78f },
             Position = new Vector3(0, 0.89f, 0),
         });
+
+        _visual = TravellerVisual.Create();
+        if (_visual is not null)
+        {
+            AddChild(_visual);
+            return;
+        }
 
         var cloth = new StandardMaterial3D { AlbedoColor = new Color(0.33f, 0.37f, 0.44f), Roughness = 0.95f };
         AddChild(new MeshInstance3D
@@ -121,6 +130,7 @@ public partial class Player : CharacterBody3D
 
         Velocity = velocity;
         MoveAndSlide();
+        _visual?.Animate(dt, GlobalBasis.Inverse() * GetRealVelocity(), IsOnFloor());
 
         // Шаги: чем быстрее идёшь, тем чаще.
         bool walking = IsOnFloor() && new Vector2(Velocity.X, Velocity.Z).Length() > 0.6f;
