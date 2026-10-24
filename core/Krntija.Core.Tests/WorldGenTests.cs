@@ -256,6 +256,32 @@ public class WorldGenTests
         Assert.False(PlaceGeometry.Overlaps(first, farAway, curve));
     }
 
+    [Fact]
+    public void FootprintAxesMatchTheRoadLikeTheScene()
+    {
+        // Сцена ставит место с поворотом −Yaw: ось Z места идёт вдоль дороги
+        // (касательная (sin h, −cos h)), ось X — вправо, как в RoadCurve.Offset.
+        var curve = WorldGenerator.Curve(Seed);
+        const double s = 1300;
+        double heading = curve.Heading(s);
+        Assert.True(Math.Abs(heading) > 0.05, "нужен участок с поворотом");
+
+        var place = PlaceAt(curve, s, -40, heading);
+        var corners = PlaceGeometry.Corners(place, curve);
+
+        // Углы 0 и 1 отличаются на 2·HalfDepth вдоль дороги.
+        double alongX = corners[0].X - corners[1].X;
+        double alongZ = corners[0].Z - corners[1].Z;
+        double cross = alongX * -Math.Cos(heading) - alongZ * Math.Sin(heading);
+        Assert.True(Math.Abs(cross) < 1e-9, $"сторона глубины не вдоль дороги: {alongX:F3}, {alongZ:F3}");
+
+        // Углы 0 и 2 отличаются на 2·HalfWidth по оси «вправо» (cos h, sin h).
+        double rightX = corners[0].X - corners[2].X;
+        double rightZ = corners[0].Z - corners[2].Z;
+        Assert.Equal(2 * place.Footprint.HalfWidth * Math.Cos(heading), rightX, 9);
+        Assert.Equal(2 * place.Footprint.HalfWidth * Math.Sin(heading), rightZ, 9);
+    }
+
     private static PlacePlan PlaceAt(RoadCurve curve, double s, double lateral, double yaw) =>
         new("c0/p0", PlaceKind.House, s, lateral, yaw, 0, false,
             new Footprint(5, 4), Array.Empty<LootPlan>(), Array.Empty<UsePlan>());

@@ -48,6 +48,7 @@ public partial class Main
 
     private bool _chunkBench;
     private bool _chunkRun;
+    private bool _checkChunkPlaces;
     private double _runStation;
     private int _runFrames;
     private ulong _runLastUsec;
@@ -110,6 +111,7 @@ public partial class Main
         _checkHouse = HasArg("--check-house");
         _chunkBench = HasArg("--chunk-bench");
         _chunkRun = HasArg("--chunk-run");
+        _checkChunkPlaces = HasArg("--chunk-places");
         if (_chunkRun) DisplayServer.WindowSetVsyncMode(DisplayServer.VSyncMode.Disabled);
 
         _openJournalInShot = HasArg("--shot-ui");
@@ -659,7 +661,7 @@ public partial class Main
             }
         }
 
-        string[] names = { "дорога+стены", "земля", "земля: физика", "горы", "деревья", "трава+столбы" };
+        string[] names = { "дорога+стены", "земля", "земля: физика", "места", "горы", "деревья", "трава+столбы" };
         double worst = 0;
         for (int step = 0; step < sums.Length; step++)
         {
@@ -726,23 +728,28 @@ public partial class Main
         _runFrames++;
 
         // Узлы считаем после первого километра: к этому времени окно подгрузки заполнено.
+        // Узлы кусков не в счёт: в селе их больше, чем у колодца, это не утечка.
+        // Утечка — то, что растёт вне кусков (лут, точки, сироты), а сами куски держит окно.
         if (_runNodesStart == 0 && _runStation >= StartStation + 1000)
-            _runNodesStart = Performance.GetMonitor(Performance.Monitor.ObjectNodeCount);
+            _runNodesStart = NodesOutsideChunks();
         _runMaxLoaded = System.Math.Max(_runMaxLoaded, _streamer!.LoadedChunks);
 
         if (_runStation >= StartStation + length)
         {
-            double nodes = Performance.GetMonitor(Performance.Monitor.ObjectNodeCount);
+            double nodes = NodesOutsideChunks();
             double growth = nodes / _runNodesStart - 1;
+            int stale = StaleChunkRefs();
             GD.Print($"[chunk-run] {length / 1000:F0} км за {_runFrames} кадров; кадр в среднем {_runFrameSum / (_runFrames - 1):F2} мс, "
                      + $"пик {_runPeakFrame:F1} мс; сдвигов начала {_streamer.Shifts}; кусков максимум {_runMaxLoaded}; "
-                     + $"узлов {_runNodesStart:F0} → {nodes:F0} ({growth * 100:+0;-0}%); промахов мимо дороги {_runMisses}; "
+                     + $"узлов вне кусков {_runNodesStart:F0} → {nodes:F0} ({growth * 100:+0;-0}%); промахов мимо дороги {_runMisses}; "
+                     + $"точек {_interactions.Count}, ссылок на выгруженные куски {stale}; "
                      + $"шагов постройки {_streamer.StepsBuilt}, пик шага {_streamer.PeakStepMs:F1} мс");
 
             bool ok = _runMisses == 0
                       && _streamer.Shifts >= 4
                       && _runMaxLoaded <= ChunkStreamer.Behind + ChunkStreamer.Ahead + 3
-                      && growth < 0.25;
+                      && growth < 0.25
+                      && stale == 0;
             GD.Print(ok ? "[chunk-run] OK" : "[chunk-run] FAIL");
             QuitSoon(ok ? 0 : 1);
             return;
@@ -751,6 +758,80 @@ public partial class Main
         _runStation += step;
         _car.GlobalPosition = _streamer.RoadPoint(_runStation) + Vector3.Up * 1.0f;
         _car.Rotation = new Vector3(0, -_streamer.RoadHeading(_runStation), 0);
+    }
+
+    /// <summary>
+    /// --chunk-places: места из плана в мире кусками. Дом, заправка и блокпост
+    /// на месте; оплаченный шлагбаум и поднятый лут переживают выгрузку куска
+    /// и постройку его заново (id из плана, ADR 0002).
+    /// </summary>
+    private void RunChunkPlacesCheck()
+    {
+        _selfTestOk = true;
+        var world = _car.Session.WorldState;
+        int Count(InteractionKind kind) => _interactions.Count(point => point.Kind == kind);
+
+        Check(_housePosition is not null, "дом игрока построен");
+        Check(Count(InteractionKind.Chest) == 1 && Count(InteractionKind.Workbench) == 1
+              && Count(InteractionKind.SleepHome) == 1, "в доме сундук, верстак и кровать");
+        Check(Count(InteractionKind.Door) >= 3, $"двери дома: {Count(InteractionKind.Door)}");
+        Check(Count(InteractionKind.Pump) >= 1 && Count(InteractionKind.Shop) >= 1, "на заправке колонка и лавка");
+        Check(_chunkPlaces.Count >= 6, $"мест в стартовых кусках: {_chunkPlaces.Count}");
+
+        var gate = _interactions.FirstOrDefault(point => point.Kind == InteractionKind.Gate);
+        Check(gate is { Gate.IsOpen: false, StateId: "gate:c2/p0/u0" }, $"шлагбаум закрыт, id {gate?.StateId}");
+
+        var loot = _interactions.FirstOrDefault(point => point.Kind == InteractionKind.Loot
+                                                         && point.StateId?.StartsWith("loot:c1/") == true);
+        Check(loot is not null, "лут у заправки лежит");
+        if (gate is null || loot is null)
+        {
+            QuitSoon(1);
+            return;
+        }
+
+        _car.Session.Wallet.Earn(100);
+        PayForGate(gate);
+        string lootId = loot.StateId!;
+        PickUpLoot(loot);
+        Check(world.IsDone("gate:c2/p0/u0") && world.IsDone(lootId), $"оплата и подбор записаны: {lootId}");
+
+        // Уехать далеко (стартовые куски выгружаются) и вернуться: куски строятся заново.
+        _streamer!.BuildAround(StartStation + 3000);
+        Check(_housePosition is null && !_streamer.IsLoaded(0), "дальние куски выгружены, дом снят");
+        Check(StaleChunkRefs() == 0, "нет ссылок на выгруженные куски");
+        _streamer.BuildAround(StartStation);
+
+        var rebuiltGate = _interactions.FirstOrDefault(point => point.Kind == InteractionKind.Gate);
+        Check(rebuiltGate?.Gate is { IsOpen: true }, "шлагбаум после возврата открыт");
+        Check(_interactions.All(point => point.StateId != lootId), "поднятый лут не вернулся");
+        Check(_interactions.Any(point => point.Kind == InteractionKind.Loot && point.Chunk == 1),
+              "остальной лут у заправки на месте");
+        Check(_housePosition is not null && StaleChunkRefs() == 0, "дом снова на месте, ссылки чистые");
+
+        GD.Print(_selfTestOk ? "[chunk-places] OK" : "[chunk-places] FAIL");
+        QuitSoon(_selfTestOk ? 0 : 1);
+    }
+
+    /// <summary>Точки, лут и места, чей кусок уже выгружен: их забыли снять.</summary>
+    private int StaleChunkRefs()
+    {
+        bool Stale(int chunk) => chunk >= 0 && !_streamer!.IsLoaded(chunk);
+        return _interactions.Count(point => Stale(point.Chunk))
+               + _lootSpawns.Count(spawn => Stale(spawn.Chunk))
+               + _chunkPlaces.Count(place => Stale(place.Chunk));
+    }
+
+    private double NodesOutsideChunks()
+    {
+        static int Count(Node node)
+        {
+            int count = 1;
+            foreach (var child in node.GetChildren()) count += Count(child);
+            return count;
+        }
+
+        return Performance.GetMonitor(Performance.Monitor.ObjectNodeCount) - Count(_streamer!);
     }
 
     /// <summary>Высота первой твёрдой поверхности под точкой, без машины и пешехода.</summary>

@@ -90,6 +90,10 @@ public partial class MapUi : Control
                 "wreck" => new Color(0.9f, 0.5f, 0.4f),
                 "tractor" => new Color(0.75f, 0.65f, 0.35f),
                 "dog" => new Color(0.9f, 0.75f, 0.55f),
+                "gasstation" => new Color(0.95f, 0.45f, 0.3f),
+                "village" => new Color(0.6f, 0.95f, 0.6f),
+                "checkpoint" => new Color(0.95f, 0.3f, 0.25f),
+                "farm" => new Color(0.75f, 0.65f, 0.35f),
                 _ => new Color(0.8f, 0.8f, 0.8f),
             };
 

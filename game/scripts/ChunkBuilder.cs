@@ -19,7 +19,7 @@ namespace Krntija.Game;
 public sealed class ChunkBuilder
 {
     /// <summary>Шаги постройки: стример делает по нескольку за кадр в пределах бюджета.</summary>
-    public const int StepCount = 6;
+    public const int StepCount = 7;
 
     private const double RowStep = 4.0;
     private const float WallOffset = 145f;
@@ -47,6 +47,8 @@ public sealed class ChunkBuilder
     private readonly ChunkPlan _plan;
     private readonly double _anchorX;
     private readonly double _anchorZ;
+    private readonly (double X, double Z, float Radius)[] _clearings;
+    private readonly List<PlaceBuilder.Built> _places = new();
 
     public ChunkBuilder(RoadCurve curve, ulong seed, ChunkPlan plan)
     {
@@ -55,9 +57,19 @@ public sealed class ChunkBuilder
         _plan = plan;
         _anchorX = curve.Lateral(plan.StartS);
         _anchorZ = -plan.StartS;
+
+        _clearings = new (double, double, float)[plan.Places.Count];
+        for (int i = 0; i < plan.Places.Count; i++)
+        {
+            var (x, z) = PlaceGeometry.Center(plan.Places[i], curve);
+            _clearings[i] = (x, z, PlaceBuilder.ClearRadius(plan.Places[i]));
+        }
     }
 
     public ChunkPlan Plan => _plan;
+
+    /// <summary>Построенные места: точки взаимодействия и лут для регистрации в <see cref="Main"/>.</summary>
+    public IReadOnlyList<PlaceBuilder.Built> Places => _places;
 
     /// <summary>Корень куска в координатах сцены (с учётом плавающего начала).</summary>
     public Node3D CreateRoot() => new()
@@ -73,9 +85,10 @@ public sealed class ChunkBuilder
             case 0: BuildRoad(root, roadMaterial); BuildWalls(root); break;
             case 1: BuildNearGround(root); break;
             case 2: BuildNearCollision(root); break;
-            case 3: BuildFarGround(root); break;
-            case 4: BuildVegetation(root); break;
-            case 5: BuildGrass(root); BuildKilometerPosts(root); break;
+            case 3: BuildPlaces(root); break;
+            case 4: BuildFarGround(root); break;
+            case 5: BuildVegetation(root); break;
+            case 6: BuildGrass(root); BuildKilometerPosts(root); break;
         }
     }
 
@@ -410,14 +423,16 @@ public sealed class ChunkBuilder
                     var spot = Spot(s, rng.Range(13, 47) * side, -0.08f);
                     int kind = rng.Chance(0.56) ? 0 : rng.Chance(0.5) ? 1 : 2;
                     float tint = (float)rng.Range(0.83, 1.12);
-                    groups[kind].Add(new WorldVegetation.Spot(spot, (float)rng.Range(0.75, 1.35),
-                        (float)rng.Range(0, Mathf.Tau), new Color(tint, tint, tint * 0.94f, 1)));
+                    var tree = new WorldVegetation.Spot(spot, (float)rng.Range(0.75, 1.35),
+                        (float)rng.Range(0, Mathf.Tau), new Color(tint, tint, tint * 0.94f, 1));
+                    if (!InClearing(spot.X + _anchorX, spot.Z + _anchorZ)) groups[kind].Add(tree);
                 }
 
                 if (rng.Chance(0.42))
                 {
-                    groups[3].Add(new WorldVegetation.Spot(Spot(s, rng.Range(8, 25) * side, -0.05f),
-                        (float)rng.Range(0.55, 1.20), (float)rng.Range(0, Mathf.Tau), Colors.White));
+                    var bush = new WorldVegetation.Spot(Spot(s, rng.Range(8, 25) * side, -0.05f),
+                        (float)rng.Range(0.55, 1.20), (float)rng.Range(0, Mathf.Tau), Colors.White);
+                    if (!InClearing(bush.Position.X + _anchorX, bush.Position.Z + _anchorZ)) groups[3].Add(bush);
                 }
             }
         }
@@ -436,6 +451,7 @@ public sealed class ChunkBuilder
             double lateral = rng.Range(5.8, 29) * (rng.Chance(0.5) ? 1 : -1);
             var (x, _, z) = _curve.Offset(s, lateral);
             if (Mathf.Sin((float)x * .25f) * Mathf.Cos((float)z * .18f) < -.35f) continue;
+            if (InClearing(x, z)) continue;
 
             var (height, _) = Ground(_curve, x, z);
             var scale = new Vector3((float)rng.Range(.7, 1.5), (float)rng.Range(.55, 1.3), 1);
@@ -477,6 +493,23 @@ public sealed class ChunkBuilder
                 OutlineSize = 6,
             });
         }
+    }
+
+    // ------------------------------------------------------------ места
+
+    private void BuildPlaces(Node3D root)
+    {
+        foreach (var place in _plan.Places)
+            _places.Add(PlaceBuilder.Build(_curve, place, root, Local));
+    }
+
+    /// <summary>Точка внутри места: там не растут деревья и трава.</summary>
+    private bool InClearing(double x, double z)
+    {
+        foreach (var (cx, cz, radius) in _clearings)
+            if ((x - cx) * (x - cx) + (z - cz) * (z - cz) < radius * radius)
+                return true;
+        return false;
     }
 
     // ------------------------------------------------------------ помощники

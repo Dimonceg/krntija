@@ -131,12 +131,13 @@ Godot). На 2026-10-25 всё зелёное.
 2026-10-25 осталось ≈1 падение на 40 прогонов, причина не найдена; `check.ps1`
 повторяет прогон, если код возврата не 0 и не 1.
 
-Мир кусками (ADR 0002, фаза 2а) включается флагом `--world=chunks`:
+Мир кусками (ADR 0002, фазы 2а–2б) включается флагом `--world=chunks`:
 
 ```powershell
 godot --path game -- --world=chunks                 # играть в бесконечном мире
 godot --headless --path game -- --chunk-bench       # время шагов постройки куска
 godot --path game -- --chunk-run                    # 10 км: дыры, утечки, сдвиг начала
+godot --headless --path game -- --chunk-places      # места из плана, лут и шлагбаум после выгрузки
 godot --path game -- --world=chunks --shot-day --at=700
 ```
 

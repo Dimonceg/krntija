@@ -24,7 +24,8 @@ function Invoke-GodotCheck([string]$flag) {
     }
 
     # -cmatch: маркеры провала пишутся заглавными, а «не провалился» — это успех.
-    $failures = $output -split "`n" | Where-Object { $_ -cmatch 'FAIL|ЗАБЛОКИРОВАНО|НЕ ЗАШЁЛ|ПРОВАЛИЛСЯ|SCRIPT ERROR' }
+    # Исключение C# Godot только печатает и идёт дальше — для проверки это провал.
+    $failures = $output -split "`n" | Where-Object { $_ -cmatch 'FAIL|ЗАБЛОКИРОВАНО|НЕ ЗАШЁЛ|ПРОВАЛИЛСЯ|SCRIPT ERROR|ERROR: System\.\w+Exception' }
     return @{ Code = $code; Failures = $failures }
 }
 
@@ -77,6 +78,7 @@ try {
             '--smoke --world=chunks' = 'Мир кусками: машина едет сама'
             '--chunk-bench'   = 'Мир кусками: постройка куска в бюджете кадра'
             '--chunk-run'     = 'Мир кусками: 10 км без дыр, утечек и с переносом начала'
+            '--chunk-places'  = 'Мир кусками: места из плана, лут и шлагбаум после выгрузки'
         }
 
         foreach ($flag in $checks.Keys) {

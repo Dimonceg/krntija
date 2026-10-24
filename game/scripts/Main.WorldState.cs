@@ -12,7 +12,9 @@ namespace Krntija.Game;
 public partial class Main
 {
     /// <summary>Где и что лежало при генерации: нужно, чтобы вернуть лут после загрузки.</summary>
-    private sealed record LootSpawn(string StateId, Vector3 Position, string ItemId, int Count);
+    /// <param name="Parent">Корень куска мира: лут выгружается вместе с ним. Null — сама сцена.</param>
+    private sealed record LootSpawn(string StateId, Vector3 Position, string ItemId, int Count,
+        int Chunk = -1, Node3D? Parent = null);
 
     private readonly List<LootSpawn> _lootSpawns = new();
 
