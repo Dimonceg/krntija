@@ -107,7 +107,12 @@ public partial class Car : RigidBody3D
 
         // Р•СЃР»Рё РІ assets/models/cars Р»РµР¶РёС‚ РјРѕРґРµР»СЊ вЂ” Р±РµСЂС‘Рј РµС‘, РёРЅР°С‡Рµ СЃРѕР±РёСЂР°РµРј Р·Р°РіР»СѓС€РєСѓ.
         var model = ModelLibrary.CarBody(Session.Vehicle.Spec.Id);
-        if (model is not null) AddChild(model);
+        if (model is not null)
+        {
+            // Модель стоит на земле; опускаем её к центру шасси.
+            model.Position = new Vector3(0, -0.15f, 0);
+            AddChild(model);
+        }
         else BuildProceduralShell();
 
         BuildWheels();
