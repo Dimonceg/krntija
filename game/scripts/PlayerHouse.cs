@@ -42,7 +42,10 @@ public static class PlayerHouse
         // --- фундамент и полы ---
         Slab(root, new Vector3(Width, 0.6f, Depth), new Vector3(0, -0.4f, 0), new Color(0.5f, 0.48f, 0.44f));
         Slab(root, new Vector3(Width, 0.2f, Depth), new Vector3(0, -0.1f, 0), Floor);
-        Slab(root, new Vector3(Width, 0.2f, Depth), new Vector3(0, WallHeight, 0), Floor, solid: false);
+        // Перекрытие чердака с проёмом над лестницей (x 3.2…5.5, z 0.6…3.6).
+        Slab(root, new Vector3(8.7f, 0.2f, Depth), new Vector3(-1.15f, WallHeight, 0), Floor, solid: false);
+        Slab(root, new Vector3(2.3f, 0.2f, 4.6f), new Vector3(4.35f, WallHeight, -1.7f), Floor, solid: false);
+        Slab(root, new Vector3(2.3f, 0.2f, 0.4f), new Vector3(4.35f, WallHeight, 3.8f), Floor, solid: false);
 
         // --- внешние стены с проёмами ---
         // Фасад (z = -Depth/2): вход в зал и ворота гаража.

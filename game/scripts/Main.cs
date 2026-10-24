@@ -611,8 +611,9 @@ public partial class Main : Node3D
 
         if (_onFoot && _player is not null)
         {
+            if (point is not null && point.Position.DistanceTo(_player.GlobalPosition) < DistanceToCar() + 0.5f)
+                return PromptFor(point);
             if (DistanceToCar() < 3.5f) return "[E] сесть в машину";
-            if (point is not null) return PromptFor(point);
             return "мышь — обзор, W/S — идти, A/D — шаг вбок, Shift — бежать";
         }
 
@@ -640,13 +641,20 @@ public partial class Main : Node3D
 
         if (_onFoot)
         {
+            // Сначала ближайшее действие: у дома E не должно сажать обратно за руль.
+            var point = NearestInteraction();
+            if (point is not null && point.Position.DistanceTo(_player!.GlobalPosition) < DistanceToCar() + 0.5f)
+            {
+                Use(point);
+                return;
+            }
+
             if (DistanceToCar() < 3.5f)
             {
                 EnterCar();
                 return;
             }
 
-            var point = NearestInteraction();
             if (point is not null) Use(point);
 
             return;
@@ -1575,6 +1583,51 @@ public partial class Main : Node3D
             }
 
             GD.Print($"[housecheck] {door.Name,-16} {(free ? "свободно" : $"ЗАБЛОКИРОВАНО ({hits.Count}: {what.Trim()})")}");
+        }
+
+        // Проход тела игрока в парадную: старт в 3 м снаружи, 150 шагов физики.
+        var front = _interactions.FirstOrDefault(p => p.Kind == InteractionKind.Door && p.Door?.Name == "FrontDoor");
+        if (front?.Door is { } frontDoor)
+        {
+            var body = new CharacterBody3D { Name = "WalkProbe" };
+            body.AddChild(new CollisionShape3D { Shape = capsule, Position = new Vector3(0, 0.89f, 0) });
+            AddChild(body);
+
+            Vector3 inward = frontDoor.GlobalBasis.Z.Normalized();
+            Vector3 start = frontDoor.GlobalPosition
+                            + frontDoor.GlobalBasis.X.Normalized() * (frontDoor.Width * 0.5f)
+                            - inward * 4.5f;
+            start.Y = _houseGroundY - 0.1f;
+            body.GlobalPosition = start;
+
+            for (int i = 0; i < 180; i++)
+            {
+                body.Velocity = inward * 2.2f - Vector3.Up * 0.25f;
+                body.MoveAndSlide();
+            }
+
+            float depth = (body.GlobalPosition - frontDoor.GlobalPosition).Dot(inward);
+            bool inside = depth > 1.2f;
+            ok &= inside;
+
+            string blocked = string.Empty;
+            var probe = new PhysicsShapeQueryParameters3D
+            {
+                Shape = capsule,
+                Transform = new Transform3D(Basis.Identity, body.GlobalPosition + Vector3.Up * 0.95f),
+                CollideWithBodies = true,
+            };
+            foreach (var hit in space.IntersectShape(probe, 4))
+            {
+                if (hit["collider"].As<GodotObject>() is Node3D node)
+                {
+                    Vector3 local = node.GetParent() is Node3D parent3D ? parent3D.Position : node.Position;
+                    blocked += $"{node.Name}@локально({local.X:F1}; {local.Y:F1}; {local.Z:F1}) ";
+                }
+            }
+
+            GD.Print($"[housewalk] вход: {depth:F2} м — {(inside ? "зашёл" : "НЕ ЗАШЁЛ")} {blocked.Trim()}");
+            body.QueueFree();
         }
 
         GD.Print(ok ? "[housecheck] OK" : "[housecheck] FAIL");
