@@ -1628,6 +1628,9 @@ public partial class Main : Node3D
             start.Y = _houseGroundY - 0.1f;
             body.GlobalPosition = start;
 
+            Vector3 previous = body.GlobalPosition;
+            string trace = string.Empty;
+
             for (int i = 0; i < 220; i++)
             {
                 body.Velocity = inward * 2.2f - Vector3.Up * 0.25f;
@@ -1642,7 +1645,24 @@ public partial class Main : Node3D
                         body.GlobalPosition += Vector3.Up * 0.34f;
                 }
 
+                previous = body.GlobalPosition;
                 body.MoveAndSlide();
+
+                // Первый кадр, где тело встало: печатаем, во что упёрлось.
+                if (trace.Length == 0 && i > 5 && body.GlobalPosition.DistanceTo(previous) < 0.01f
+                    && body.GetSlideCollisionCount() > 0)
+                {
+                    for (int c = 0; c < body.GetSlideCollisionCount(); c++)
+                    {
+                        var collision = body.GetSlideCollision(c);
+                        if (collision.GetCollider() is Node3D hit)
+                        {
+                            Vector3 local = hit.GetParent() is Node3D parentNode ? parentNode.Position : hit.Position;
+                            trace += $"{hit.Name}@({local.X:F1}; {local.Y:F1}; {local.Z:F1}) "
+                                     + $"нормаль {collision.GetNormal()} ";
+                        }
+                    }
+                }
             }
 
             float depth = (body.GlobalPosition - door.GlobalPosition).Dot(inward);
@@ -1665,7 +1685,7 @@ public partial class Main : Node3D
                 }
             }
 
-            GD.Print($"[housewalk] {door.Name,-12} {depth,5:F2} м — {(inside ? "зашёл" : "НЕ ЗАШЁЛ")} {blocked.Trim()}");
+            GD.Print($"[housewalk] {door.Name,-12} {depth,5:F2} м — {(inside ? "зашёл" : "НЕ ЗАШЁЛ")} {trace.Trim()} {blocked.Trim()}");
             body.QueueFree();
         }
 
@@ -1681,6 +1701,9 @@ public partial class Main : Node3D
             Vector3 direction = (topWorld - startWorld).Normalized();
             climb.GlobalPosition = startWorld;
 
+            Vector3 climbPrevious = climb.GlobalPosition;
+            string climbTrace = string.Empty;
+
             for (int i = 0; i < 420; i++)
             {
                 climb.Velocity = direction * 2.4f - Vector3.Up * 0.2f;
@@ -1695,13 +1718,29 @@ public partial class Main : Node3D
                         climb.GlobalPosition += Vector3.Up * 0.34f;
                 }
 
+                climbPrevious = climb.GlobalPosition;
                 climb.MoveAndSlide();
+
+                if (climbTrace.Length == 0 && i > 5 && climb.GlobalPosition.DistanceTo(climbPrevious) < 0.01f
+                    && climb.GetSlideCollisionCount() > 0)
+                {
+                    for (int c = 0; c < climb.GetSlideCollisionCount(); c++)
+                    {
+                        var collision = climb.GetSlideCollision(c);
+                        if (collision.GetCollider() is Node3D hit)
+                        {
+                            Vector3 local = house.ToLocal(hit.GlobalPosition);
+                            climbTrace += $"{hit.Name}@({local.X:F1}; {local.Y:F1}; {local.Z:F1}) "
+                                          + $"нормаль {collision.GetNormal()} ";
+                        }
+                    }
+                }
             }
 
             float height = house.ToLocal(climb.GlobalPosition).Y;
             bool reached = height > 2.3f;
             ok &= reached;
-            GD.Print($"[houseclimb] чердак: поднялся на {height:F2} м — {(reached ? "ок" : "НЕ ПОДНЯЛСЯ")}");
+            GD.Print($"[houseclimb] чердак: {height:F2} м — {(reached ? "ок" : "НЕ ПОДНЯЛСЯ")} {climbTrace.Trim()}");
             climb.QueueFree();
         }
 
