@@ -110,6 +110,9 @@ switch (WorldActions.TryRepairAtWorkbench(_car.Session, out var part))
   создаёт `Variant` со ссылкой на объект; неосвобождённые `Variant` финализируются
   после остановки движка и роняют Godot при выходе (так и было: проверки падали
   с 0xC0000005 через раз).
+- Проверка (`--check-*`, `--selftest*`) выходит через `QuitSoon(код)`, а не
+  `GetTree().Quit()`: так узлы из очереди удаления и финализаторы успевают
+  отработать, пока движок жив.
 - Не вызывать `GetScript()` в циклах по узлам. Узел «со скриптом» — это узел
   нашего C#-типа: `node.GetType().Assembly == typeof(Main).Assembly`.
 

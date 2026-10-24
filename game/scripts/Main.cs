@@ -49,7 +49,7 @@ public partial class Main : Node3D
         if (HasArg("--balance"))
         {
             BalanceProbe.Run();
-            GetTree().Quit(0);
+            QuitSoon(0);
             return;
         }
 
@@ -64,7 +64,7 @@ public partial class Main : Node3D
         if (HasArg("--check-props"))
         {
             RunPropCheck();
-            GetTree().Quit(0);
+            QuitSoon(0);
             return;
         }
 
@@ -146,7 +146,7 @@ public partial class Main : Node3D
         if (HasArg("--check-sound"))
         {
             PrintSoundDiagnostics();
-            GetTree().Quit(0);
+            QuitSoon(0);
             return;
         }
 
@@ -161,7 +161,7 @@ public partial class Main : Node3D
         if (HasArg("--check-scene"))
         {
             RunSceneReport();
-            GetTree().Quit(0);
+            QuitSoon(0);
             return;
         }
 

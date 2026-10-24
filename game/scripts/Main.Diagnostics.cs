@@ -76,6 +76,27 @@ public partial class Main
         return null;
     }
 
+    private bool _quitting;
+
+    /// <summary>
+    /// Выход из проверки через пару кадров, а не сразу, и со сборкой мусора.
+    /// Падения при выходе (0xC0000005) давали две вещи: узлы, ещё лежащие в очереди
+    /// на удаление (проверки выходили прямо из _Ready), и C#-обёртки объектов Godot
+    /// (KinematicCollision3D, параметры запросов, Variant), чьи финализаторы
+    /// срабатывали уже после остановки движка. Здесь они отрабатывают, пока он жив.
+    /// </summary>
+    private void QuitSoon(int code)
+    {
+        if (_quitting) return;
+        _quitting = true;
+        GetTree().CreateTimer(0.1, processAlways: true).Timeout += () =>
+        {
+            System.GC.Collect();
+            System.GC.WaitForPendingFinalizers();
+            GetTree().Quit(code);
+        };
+    }
+
     /// <summary>Флаги отладочных прогонов: --smoke, --selftest, --perf, --shot-* и проверки.</summary>
     private void ParseDebugArgs()
     {
@@ -321,7 +342,7 @@ public partial class Main
                          $"кадров {_frames}, объектов {Performance.GetMonitor(Performance.Monitor.ObjectCount):F0}, " +
                          $"узлов {Performance.GetMonitor(Performance.Monitor.ObjectNodeCount):F0}, " +
                          $"вызовов отрисовки {Performance.GetMonitor(Performance.Monitor.RenderTotalDrawCallsInFrame):F0}");
-                GetTree().Quit(0);
+                QuitSoon(0);
             }
 
             return;
@@ -337,7 +358,7 @@ public partial class Main
             var path = ProjectSettings.GlobalizePath("user://shot.png");
             image.SavePng(path);
             GD.Print($"[shot] {path}");
-            GetTree().Quit(0);
+            QuitSoon(0);
             return;
         }
 
@@ -353,7 +374,7 @@ public partial class Main
             if (_frames >= 480)
             {
                 _smokeDone = true;
-                GetTree().Quit(_selfTestOk ? 0 : 1);
+                QuitSoon(_selfTestOk ? 0 : 1);
             }
             return;
         }
@@ -372,7 +393,7 @@ public partial class Main
         GD.Print($"[smoke] итог: кадров={_frames} скорость={speed:F2} м/с ({speed * 3.6f:F1} км/ч) "
                  + $"топливо={v.Fuel.Liters:F2} л температура={v.EngineTempC:F1} °C одометр={v.OdometerKm:F2} км");
 
-        GetTree().Quit(speed > 5f ? 0 : 1);
+        QuitSoon(speed > 5f ? 0 : 1);
     }
 
     /// <summary>
@@ -653,7 +674,7 @@ public partial class Main
         // Запас ×3: замер без окна и на разных машинах скачет, ловим только явный регресс.
         bool ok = worst <= ChunkStreamer.BudgetMs * 3;
         GD.Print(ok ? "[chunk-bench] OK" : "[chunk-bench] FAIL: шаг постройки слишком долгий");
-        GetTree().Quit(ok ? 0 : 1);
+        QuitSoon(ok ? 0 : 1);
     }
 
     /// <summary>
@@ -663,6 +684,8 @@ public partial class Main
     /// </summary>
     private void ChunkRunStep()
     {
+        if (_quitting) return;
+
         const double length = 10_000, step = 8;
         ulong now = Time.GetTicksUsec();
 
@@ -721,7 +744,7 @@ public partial class Main
                       && _runMaxLoaded <= ChunkStreamer.Behind + ChunkStreamer.Ahead + 3
                       && growth < 0.25;
             GD.Print(ok ? "[chunk-run] OK" : "[chunk-run] FAIL");
-            GetTree().Quit(ok ? 0 : 1);
+            QuitSoon(ok ? 0 : 1);
             return;
         }
 
@@ -816,7 +839,7 @@ public partial class Main
         ok &= singleEvents && visitedCleared && gateClosed && lootBack;
 
         GD.Print(ok ? "[carselftest] OK" : "[carselftest] FAIL");
-        GetTree().Quit(ok ? 0 : 1);
+        QuitSoon(ok ? 0 : 1);
     }
 
     /// <summary>
@@ -1017,6 +1040,6 @@ public partial class Main
         }
 
         GD.Print(ok ? "[housecheck] OK" : "[housecheck] FAIL");
-        GetTree().Quit(ok ? 0 : 1);
+        QuitSoon(ok ? 0 : 1);
     }
 }
