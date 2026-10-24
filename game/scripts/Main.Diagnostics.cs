@@ -287,7 +287,10 @@ public partial class Main
             if (_frames >= 600)
             {
                 _smokeDone = true;
-                GD.Print($"[perf] средний FPS {_fpsSum / _frames:F1}, минимум {_fpsMin:F1}, " +
+                double avgFps = _fpsSum / _frames;
+                double vramMb = Performance.GetMonitor(Performance.Monitor.RenderVideoMemUsed) / (1024.0 * 1024.0);
+                GD.Print($"[perf] кадр {1000.0 / avgFps:F2} мс (бюджет 8), видеопамять {vramMb:F0} МБ (бюджет 2048)");
+                GD.Print($"[perf] средний FPS {avgFps:F1}, минимум {_fpsMin:F1}, " +
                          $"кадров {_frames}, объектов {Performance.GetMonitor(Performance.Monitor.ObjectCount):F0}, " +
                          $"узлов {Performance.GetMonitor(Performance.Monitor.ObjectNodeCount):F0}, " +
                          $"вызовов отрисовки {Performance.GetMonitor(Performance.Monitor.RenderTotalDrawCallsInFrame):F0}");
