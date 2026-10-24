@@ -51,6 +51,8 @@ public partial class Main : Node3D
     private Vector3? _objectivePosition;
     private string _objectiveTitle = "";
     private bool _objectiveDone;
+    private float _offroadStartY;
+    private float _playerStartY;
 
     public override void _Ready()
     {
@@ -151,7 +153,10 @@ public partial class Main : Node3D
         {
             if (_frames == 120) RunSelfTest();
             if (_frames == 230) CheckReverse();
-            if (_frames >= 240)
+            if (_frames == 240) SetupOffroadCheck();
+            if (_frames == 320) { CheckOffroad(); SetupPlayerCheck(); }
+            if (_frames == 390) CheckPlayerOffroad();
+            if (_frames >= 400)
             {
                 _smokeDone = true;
                 GetTree().Quit(_selfTestOk ? 0 : 1);
@@ -605,6 +610,58 @@ public partial class Main : Node3D
         _car.ForcedInput = null;
         _car.LinearVelocity = Vector3.Zero;
         _car.AngularVelocity = Vector3.Zero;
+    }
+
+    /// <summary>Ставим машину на площадку у заправки: там раньше проваливалась.</summary>
+    private void SetupOffroadCheck()
+    {
+        var pump = _interactions.FirstOrDefault(p => p.Kind == InteractionKind.Pump);
+        if (pump is null)
+        {
+            Check(false, "нашлась колонка для проверки обочины");
+            return;
+        }
+
+        _car.GlobalPosition = pump.Position + new Vector3(7f, 1.2f, 7f);
+        _car.LinearVelocity = Vector3.Zero;
+        _car.AngularVelocity = Vector3.Zero;
+        _offroadStartY = _car.GlobalPosition.Y;
+    }
+
+    private void CheckOffroad()
+    {
+        float y = _car.GlobalPosition.Y;
+        Check(y > _offroadStartY - 2f, $"машина не провалилась у заправки (Y={y:F1})");
+        Check(_car.GroundedWheels > 0, "колёса стоят на земле у заправки");
+    }
+
+    /// <summary>Высаживаем пешехода в стороне от дороги: он тоже не должен падать.</summary>
+    private void SetupPlayerCheck()
+    {
+        _car.LinearVelocity = Vector3.Zero;
+        ExitCar();
+
+        if (_player is null)
+        {
+            Check(false, "пешеход появился");
+            return;
+        }
+
+        _player.Teleport(_car.GlobalPosition + new Vector3(-10f, 1.5f, 0f));
+        _playerStartY = _player.GlobalPosition.Y;
+    }
+
+    private void CheckPlayerOffroad()
+    {
+        if (_player is null)
+        {
+            Check(false, "пешеход существует");
+            return;
+        }
+
+        float y = _player.GlobalPosition.Y;
+        Check(y > _playerStartY - 2f, $"пешеход не провалился за дорогой (Y={y:F1})");
+        Check(_player.IsOnFloor(), "пешеход стоит на земле");
     }
 
     private void Check(bool condition, string what)

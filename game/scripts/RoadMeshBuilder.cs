@@ -181,7 +181,7 @@ public static class RoadMeshBuilder
 
         return new CollisionShape3D
         {
-            Shape = new ConcavePolygonShape3D { Data = faces.ToArray() },
+            Shape = new ConcavePolygonShape3D { Data = faces.ToArray(), BackfaceCollision = true },
         };
     }
 

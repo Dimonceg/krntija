@@ -10,13 +10,36 @@ namespace Krntija.Game;
 public static class TerrainBuilder
 {
     public const float HalfWidth = 140f;
-    private const float LateralStep = 20f;
+
+    /// <summary>До этого расстояния от оси земля ровная — обочина и площадки у POI.</summary>
+    private const float FlatShoulder = 18f;
+
     private const int RowStep = 2; // каждые 8 м вдоль дороги
+
+    /// <summary>Колонки сгущаются у дороги и разрежаются к краю полосы.</summary>
+    private static readonly float[] HalfOffsets = { 0f, 6f, 12f, 18f, 26f, 36f, 50f, 70f, 95f, 120f, 140f };
+
+    private static readonly float[] Offsets = BuildOffsets();
+
+    private static float[] BuildOffsets()
+    {
+        var list = new List<float>();
+        for (int i = HalfOffsets.Length - 1; i >= 0; i--)
+        {
+            if (HalfOffsets[i] > 0) list.Add(-HalfOffsets[i]);
+        }
+
+        for (int i = 0; i < HalfOffsets.Length; i++)
+            list.Add(HalfOffsets[i]);
+
+        return list.ToArray();
+    }
 
     /// <summary>Высота земли на заданном удалении от оси дороги.</summary>
     public static float SurfaceHeight(float roadY, float lateral, Vector3 world)
     {
-        float t = Mathf.Clamp(Mathf.Abs(lateral) / HalfWidth, 0f, 1f);
+        float t = Mathf.Clamp((Mathf.Abs(lateral) - FlatShoulder) / (HalfWidth - FlatShoulder), 0f, 1f);
+        if (t <= 0f) return roadY;
 
         float hills = 10f * (0.6f * Mathf.Sin(world.X * 0.011f) + 0.4f * Mathf.Sin(world.Z * 0.013f + 1.7f));
         float rise = t * (4f + hills * 0.9f);
@@ -29,7 +52,7 @@ public static class TerrainBuilder
     {
         if (centerline.Count < 2) return;
 
-        int columns = (int)(HalfWidth * 2 / LateralStep) + 1;
+        int columns = Offsets.Length;
         var rows = new List<Vector3[]>();
 
         for (int i = 0; i < centerline.Count; i += RowStep)
@@ -39,7 +62,7 @@ public static class TerrainBuilder
 
             for (int j = 0; j < columns; j++)
             {
-                float lateral = -HalfWidth + j * LateralStep;
+                float lateral = Offsets[j];
                 Vector3 point = centerline[i] + right * lateral;
                 point.Y = SurfaceHeight(centerline[i].Y, lateral, point);
                 row[j] = point;
@@ -81,7 +104,11 @@ public static class TerrainBuilder
         });
 
         var body = new StaticBody3D();
-        body.AddChild(new CollisionShape3D { Shape = new ConcavePolygonShape3D { Data = faces.ToArray() } });
+        body.AddChild(new CollisionShape3D
+        {
+            // Двусторонняя коллизия: иначе, заехав в склон, машина проваливается.
+            Shape = new ConcavePolygonShape3D { Data = faces.ToArray(), BackfaceCollision = true },
+        });
         parent.AddChild(body);
     }
 
