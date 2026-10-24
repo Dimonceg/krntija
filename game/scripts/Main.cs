@@ -54,9 +54,11 @@ public partial class Main : Node3D
         Gate,
         Sleep,
         Door,
+        Loot,
     }
 
-    private sealed record InteractionPoint(Vector3 Position, InteractionKind Kind, float Radius, CheckpointGate? Gate = null, Door? Door = null);
+    private sealed record InteractionPoint(Vector3 Position, InteractionKind Kind, float Radius,
+        CheckpointGate? Gate = null, Door? Door = null, string? LootId = null, Node3D? Node = null);
 
     private readonly List<InteractionPoint> _interactions = new();
     private RoadBuildResult? _road;
@@ -124,6 +126,7 @@ public partial class Main : Node3D
 
         // Дом игрока у старта: слева от дороги, со своими дверями и чердаком.
         BuildPlayerHouse();
+        SpawnLoot();
 
         // Дорожные события: ямы, коровы, попутчики.
         if (_road is not null)
@@ -644,6 +647,9 @@ public partial class Main : Node3D
         InteractionKind.Gate => point.Gate is { IsOpen: true } ? "[E] шлагбаум открыт" : "[E] заплатить 15 € за проезд",
         InteractionKind.Sleep => "[E] переночевать (15 €)",
         InteractionKind.Door => point.Door is { IsOpen: true } ? "[E] закрыть дверь" : "[E] открыть дверь",
+        InteractionKind.Loot => point.LootId is not null
+            ? $"[E] поднять {Core.Items.ItemCatalog.Get(point.LootId).Name}"
+            : "[E] поднять",
         _ => "[E] заправить",
     };
 
@@ -706,6 +712,10 @@ public partial class Main : Node3D
 
             case InteractionKind.Sleep:
                 TrySleep();
+                break;
+
+            case InteractionKind.Loot:
+                PickUpLoot(point);
                 break;
 
             case InteractionKind.Door:
@@ -1746,6 +1756,58 @@ public partial class Main : Node3D
 
         GD.Print(ok ? "[housecheck] OK" : "[housecheck] FAIL");
         GetTree().Quit(ok ? 0 : 1);
+    }
+
+    /// <summary>Подобрать предмет: в инвентарь, узел убрать, точку взаимодействия снять.</summary>
+    private void PickUpLoot(InteractionPoint point)
+    {
+        if (point.LootId is null || point.Node is null) return;
+
+        int count = point.Node is LootItem item ? item.Count : 1;
+        string name = Core.Items.ItemCatalog.Get(point.LootId).Name;
+
+        if (!_car.Session.Inventory.TryAdd(point.LootId, count))
+        {
+            _hud.Toast("Инвентарь полон");
+            return;
+        }
+
+        _hud.Toast($"Подобрано: {name} ×{count}");
+        Sfx.PlayUi();
+        _interactions.Remove(point);
+        point.Node.QueueFree();
+    }
+
+    /// <summary>Разложить лут у точек интереса и внутри дома.</summary>
+    private void SpawnLoot()
+    {
+        if (_road is null) return;
+
+        int placed = 0;
+        foreach (var (position, itemId, count) in LootSpawner.PlanLandmarks(_road.Points))
+        {
+            AddLoot(position, itemId, count);
+            placed++;
+        }
+
+        int inHouse = 0;
+        if (GetNodeOrNull<Node3D>("PlayerHouse") is { } house)
+            foreach (var (position, itemId, count) in LootSpawner.PlanHouse(house))
+            {
+                AddLoot(position, itemId, count);
+                inHouse++;
+            }
+
+        GD.Print($"[loot] предметов: {placed} у мест, {inHouse} в доме");
+    }
+
+    private void AddLoot(Vector3 position, string itemId, int count)
+    {
+        var item = LootItem.Create(itemId, count, position);
+        AddChild(item);
+
+        _interactions.Add(new InteractionPoint(position + Vector3.Up * 0.25f, InteractionKind.Loot, 2.2f,
+            LootId: itemId, Node: item));
     }
 
     /// <summary>Дом игрока у старта: слева от дороги, с дверями и чердаком.</summary>
