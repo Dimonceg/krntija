@@ -223,6 +223,9 @@ def main():
     os.makedirs(OUT_DIR, exist_ok=True)
 
     for car_id, spec in SPECS.items():
+        if car_id == "zastava_101":
+            print("zastava_101: use Blender with tools/blender_zastava.py")
+            continue
         meshes = build_body(spec)
         data = build_glb(meshes, spec.get("paint", DEFAULT_PAINT))
         with open(os.path.join(OUT_DIR, f"{car_id}.glb"), "wb") as handle:

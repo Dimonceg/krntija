@@ -10,7 +10,7 @@ namespace Krntija.Game;
 /// </summary>
 public partial class Car : RigidBody3D
 {
-    private const float WheelRadius = 0.36f;
+    private float WheelRadius = 0.36f;
     private const float RestLength = 0.40f;
     private const float SpringStiffness = 26000f;
     private const float SpringDamping = 3000f;
@@ -18,7 +18,7 @@ public partial class Car : RigidBody3D
     private const float MaxSteerRad = 0.55f;
     private const float MaxReverseSpeed = 8f;
 
-    private static readonly Vector3[] Anchors =
+    private Vector3[] Anchors =
     {
         new(-0.86f, 0f, -1.45f), // перед лево
         new(0.86f, 0f, -1.45f),  // перед право
@@ -26,7 +26,9 @@ public partial class Car : RigidBody3D
         new(0.86f, 0f, 1.45f),   // зад право
     };
 
-    private readonly MeshInstance3D[] _wheels = new MeshInstance3D[4];
+    private readonly Node3D[] _wheels = new Node3D[4];
+    private readonly Node3D[] _wheelVisuals = new Node3D[4];
+    private bool _zastavaBody;
 
     public GameSession Session { get; private set; } = null!;
     public bool Autopilot { get; set; }
@@ -102,10 +104,24 @@ public partial class Car : RigidBody3D
 
     private void BuildBody()
     {
+        // Match the Blender asset's 2.449 m wheelbase and 1.30 m track.
+        // Legacy bodies keep their original wheel layout.
+        _zastavaBody = (ModelOverride ?? Session.Vehicle.Spec.Id) == "zastava_101";
+        if (_zastavaBody)
+        {
+            WheelRadius = (float)CarCatalog.Zastava101.WheelRadiusM;
+            Anchors = new[]
+            {
+                new Vector3(-0.65f, 0, -1.2245f), new Vector3(0.65f, 0, -1.2245f),
+                new Vector3(-0.65f, 0, 1.2245f), new Vector3(0.65f, 0, 1.2245f),
+            };
+        }
+
         AddChild(new CollisionShape3D
         {
-            Shape = new BoxShape3D { Size = new Vector3(1.6f, 0.52f, 4.1f) },
-            Position = new Vector3(0, 0.12f, 0),
+            Shape = new BoxShape3D { Size = _zastavaBody
+                ? new Vector3(1.48f, 0.60f, 3.70f) : new Vector3(1.6f, 0.52f, 4.1f) },
+            Position = new Vector3(0, _zastavaBody ? -0.10f : 0.12f, 0),
         });
 
         // Если в assets/models/cars лежит модель — берём её, иначе собираем заглушку.
@@ -184,23 +200,36 @@ public partial class Car : RigidBody3D
 
         for (int i = 0; i < Anchors.Length; i++)
         {
-            var wheel = new MeshInstance3D
+            var wheel = new Node3D
             {
-                Mesh = new CylinderMesh { Height = 0.24f, TopRadius = WheelRadius, BottomRadius = WheelRadius },
-                MaterialOverride = rubber,
+                Name = $"Wheel{i}",
                 Position = Anchors[i] - Vector3.Up * RestLength,
-                Rotation = new Vector3(0, 0, Mathf.Pi / 2),
             };
             AddChild(wheel);
-
-            // Колпак чуть шире шины, чтобы колесо читалось в тени.
-            wheel.AddChild(new MeshInstance3D
+            var visual = new Node3D { Name = "RollingMesh" };
+            wheel.AddChild(visual);
+            var imported = _zastavaBody ? ModelLibrary.CarWheel("zastava_101") : null;
+            if (imported is not null)
             {
-                Mesh = new CylinderMesh { Height = 0.26f, TopRadius = 0.17f, BottomRadius = 0.17f },
-                MaterialOverride = hubMaterial,
-            });
-
+                visual.AddChild(imported);
+            }
+            else
+            {
+                var tire = new MeshInstance3D
+                {
+                    Mesh = new CylinderMesh { Height = 0.24f, TopRadius = WheelRadius, BottomRadius = WheelRadius },
+                    MaterialOverride = rubber,
+                    Rotation = new Vector3(0, 0, Mathf.Pi / 2),
+                };
+                visual.AddChild(tire);
+                tire.AddChild(new MeshInstance3D
+                {
+                    Mesh = new CylinderMesh { Height = 0.26f, TopRadius = 0.17f, BottomRadius = 0.17f },
+                    MaterialOverride = hubMaterial,
+                });
+            }
             _wheels[i] = wheel;
+            _wheelVisuals[i] = visual;
         }
     }
 
@@ -216,8 +245,10 @@ public partial class Car : RigidBody3D
 
     private void AddHeadlights()
     {
-        _headlightLeft = CreateHeadlight(new Vector3(-0.52f, 0.42f, -2.02f));
-        _headlightRight = CreateHeadlight(new Vector3(0.52f, 0.42f, -2.02f));
+        _headlightLeft = CreateHeadlight(_zastavaBody
+            ? new Vector3(-0.535f, 0.06f, -1.94f) : new Vector3(-0.52f, 0.42f, -2.02f));
+        _headlightRight = CreateHeadlight(_zastavaBody
+            ? new Vector3(0.535f, 0.06f, -1.94f) : new Vector3(0.52f, 0.42f, -2.02f));
     }
 
     private SpotLight3D CreateHeadlight(Vector3 position)
@@ -289,7 +320,7 @@ public partial class Car : RigidBody3D
             AngularVelocity = new Vector3(0, AngularVelocity.Y * 0.5f, 0);
         }
 
-        SpinWheels(dt);
+        SpinWheels(dt, forwardSpeed, (float)input.Steer);
     }
 
     public override void _UnhandledInput(InputEvent @event)
@@ -439,10 +470,13 @@ public partial class Car : RigidBody3D
         return Mathf.Clamp(local.X * 0.12f, -1f, 1f);
     }
 
-    private void SpinWheels(float dt)
+    private void SpinWheels(float dt, float forwardSpeed, float steer)
     {
-        float spin = SpeedMps / WheelRadius * dt;
-        foreach (var wheel in _wheels)
-            wheel.RotateX(-spin);
+        float spin = forwardSpeed / WheelRadius * dt;
+        for (int i = 0; i < _wheels.Length; i++)
+        {
+            _wheels[i].Rotation = new Vector3(0, i < 2 ? -steer * MaxSteerRad : 0, 0);
+            _wheelVisuals[i].RotateX(-spin);
+        }
     }
 }

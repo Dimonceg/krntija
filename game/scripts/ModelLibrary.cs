@@ -36,6 +36,9 @@ public static class ModelLibrary
     /// <summary>Кузов машины: assets/models/cars/&lt;spec_id&gt;.glb</summary>
     public static Node3D? CarBody(string specId) => Instantiate($"res://assets/models/cars/{specId}.glb");
 
+    /// <summary>Колесо с началом координат на оси X; подвеска двигает его родительский узел.</summary>
+    public static Node3D? CarWheel(string specId) => Instantiate($"res://assets/models/cars/{specId}_wheel.glb");
+
     /// <summary>Проп у дороги: assets/models/props/&lt;feature&gt;.glb</summary>
     public static Node3D? Prop(string feature) => Instantiate($"res://assets/models/props/{feature}.glb");
 

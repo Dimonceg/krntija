@@ -1,0 +1,9 @@
+{
+  "body_triangles": 8278,
+  "wheel_triangles": 2528,
+  "body_materials": 8,
+  "wheel_radius_m": 0.29,
+  "wheelbase_m": 2.449,
+  "track_m": 1.3,
+  "resting_wheel_y": -0.295
+}
