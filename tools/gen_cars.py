@@ -221,8 +221,8 @@ def build_body(spec):
 
         # Молдинг по борту и колёсные арки.
         trim.box((side * (half + 0.006), 0.54, 0), (0.02, 0.05, length * 0.62))
-        arch(trim, side * (half + 0.004), -1.35, 0.34, 0.36, 0.43)
-        arch(trim, side * (half + 0.004), 1.35, 0.34, 0.36, 0.43)
+        arch(trim, side * (half + 0.004), -1.45, 0.36, 0.38, 0.46)
+        arch(trim, side * (half + 0.004), 1.45, 0.36, 0.38, 0.46)
 
     # Бамперы, решётка, порог, номер.
     trim.box((0, 0.36, front + 0.03), (width * 0.94, 0.16, 0.12))
@@ -243,6 +243,18 @@ def build_body(spec):
         mesh.positions = [(x, y + shift, z) for (x, y, z) in mesh.positions]
 
     return {"paint": paint, "glass": glass, "trim": trim, "lamp": lamp, "tail": tail}
+
+PAINTS = {
+    "zastava_101": [0.80, 0.78, 0.70, 1.0],
+    "zastava_boxy": [0.80, 0.78, 0.70, 1.0],
+    "zastava_rounded": [0.52, 0.12, 0.10, 1.0],
+    "zastava_hatch": [0.72, 0.62, 0.30, 1.0],
+    "golf_2": [0.52, 0.12, 0.10, 1.0],
+    "vaz_2106": [0.72, 0.62, 0.30, 1.0],
+    "zaz_968": [0.60, 0.44, 0.24, 1.0],
+}
+
+
 
 def material(color, metallic, roughness, emissive=None):
     entry = {"pbrMetallicRoughness": {
@@ -266,7 +278,19 @@ MATERIALS = {
 
 # ---------------------------------------------------------------- GLB
 
-def build_glb(meshes):
+DEFAULT_PAINT = [0.80, 0.78, 0.70, 1.0]
+
+
+def build_materials(meshes, paint_color):
+    result = []
+    for name, mesh in meshes.items():
+        if not mesh.indices:
+            continue
+        result.append(material(paint_color, 0.05, 0.72) if name == "paint" else MATERIALS[name])
+    return result
+
+
+def build_glb(meshes, paint_color=DEFAULT_PAINT):
     buffer = bytearray()
     accessors = []
     buffer_views = []
@@ -339,7 +363,7 @@ def build_glb(meshes):
         "scenes": [{"nodes": [0]}],
         "nodes": [{"mesh": 0, "name": "car_body"}],
         "meshes": [{"primitives": primitives}],
-        "materials": [MATERIALS[name] for name in meshes if meshes[name].indices],
+        "materials": build_materials(meshes, paint_color),
         "accessors": accessors,
         "bufferViews": buffer_views,
         "buffers": [{"byteLength": len(buffer)}],
@@ -364,7 +388,7 @@ def build_glb(meshes):
 # ---------------------------------------------------------------- модели
 
 SPECS = {
-    "zastava_101": dict(length=3.96, width=1.60, roof=1.16, cabin_front=-0.95, cabin_back=0.85, round=0.95, nose=0.97),
+    "zastava_101": dict(length=3.96, width=1.60, roof=1.16, cabin_front=-0.95, cabin_back=1.15, round=0.95, nose=0.97),
     "golf_2": dict(length=4.02, width=1.66, roof=1.26, cabin_front=-0.70, cabin_back=1.02),
     "vaz_2106": dict(length=4.04, width=1.60, roof=1.24, cabin_front=-0.66, cabin_back=0.98),
     "zaz_968": dict(length=3.72, width=1.54, roof=1.18, cabin_front=-0.58, cabin_back=0.90),
@@ -380,9 +404,13 @@ SPECS = {
 def main():
     os.makedirs(OUT_DIR, exist_ok=True)
 
+    for car_id, color in PAINTS.items():
+        if car_id in SPECS:
+            SPECS[car_id]["paint"] = color
+
     for car_id, spec in SPECS.items():
         meshes = build_body(spec)
-        data = build_glb(meshes)
+        data = build_glb(meshes, spec.get("paint", DEFAULT_PAINT))
         path = os.path.join(OUT_DIR, f"{car_id}.glb")
         with open(path, "wb") as handle:
             handle.write(data)

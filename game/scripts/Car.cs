@@ -10,7 +10,7 @@ namespace Krntija.Game;
 /// </summary>
 public partial class Car : RigidBody3D
 {
-    private const float WheelRadius = 0.34f;
+    private const float WheelRadius = 0.36f;
     private const float RestLength = 0.40f;
     private const float SpringStiffness = 26000f;
     private const float SpringDamping = 3000f;
@@ -20,10 +20,10 @@ public partial class Car : RigidBody3D
 
     private static readonly Vector3[] Anchors =
     {
-        new(-0.86f, 0f, -1.35f), // перед лево
-        new(0.86f, 0f, -1.35f),  // перед право
-        new(-0.86f, 0f, 1.35f),  // зад лево
-        new(0.86f, 0f, 1.35f),   // зад право
+        new(-0.86f, 0f, -1.45f), // перед лево
+        new(0.86f, 0f, -1.45f),  // перед право
+        new(-0.86f, 0f, 1.45f),  // зад лево
+        new(0.86f, 0f, 1.45f),   // зад право
     };
 
     private readonly MeshInstance3D[] _wheels = new MeshInstance3D[4];
