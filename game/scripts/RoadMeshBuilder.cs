@@ -22,7 +22,7 @@ public sealed class RoadBuildResult
 /// </summary>
 public static class RoadMeshBuilder
 {
-    public const float Width = 9f;
+    public const float Width = 7.2f;
     private const float StepMeters = 4f;
 
     public sealed record PointOfInterest(RoadSegment Segment, Vector3 Position, float Heading);

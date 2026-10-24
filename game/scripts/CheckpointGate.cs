@@ -33,21 +33,21 @@ public partial class CheckpointGate : Node3D
         }
 
         // Стрела вращается вокруг столба: поднимается, когда проезд оплачен.
-        _arm = new Node3D { Position = new Vector3(-5f, 1.15f, 0) };
+        _arm = new Node3D { Position = new Vector3(-4f, 1.15f, 0) };
         AddChild(_arm);
 
         _arm.AddChild(new MeshInstance3D
         {
-            Mesh = new BoxMesh { Size = new Vector3(10, 0.18f, 0.18f) },
-            Position = new Vector3(5, 0, 0),
+            Mesh = new BoxMesh { Size = new Vector3(8, 0.18f, 0.18f) },
+            Position = new Vector3(4, 0, 0),
             MaterialOverride = boomMaterial,
         });
 
         var body = new StaticBody3D();
         _shape = new CollisionShape3D
         {
-            Shape = new BoxShape3D { Size = new Vector3(10, 0.18f, 0.18f) },
-            Position = new Vector3(5, 0, 0),
+            Shape = new BoxShape3D { Size = new Vector3(8, 0.18f, 0.18f) },
+            Position = new Vector3(4, 0, 0),
         };
         body.AddChild(_shape);
         _arm.AddChild(body);

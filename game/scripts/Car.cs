@@ -137,6 +137,8 @@ public partial class Car : RigidBody3D
         if (model is not null)
         {
             AddChild(model);
+            if (PropFactory.Measure(model) is { } bounds)
+                GD.Print($"[car] кузов {bounds.Size.X:F2} × {bounds.Size.Y:F2} × {bounds.Size.Z:F2} м, низ {bounds.Position.Y:F2}");
         }
         else BuildProceduralShell();
 
