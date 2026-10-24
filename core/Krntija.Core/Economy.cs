@@ -104,6 +104,29 @@ public static class TradeService
         return (count, Math.Round(money, 2));
     }
 
+    /// <summary>
+    /// Скупщик берёт всё, кроме инструментов: те нужны самому.
+    /// Платит хуже лавки — зато не привередничает.
+    /// </summary>
+    public static (int Count, double Money) SellEverything(Inventory bag, Wallet wallet, double factor = 0.7)
+    {
+        int count = 0;
+        double money = 0;
+
+        foreach (var stack in bag.Items.Where(i => i.Definition.Category != ItemCategory.Tool).ToList())
+        {
+            int amount = stack.Count;
+            if (!bag.Remove(stack.DefId, amount)) continue;
+
+            double earned = Math.Round(stack.Definition.Value * factor * amount, 2);
+            wallet.Earn(earned);
+            count += amount;
+            money += earned;
+        }
+
+        return (count, Math.Round(money, 2));
+    }
+
     /// <summary>Скупка: деталь можно сдать за половину цены.</summary>
     public static bool TrySellPart(Inventory bag, Wallet wallet, string partDefId)
     {

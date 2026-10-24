@@ -51,4 +51,31 @@ public class LootTradeTests
         Assert.True(restored.Trunk.Count("cassette") == 3);
         Assert.True(restored.Inventory.Count("bread") == 2);
     }
+
+    [Fact]
+    public void DealerBuysEverythingExceptTools()
+    {
+        var bag = new Inventory();
+        var wallet = new Wallet(0);
+        bag.TryAdd("wrench");     // инструмент остаётся
+        bag.TryAdd("bread", 2);
+        bag.TryAdd("spark_plug", 1);
+        bag.TryAdd("cassette", 2);
+
+        var (count, money) = TradeService.SellEverything(bag, wallet);
+
+        Assert.Equal(5, count);
+        Assert.Equal(1, bag.Count("wrench"));
+        Assert.Equal(0, bag.Count("bread"));
+        Assert.True(money > 0);
+    }
+
+    [Fact]
+    public void EncumbranceSlowsOnlyOverEightyPercent()
+    {
+        Assert.Equal(1f, Encumbrance.SpeedFactor(10, 45), 3);
+        Assert.Equal(1f, Encumbrance.SpeedFactor(36, 45), 3);
+        Assert.True(Encumbrance.SpeedFactor(45, 45) < 0.7f);
+        Assert.True(Encumbrance.SpeedFactor(60, 45) >= 0.55f, "ниже 55 % скорость не падает");
+    }
 }

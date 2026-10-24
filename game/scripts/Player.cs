@@ -17,6 +17,9 @@ public partial class Player : CharacterBody3D
 
     private bool _jumpRequested;
 
+    /// <summary>Множитель скорости: 1 в норме, ниже — когда карман перегружен.</summary>
+    public float SpeedMultiplier { get; set; } = 1f;
+
     public float Yaw { get; set; }
 
     private float _stepTimer;
@@ -83,7 +86,7 @@ public partial class Player : CharacterBody3D
 
         float move = Input.GetActionStrength("accelerate") - Input.GetActionStrength("brake");
         float strafe = Input.GetAxis("steer_left", "steer_right");
-        float speed = Input.IsActionPressed("sprint") ? RunSpeed : WalkSpeed;
+        float speed = (Input.IsActionPressed("sprint") ? RunSpeed : WalkSpeed) * SpeedMultiplier;
 
         Vector3 forward = -GlobalBasis.Z;
         Vector3 right = GlobalBasis.X;
