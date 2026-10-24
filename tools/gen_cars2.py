@@ -17,8 +17,8 @@ OUT_DIR = os.path.join(ROOT, "game", "assets", "models", "cars")
 
 # All heights are relative to the chassis origin (y = 0).
 WHEEL_Z = 1.45
-WHEEL_Y = -0.235
-ARCH_R = 0.42
+WHEEL_Y = -0.215
+ARCH_R = 0.44
 SILL = -0.36
 BELT = 0.34
 ROOF = 0.84
@@ -90,9 +90,9 @@ def body_profile(spec):
     rear = length / 2
 
     return [
-        (front + 0.02, -0.12),
-        (front + 0.02, 0.11),
-        (front + 0.10, 0.15),
+        (front + 0.01, -0.12),
+        (front + 0.01, 0.10),
+        (front + 0.07, 0.13),
         (-0.90, 0.16),
         (-0.90, BELT),
         (1.30, BELT),
@@ -135,7 +135,7 @@ def extrude(mesh, profile, width, length):
 
 def build_cabin(paint, glass, spec):
     length = spec["length"]
-    width = spec["width"] * 0.88
+    width = spec["width"] * 0.92
 
     profile = ensure_ccw([(-0.90, BELT), (-0.42, ROOF), (0.86, ROOF), (1.30, BELT)])
 
@@ -180,21 +180,26 @@ def build_body(spec):
     build_cabin(paint, glass, spec)
 
     # Bumpers.
-    trim.box((0, -0.09, front + 0.10), (width * 0.94, 0.10, 0.10))
-    trim.box((0, -0.09, rear - 0.10), (width * 0.94, 0.10, 0.10))
+    trim.box((0, -0.11, front + 0.03), (width * 0.94, 0.11, 0.12))
+    trim.box((0, -0.11, rear - 0.03), (width * 0.94, 0.11, 0.12))
 
-    # Grille and plate.
-    trim.box((0, 0.03, front + 0.045), (width * 0.34, 0.10, 0.03))
-    trim.box((0, -0.18, front + 0.08), (0.34, 0.09, 0.02))
+    # Grille and plates.
+    trim.box((0, -0.01, front - 0.008), (width * 0.36, 0.11, 0.03))
+    trim.box((0, -0.20, front + 0.02), (0.34, 0.09, 0.02))
+    trim.box((0, -0.02, rear + 0.005), (0.34, 0.11, 0.02))
 
     for k in range(-2, 3):
-        trim.box((k * 0.09, 0.03, front + 0.032), (0.016, 0.09, 0.012))
+        trim.box((k * 0.09, -0.01, front - 0.02), (0.016, 0.10, 0.012))
+
+    # Hatch seam and handle on the tailgate.
+    trim.box((0, 0.31, rear - 0.05), (width * 0.62, 0.02, 0.02))
+    trim.box((0, 0.16, rear - 0.03), (0.26, 0.03, 0.02))
 
     # Lights.
     for side in (-1, 1):
-        lamp.box((side * half * 0.56, 0.04, front + 0.04), (0.28, 0.11, 0.05))
-        lamp.box((side * half * 0.80, -0.03, front + 0.04), (0.11, 0.07, 0.05))
-        tail.box((side * half * 0.58, 0.03, rear - 0.04), (0.26, 0.12, 0.05))
+        lamp.box((side * half * 0.56, 0.00, front - 0.006), (0.32, 0.14, 0.05))
+        lamp.box((side * half * 0.82, -0.075, front - 0.006), (0.11, 0.07, 0.05))
+        tail.box((side * half * 0.58, 0.00, rear + 0.006), (0.26, 0.14, 0.05))
 
     # Door seams, handles, mirrors, side moulding.
     for side in (-1, 1):

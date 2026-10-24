@@ -221,9 +221,9 @@ public partial class Main : Node3D
             {
                 root.AddChild(new MeshInstance3D
                 {
-                    Mesh = new CylinderMesh { Height = 0.24f, TopRadius = 0.36f, BottomRadius = 0.36f },
+                    Mesh = new CylinderMesh { Height = 0.24f, TopRadius = 0.38f, BottomRadius = 0.38f },
                     MaterialOverride = rubber,
-                    Position = new Vector3(x, -0.26f, z),
+                    Position = new Vector3(x, -0.24f, z),
                     Rotation = new Vector3(0, 0, Mathf.Pi / 2),
                 });
             }

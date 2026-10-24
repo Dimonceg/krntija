@@ -10,7 +10,7 @@ namespace Krntija.Game;
 /// </summary>
 public partial class Car : RigidBody3D
 {
-    private const float WheelRadius = 0.36f;
+    private const float WheelRadius = 0.38f;
     private const float RestLength = 0.40f;
     private const float SpringStiffness = 26000f;
     private const float SpringDamping = 3000f;
