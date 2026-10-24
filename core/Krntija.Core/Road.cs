@@ -115,10 +115,9 @@ public static class RoadPlanner
             (RoadFeature.GasStation, "Бензинска пумпа"),
         };
 
-        // Не повторяем тот же проп два раза подряд: иначе можно проехать
-        // три блокпоста и не увидеть ни села, ни фермы.
-        var filtered = options.Where(option => option.Feature != previous).ToArray();
-        return rng.Pick(filtered.Length > 0 ? filtered : options);
+        // Случайность подводит: на одном сиде выпадали только блокпосты.
+        // Берём детерминированный цикл — за поездку увидим все типы мест.
+        return options[(placed - 3) % options.Length];
     }
 
     /// <summary>Шаг поворота для построения геометрии: радианы на метр.</summary>

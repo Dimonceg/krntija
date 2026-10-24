@@ -82,7 +82,7 @@ public static class TerrainBuilder
         {
             rowColors[i] = new Color[columns];
             for (int j = 0; j < columns; j++)
-                rowColors[i][j] = TerrainColor(Offsets[j]);
+                rowColors[i][j] = TerrainColor(Offsets[j], rows[i][j]);
         }
 
         for (int i = 0; i < rows.Count - 1; i++)
@@ -127,16 +127,32 @@ public static class TerrainBuilder
 
     private static readonly Color GrassColor = new(0.44f, 0.52f, 0.28f);
     private static readonly Color GravelColor = new(0.42f, 0.36f, 0.28f);
+    private static readonly Color WheatColor = new(0.70f, 0.61f, 0.33f);
+    private static readonly Color PlowedColor = new(0.40f, 0.31f, 0.23f);
 
-    /// <summary>Цвет земли по удалению от оси: у асфальта гравий, дальше трава.</summary>
-    private static Color TerrainColor(float lateral)
+    /// <summary>Цвет земли: гравий у асфальта, трава, крупные пятна полей.</summary>
+    private static Color TerrainColor(float lateral, Vector3 world)
     {
         float distance = Mathf.Abs(lateral);
-        if (distance <= 6.6f) return GravelColor;
-        if (distance >= 9.4f) return GrassColor;
 
-        float t = (distance - 6.6f) / 2.8f;
-        return GravelColor.Lerp(GrassColor, t);
+        if (distance <= 6.6f) return GravelColor;
+
+        Color baseColor = distance >= 9.4f
+            ? GrassColor
+            : GravelColor.Lerp(GrassColor, (distance - 6.6f) / 2.8f);
+
+        if (distance < 14f) return baseColor;
+
+        // Поля: пятна пшеницы и пашни, привязанные к мировым координатам.
+        float field = Mathf.Sin(world.X * 0.010f + 1.7f) * Mathf.Cos(world.Z * 0.008f + 0.4f);
+
+        float wheat = Mathf.Clamp((field - 0.32f) / 0.34f, 0f, 1f);
+        if (wheat > 0f) return baseColor.Lerp(WheatColor, wheat);
+
+        float plowed = Mathf.Clamp((-field - 0.36f) / 0.30f, 0f, 1f);
+        if (plowed > 0f) return baseColor.Lerp(PlowedColor, plowed);
+
+        return baseColor;
     }
 
     private static void AddTriangle(SurfaceTool st, List<Vector3> faces, Vector3 a, Vector3 b, Vector3 c,

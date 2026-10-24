@@ -52,6 +52,7 @@ public partial class Main : Node3D
     private RainFx _rain = null!;
     private DirectionalLight3D? _sun;
     private Godot.Environment? _environment;
+    private ProceduralSkyMaterial? _skyMaterial;
     private Vector3? _objectivePosition;
     private string _objectiveTitle = "";
     private bool _objectiveDone;
@@ -346,6 +347,15 @@ public partial class Main : Node3D
         _environment.AmbientLightEnergy = (0.14f + 0.56f * daylight) * (1f - 0.35f * rain);
         _environment.FogLightColor = new Color(0.08f, 0.1f, 0.16f).Lerp(new Color(0.7f, 0.68f, 0.6f), daylight);
         _environment.FogDensity = 0.0022f + 0.0055f * rain;
+
+        // Небо теплеет к закату и темнеет к ночи.
+        if (_skyMaterial is not null)
+        {
+            float dusk = 1f - daylight;
+            _skyMaterial.SkyTopColor = new Color(0.35f, 0.45f, 0.6f).Lerp(new Color(0.15f, 0.14f, 0.25f), dusk * 0.92f);
+            _skyMaterial.SkyHorizonColor = new Color(0.72f, 0.68f, 0.58f).Lerp(new Color(0.80f, 0.44f, 0.26f), dusk * 0.85f);
+            _skyMaterial.GroundHorizonColor = new Color(0.45f, 0.42f, 0.33f).Lerp(new Color(0.20f, 0.19f, 0.21f), dusk * 0.9f);
+        }
     }
 
     /// <summary>Дождь: капли вокруг камеры и мокрое полотно.</summary>
@@ -1017,6 +1027,8 @@ public partial class Main : Node3D
             GroundHorizonColor = new Color(0.45f, 0.42f, 0.33f),
         };
 
+        _skyMaterial = skyMaterial;
+
         _environment = new Godot.Environment
         {
             BackgroundMode = Godot.Environment.BGMode.Sky,
@@ -1177,6 +1189,36 @@ public partial class Main : Node3D
         var sign = Box(village, new Vector3(2.4f, 0.7f, 0.08f), new Vector3(-13f, 2.3f, 3.0f),
             new Color(0.85f, 0.82f, 0.7f));
         sign.Rotation = new Vector3(0, 0.3f, 0);
+
+        AddBusStop(village, new Vector3(3.5f, 0, 7.5f));
+    }
+
+    /// <summary>Автобусная остановка: бетонный навес, лавка и табличка.</summary>
+    private static void AddBusStop(Node3D parent, Vector3 position)
+    {
+        var stop = new Node3D { Position = position, Rotation = new Vector3(0, -0.25f, 0) };
+        parent.AddChild(stop);
+
+        var concrete = new Color(0.66f, 0.64f, 0.58f);
+        var bench = new Color(0.45f, 0.32f, 0.2f);
+
+        Box(stop, new Vector3(4.4f, 0.16f, 2.0f), new Vector3(0, 2.45f, 0), concrete);
+        Box(stop, new Vector3(4.4f, 1.3f, 0.14f), new Vector3(0, 1.75f, -0.95f), concrete);
+        Box(stop, new Vector3(0.14f, 2.45f, 2.0f), new Vector3(-2.15f, 1.22f, 0), concrete);
+        Box(stop, new Vector3(0.14f, 2.45f, 2.0f), new Vector3(2.15f, 1.22f, 0), concrete);
+
+        Box(stop, new Vector3(3.4f, 0.12f, 0.5f), new Vector3(0, 0.55f, -0.5f), bench);
+        Box(stop, new Vector3(3.4f, 0.45f, 0.1f), new Vector3(0, 0.82f, -0.72f), bench);
+
+        stop.AddChild(new Label3D
+        {
+            Text = "АУТОБУС",
+            FontSize = 64,
+            PixelSize = 0.004f,
+            Position = new Vector3(0, 2.05f, -0.88f),
+            Modulate = new Color(0.95f, 0.92f, 0.8f),
+            OutlineSize = 6,
+        });
     }
 
     private void AddRuins(Vector3 position, float heading)
@@ -1197,6 +1239,36 @@ public partial class Main : Node3D
 
         var collapsed2 = Box(ruins, new Vector3(4.2f, 0.2f, 0.2f), new Vector3(-1.1f, 0.95f, -0.9f), beam);
         collapsed2.Rotation = new Vector3(0, 0, -0.52f);
+
+        AddWreck(ruins, new Vector3(6.4f, 0, 3.4f));
+    }
+
+    /// <summary>Брошенная машина у руин: кузов, крыша и колёса, слегка завалена.</summary>
+    private static void AddWreck(Node3D parent, Vector3 position)
+    {
+        var wreck = new Node3D { Position = position, Rotation = new Vector3(0.02f, 0.8f, 0.05f) };
+        parent.AddChild(wreck);
+
+        var rust = new Color(0.44f, 0.29f, 0.19f);
+        var dark = new Color(0.13f, 0.13f, 0.13f);
+
+        Box(wreck, new Vector3(1.6f, 0.5f, 3.7f), new Vector3(0, 0.45f, 0), rust);
+        Box(wreck, new Vector3(1.42f, 0.42f, 1.7f), new Vector3(0, 0.88f, 0.15f), rust);
+        Box(wreck, new Vector3(1.36f, 0.28f, 1.5f), new Vector3(0, 0.92f, 0.15f), dark);
+
+        for (int side = -1; side <= 1; side += 2)
+        {
+            for (int axle = -1; axle <= 1; axle += 2)
+            {
+                wreck.AddChild(new MeshInstance3D
+                {
+                    Mesh = new CylinderMesh { Height = 0.22f, TopRadius = 0.3f, BottomRadius = 0.3f, RadialSegments = 10 },
+                    Position = new Vector3(side * 0.78f, 0.3f, axle * 1.3f),
+                    Rotation = new Vector3(0, 0, Mathf.Pi / 2),
+                    MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.2f, 0.19f, 0.18f), Roughness = 1f },
+                });
+            }
+        }
     }
 
     private void AddFarm(Vector3 position, float heading)
