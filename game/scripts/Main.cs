@@ -39,6 +39,7 @@ public partial class Main : Node3D
     private bool _shotRain;
     private bool _shotCar;
     private bool _shotLineup;
+    private string? _shotProp;
     private bool _shotCars;
     private bool _selfTestCars;
     private int _frames;
@@ -86,6 +87,15 @@ public partial class Main : Node3D
         SetupInput();
         GameSettings.Load();
         GameSettings.Apply();
+
+        // Проверка ассетов мира: печатает габариты и центровку каждого пропа.
+        if (Array.IndexOf(OS.GetCmdlineUserArgs(), "--check-props") >= 0)
+        {
+            RunPropCheck();
+            GetTree().Quit(0);
+            return;
+        }
+
         BuildWorld();
 
         var session = GameSession.NewGame(car: SelectedCar());
@@ -94,7 +104,14 @@ public partial class Main : Node3D
         AddChild(_car);
         PlaceCarAtStart();
 
-        _camera = new ChaseCamera { Target = _car };
+        _camera = new ChaseCamera
+        {
+            Target = _car,
+            Distance = 6.4f,
+            Height = 2.7f,
+            LookHeight = 0.9f,
+            Fov = 72f,
+        };
         AddChild(_camera);
         _camera.GlobalPosition = _car.GlobalPosition + new Vector3(0, 4.5f, 10);
 
@@ -136,7 +153,8 @@ public partial class Main : Node3D
                 || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-rain") >= 0
                 || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-car") >= 0
                 || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-lineup") >= 0
-                || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-cars") >= 0;
+                || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-cars") >= 0
+                || _shotProp is not null;
         _openJournalInShot = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-ui") >= 0;
         _shotMenu = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-menu") >= 0;
         _shotDay = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-day") >= 0;
@@ -144,10 +162,19 @@ public partial class Main : Node3D
         _shotRain = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-rain") >= 0;
         _shotCar = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-car") >= 0;
         _shotLineup = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-lineup") >= 0;
+        foreach (string arg in OS.GetCmdlineUserArgs())
+        {
+            if (arg.StartsWith("--shot-prop=", StringComparison.Ordinal))
+                _shotProp = arg["--shot-prop=".Length..];
+        }
         _shotCars = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-cars") >= 0;
         _selfTestCars = Array.IndexOf(OS.GetCmdlineUserArgs(), "--selftest-cars") >= 0;
         _perf = Array.IndexOf(OS.GetCmdlineUserArgs(), "--perf") >= 0;
         _car.Autopilot = _smoke || _selfTest || _perf || _selfTestCars;
+
+        // Новая игра начинается на ручнике: машина не катится сама по себе.
+        // В автотестах ручник не взводим, иначе автопилот не тронется.
+        EngageParkingBrake();
 
         _menu = new MenuUi();
         AddChild(_menu);
@@ -232,9 +259,55 @@ public partial class Main : Node3D
 
             if (_shotLineup)
                 BuildLineup(road, index);
+
+            if (_shotProp is not null)
+                BuildPropPreview(road, index, _shotProp);
         }
 
         GD.Print($"[Krntija] старт. smoke={_smoke}, selftest={_selfTest}, машина: {session.Vehicle.Spec.Name}");
+    }
+
+    /// <summary>Превью пропа: ставим модель у дороги и снимаем её в три четверти.</summary>
+    private void BuildPropPreview(RoadBuildResult road, int index, string id)
+    {
+        _car.Visible = false;
+        _car.ProcessMode = ProcessModeEnum.Disabled;
+        _hud.Visible = false;
+        _camera.ProcessMode = ProcessModeEnum.Disabled;
+
+        Vector3 center = road.Centerline[index];
+        float heading = road.Headings[index];
+        var right = new Vector3(Mathf.Cos(heading), 0, Mathf.Sin(heading));
+        var forward = new Vector3(Mathf.Sin(heading), 0, -Mathf.Cos(heading));
+
+        var prop = PropFactory.Spawn(id, center, heading, solid: false, this);
+        if (prop is null)
+        {
+            GD.Print($"[prop] нет модели {id}.glb");
+            return;
+        }
+
+        Vector3 eye = center + forward * 9f - right * 7f + Vector3.Up * 4.5f;
+        _camera.LookAtFromPosition(eye, center + Vector3.Up * 1.6f);
+    }
+
+    /// <summary>Проверка ассетов мира: печатает габариты и центровку каждого пропа.</summary>
+    private static void RunPropCheck()
+    {
+        string[] ids =
+        {
+            "gasstation_a", "gasstation_b", "gasstation",
+            "village_a", "village_b", "village_c", "village",
+            "ruins_a", "ruins_b", "ruins",
+            "farm_a", "farm_b", "farm",
+            "checkpoint_a", "checkpoint",
+        };
+
+        bool ok = true;
+        foreach (string id in ids)
+            ok &= PropFactory.Check(id);
+
+        GD.Print(ok ? "[props] проверка пройдена" : "[props] есть проблемы");
     }
 
     /// <summary>Три варианта кузова рядом — для сравнения силуэта.</summary>
@@ -673,14 +746,18 @@ public partial class Main : Node3D
 
         if (_onFoot)
         {
-            _camera.FirstPersonOffset = new Vector3(0f, 1.45f, 0f);
-            _camera.OrbitWithMouse = false;
+            _camera.FirstPersonOffset = new Vector3(0f, 1.62f, 0f);
+            _camera.OrbitWithMouse = true;
+            _camera.PitchWithMouse = true;
+            _camera.UseTargetYaw = !_firstPerson;
             _player?.SetModelVisible(!_firstPerson);
         }
         else
         {
             _camera.FirstPersonOffset = new Vector3(0.30f, 0.86f, -1.05f);
-            _camera.OrbitWithMouse = !_firstPerson;
+            _camera.OrbitWithMouse = true;
+            _camera.PitchWithMouse = false;
+            _camera.UseTargetYaw = false;
         }
 
         _hud.Toast(_firstPerson ? "Вид от первого лица (C)" : "Вид от третьего лица (C)");
@@ -699,11 +776,14 @@ public partial class Main : Node3D
         _car.Driven = false;
 
         _camera.Target = _player;
-        _camera.Distance = 4.6f;
-        _camera.Height = 2.4f;
-        _camera.LookHeight = 1.4f;
-        _camera.OrbitWithMouse = false;
-        _camera.FirstPersonOffset = new Vector3(0f, 1.45f, 0f);
+        _camera.Distance = 4.2f;
+        _camera.Height = 2.0f;
+        _camera.LookHeight = 1.45f;
+        _camera.Fov = 66f;
+        _camera.OrbitWithMouse = true;
+        _camera.PitchWithMouse = true;
+        _camera.UseTargetYaw = !_firstPerson;
+        _camera.FirstPersonOffset = new Vector3(0f, 1.62f, 0f);
         _player.SetModelVisible(!_firstPerson);
         _camera.ResetOrbit();
         Sfx.PlayDoor(_car.GlobalPosition);
@@ -719,10 +799,13 @@ public partial class Main : Node3D
         _car.Driven = true;
 
         _camera.Target = _car;
-        _camera.Distance = 7.5f;
-        _camera.Height = 3.2f;
+        _camera.Distance = 6.4f;
+        _camera.Height = 2.7f;
         _camera.LookHeight = 0.9f;
+        _camera.Fov = 72f;
         _camera.OrbitWithMouse = true;
+        _camera.PitchWithMouse = false;
+        _camera.UseTargetYaw = false;
         _camera.FirstPersonOffset = new Vector3(0.30f, 0.86f, -1.05f);
         _camera.ResetOrbit();
         Sfx.PlayDoor(_car.GlobalPosition);
@@ -1052,6 +1135,7 @@ public partial class Main : Node3D
     {
         Respawn(GameSession.NewGame(car: spec));
         PlaceCarAtStart();
+        EngageParkingBrake();
         ResetWorldState();
 
         _objectiveDone = false;
@@ -1209,6 +1293,13 @@ public partial class Main : Node3D
         _events?.Rebind(_car, _hud);
     }
 
+    /// <summary>Игрок начинает на ручнике; в автотестах ручник не мешает движению.</summary>
+    private void EngageParkingBrake()
+    {
+        if (_smoke || _selfTest || _perf || _selfTestCars) return;
+        _car.SetHandbrake(true);
+    }
+
     /// <summary>Поставить машину на старт дороги: новую игру всегда начинаем там.</summary>
     private void PlaceCarAtStart()
     {
@@ -1347,13 +1438,14 @@ public partial class Main : Node3D
         var road = RoadMeshBuilder.Build(plan, this);
         _road = road;
 
+        int poiIndex = 0;
         foreach (var poi in road.Points)
         {
             GD.Print($"[poi] {poi.Segment.Feature} at index {(int)Mathf.Round(poi.Segment.StartM / 4f)} ({poi.Segment.StartM:F0} м)");
             var right = new Vector3(Mathf.Cos(poi.Heading), 0, Mathf.Sin(poi.Heading));
             Vector3 spot = poi.Position - right * 16f; // левая обочина
             spot.Y = TerrainBuilder.SurfaceHeight(poi.Position.Y, -16f, spot);
-            AddLandmark(poi.Segment.Feature, poi.Segment.Title, spot, poi.Heading, poi.Position);
+            AddLandmark(poi.Segment.Feature, poi.Segment.Title, spot, poi.Heading, poi.Position, poiIndex++);
         }
 
         TerrainBuilder.Build(road.Centerline, road.Headings, this);
@@ -1373,16 +1465,19 @@ public partial class Main : Node3D
         GD.Print($"[road] {plan.Segments.Count} сегментов, {plan.TotalMeters:F0} м, точек интереса: {road.Points.Count}");
     }
 
-    private void AddLandmark(RoadFeature feature, string title, Vector3 position, float heading, Vector3 roadPoint)
+    private void AddLandmark(RoadFeature feature, string title, Vector3 position, float heading, Vector3 roadPoint, int poiIndex)
     {
-        var model = ModelLibrary.Prop(feature.ToString().ToLowerInvariant());
+        string featureId = feature.ToString().ToLowerInvariant();
+        string? variant = PropFactory.PickVariant(PropVariants(featureId), poiIndex);
 
-        if (model is not null)
-        {
-            model.Position = position;
-            model.Rotation = new Vector3(0, -heading, 0);
-            AddChild(model);
-        }
+        // Небольшой разворот и сдвиг: одинаковые пропы не должны стоять строем.
+        var rng = new Pcg32((ulong)(20261024 + poiIndex), sequence: 5);
+        float yawJitter = (float)rng.Range(-0.18, 0.18);
+        float sink = (float)rng.Range(-0.05, 0.05);
+
+        Node3D? model = variant is null
+            ? null
+            : PropFactory.Spawn(variant, position + Vector3.Up * sink, heading, solid: true, this, yawJitter);
 
         switch (feature)
         {
@@ -1399,6 +1494,12 @@ public partial class Main : Node3D
 
         if (title.Length > 0) AddFeatureSign(roadPoint, heading, title);
     }
+
+    /// <summary>Какие файлы ищем для каждого типа места: base, _a, _b, _c.</summary>
+    private static IReadOnlyList<string> PropVariants(string featureId) => new[]
+    {
+        featureId + "_a", featureId + "_b", featureId + "_c", featureId,
+    };
 
     /// <summary>Дорожный указатель с названием места: «Село», «Рушевине» и т.п.</summary>
     private void AddFeatureSign(Vector3 roadPoint, float heading, string title)
@@ -1455,12 +1556,12 @@ public partial class Main : Node3D
             var house = new Node3D { Position = new Vector3(i * 10f - 10f, 0, -i * 7f) };
             village.AddChild(house);
 
-            float width = 6.4f + i * 0.6f;
-            float depth = 5.2f;
-            float height = 3.0f + i * 0.25f;
+            float width = 8.0f + i * 0.5f;
+            float depth = 6.4f;
+            float height = 3.4f + i * 0.2f;
 
             Box(house, new Vector3(width, height, depth), new Vector3(0, height / 2, 0), wall);
-            GableRoof(house, height, width, depth, 1.7f, roof);
+            GableRoof(house, height, width, depth, 2.0f, roof);
 
             Box(house, new Vector3(0.9f, 1.1f, 0.12f), new Vector3(-1.7f, 1.8f, depth / 2), window);
             Box(house, new Vector3(0.9f, 1.1f, 0.12f), new Vector3(1.7f, 1.8f, depth / 2), window);
@@ -1496,8 +1597,8 @@ public partial class Main : Node3D
         var roof = new Color(0.44f, 0.30f, 0.22f);
         var window = new Color(0.15f, 0.18f, 0.21f);
 
-        Box(motel, new Vector3(7f, 3f, 5f), new Vector3(0, 1.5f, 0), wall);
-        GableRoof(motel, 3f, 7f, 5f, 1.4f, roof);
+        Box(motel, new Vector3(8.8f, 3.6f, 6.2f), new Vector3(0, 1.8f, 0), wall);
+        GableRoof(motel, 3.6f, 8.8f, 6.2f, 1.9f, roof);
 
         for (int i = -1; i <= 1; i++)
             Box(motel, new Vector3(0.9f, 0.9f, 0.12f), new Vector3(i * 2f, 1.9f, 2.52f), window);
@@ -1530,7 +1631,7 @@ public partial class Main : Node3D
         var concrete = new Color(0.66f, 0.64f, 0.58f);
         var bench = new Color(0.45f, 0.32f, 0.2f);
 
-        Box(stop, new Vector3(4.4f, 0.16f, 2.0f), new Vector3(0, 2.45f, 0), concrete);
+        Box(stop, new Vector3(5.0f, 0.18f, 2.2f), new Vector3(0, 2.6f, 0), concrete);
         Box(stop, new Vector3(4.4f, 1.3f, 0.14f), new Vector3(0, 1.75f, -0.95f), concrete);
         Box(stop, new Vector3(0.14f, 2.45f, 2.0f), new Vector3(-2.15f, 1.22f, 0), concrete);
         Box(stop, new Vector3(0.14f, 2.45f, 2.0f), new Vector3(2.15f, 1.22f, 0), concrete);
@@ -1557,8 +1658,8 @@ public partial class Main : Node3D
         var stone = new Color(0.61f, 0.58f, 0.51f);
         var beam = new Color(0.29f, 0.22f, 0.16f);
 
-        Box(ruins, new Vector3(9, 2.6f, 0.45f), new Vector3(0, 1.3f, 0), stone);
-        Box(ruins, new Vector3(0.45f, 3.6f, 6), new Vector3(4.2f, 1.8f, 0), stone);
+        Box(ruins, new Vector3(10.5f, 3.2f, 0.45f), new Vector3(0, 1.6f, 0), stone);
+        Box(ruins, new Vector3(0.45f, 4.2f, 7), new Vector3(4.9f, 2.1f, 0), stone);
         Box(ruins, new Vector3(0.45f, 1.6f, 4), new Vector3(-4.2f, 0.8f, 0), stone);
         Box(ruins, new Vector3(3.4f, 1.0f, 0.45f), new Vector3(-2.4f, 0.5f, 0.1f), stone);
 
@@ -1608,8 +1709,8 @@ public partial class Main : Node3D
         var roof = new Color(0.42f, 0.30f, 0.22f);
         var fence = new Color(0.42f, 0.34f, 0.24f);
 
-        Box(farm, new Vector3(10, 4, 7), new Vector3(0, 2, 0), wall);
-        GableRoof(farm, 4, 10, 7, 2.2f, roof);
+        Box(farm, new Vector3(12.5f, 4.6f, 8.5f), new Vector3(0, 2.3f, 0), wall);
+        GableRoof(farm, 4.6f, 12.5f, 8.5f, 2.7f, roof);
         Box(farm, new Vector3(2.4f, 2.8f, 0.14f), new Vector3(0, 1.4f, 3.55f), new Color(0.29f, 0.21f, 0.15f));
 
         var silo = new MeshInstance3D

@@ -24,6 +24,12 @@ public partial class ChaseCamera : Camera3D
     /// <summary>Пешком обзор крутит сам игрок, камера лишь следует за ним.</summary>
     public bool OrbitWithMouse { get; set; } = true;
 
+    /// <summary>Пешком мышь двигает только наклон, поворот берётся у цели.</summary>
+    public bool PitchWithMouse { get; set; }
+
+    /// <summary>Поворот камеры берётся у цели (пешеход), мышью — только наклон.</summary>
+    public bool UseTargetYaw { get; set; }
+
     /// <summary>Вид от первого лица: камера сидит в голове цели.</summary>
     public bool FirstPerson { get; set; }
 
@@ -42,14 +48,19 @@ public partial class ChaseCamera : Camera3D
 
     public override void _UnhandledInput(InputEvent @event)
     {
-        if (!OrbitWithMouse || Input.MouseMode != Input.MouseModeEnum.Captured) return;
+        bool pitchOnly = PitchWithMouse && !OrbitWithMouse;
+        if ((!OrbitWithMouse && !pitchOnly) || Input.MouseMode != Input.MouseModeEnum.Captured) return;
         if (@event is not InputEventMouseMotion motion) return;
 
-        _yawOffset -= motion.Relative.X * Sensitivity * GameSettings.MouseSensitivity;
-        _yawOffset = Mathf.Wrap(_yawOffset, -Mathf.Pi, Mathf.Pi);
+        if (OrbitWithMouse)
+        {
+            _yawOffset -= motion.Relative.X * Sensitivity * GameSettings.MouseSensitivity;
+            _yawOffset = Mathf.Wrap(_yawOffset, -Mathf.Pi, Mathf.Pi);
+        }
 
+        // Мышь вверх — взгляд вверх. Знак один для всех режимов.
         float pitch = _pitch - motion.Relative.Y * Sensitivity * 0.8f * GameSettings.MouseSensitivity;
-        _pitch = FirstPerson ? Mathf.Clamp(pitch, -1.1f, 1.1f) : Mathf.Clamp(pitch, -0.25f, 0.5f);
+        _pitch = FirstPerson ? Mathf.Clamp(pitch, -1.1f, 1.1f) : Mathf.Clamp(pitch, -0.55f, 0.5f);
         _idle = 0;
     }
 
@@ -79,12 +90,21 @@ public partial class ChaseCamera : Camera3D
             _pitch = Mathf.Lerp(_pitch, 0, Mathf.Clamp(dt * 2f, 0f, 1f));
         }
 
-        Vector3 back = Target.GlobalBasis.Z.Rotated(Vector3.Up, _yawOffset);
-        float height = Height + _pitch * 9f;
+        // За спиной цель или пешеход сам крутит обзор — решает UseTargetYaw.
+        float yaw = UseTargetYaw ? 0f : _yawOffset;
+        Vector3 back = Target.GlobalBasis.Z.Rotated(Vector3.Up, yaw);
+
+        // Взгляд вверх опускает камеру и поднимает точку фокуса, вниз — наоборот.
+        float height = Mathf.Max(0.65f, Height - _pitch * 6f);
+        float focusLift = _pitch * 6f;
+
+        Vector3 focus = Target.GlobalPosition + Vector3.Up * (LookHeight + focusLift);
+        focus.Y = Mathf.Max(focus.Y, Target.GlobalPosition.Y + 0.25f);
+
         Vector3 desired = Target.GlobalPosition + back * Distance + Vector3.Up * height;
 
         float t = Mathf.Clamp(dt * 6f, 0f, 1f);
         GlobalPosition = GlobalPosition.Lerp(desired, t);
-        LookAt(Target.GlobalPosition + Vector3.Up * LookHeight, Vector3.Up);
+        LookAt(focus, Vector3.Up);
     }
 }
