@@ -185,7 +185,11 @@ public partial class MenuUi : CanvasLayer
             CustomMinimumSize = new Vector2(0, 46),
         };
         button.AddThemeFontSizeOverride("font_size", 20);
-        button.Pressed += action;
+        button.Pressed += () =>
+        {
+            Sfx.PlayUi();
+            action();
+        };
         _buttons.AddChild(button);
     }
 

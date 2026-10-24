@@ -14,6 +14,8 @@ public partial class Player : CharacterBody3D
 
     public float Yaw { get; set; }
 
+    private float _stepTimer;
+
     public override void _Ready()
     {
         AddChild(new CollisionShape3D
@@ -65,6 +67,22 @@ public partial class Player : CharacterBody3D
 
         Velocity = velocity;
         MoveAndSlide();
+
+        // Шаги: чем быстрее идёшь, тем чаще.
+        bool walking = IsOnFloor() && new Vector2(Velocity.X, Velocity.Z).Length() > 0.6f;
+        if (walking)
+        {
+            _stepTimer -= dt * (Input.IsActionPressed("sprint") ? 1.6f : 1f);
+            if (_stepTimer <= 0f)
+            {
+                Sfx.PlayStep(GlobalPosition);
+                _stepTimer = 0.5f;
+            }
+        }
+        else
+        {
+            _stepTimer = 0.05f;
+        }
     }
 
     public void Teleport(Vector3 position)

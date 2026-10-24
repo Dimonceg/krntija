@@ -84,6 +84,8 @@ public partial class Main : Node3D
         _rain = new RainFx();
         AddChild(_rain);
 
+        AddChild(new Sfx());
+
         _smoke = Array.IndexOf(OS.GetCmdlineUserArgs(), "--smoke") >= 0;
         _selfTest = Array.IndexOf(OS.GetCmdlineUserArgs(), "--selftest") >= 0;
         _shot = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot") >= 0
@@ -261,6 +263,7 @@ public partial class Main : Node3D
 
         _rain.GlobalPosition = _camera.GlobalPosition + Vector3.Up * 8f;
         _rain.Apply(rain);
+        Sfx.SetRain(rain);
 
         _car.GripScale = (float)weather.GripFactor;
 
@@ -448,6 +451,7 @@ public partial class Main : Node3D
         _camera.LookHeight = 1.4f;
         _camera.OrbitWithMouse = false;
         _camera.ResetOrbit();
+        Sfx.PlayDoor(_car.GlobalPosition);
 
         _hud.Toast("Вышел из машины");
     }
@@ -465,6 +469,7 @@ public partial class Main : Node3D
         _camera.LookHeight = 0.9f;
         _camera.OrbitWithMouse = true;
         _camera.ResetOrbit();
+        Sfx.PlayDoor(_car.GlobalPosition);
 
         _hud.Toast("За рулём");
     }
@@ -496,6 +501,9 @@ public partial class Main : Node3D
         var session = _car.Session;
         double need = session.Vehicle.Fuel.CapacityLiters - session.Vehicle.Fuel.Liters;
         var (liters, cost) = TradeService.RefuelAtPump(session.Vehicle, session.Wallet, need);
+
+        if (liters > 0.01)
+            Sfx.PlayPour(_car.GlobalPosition);
 
         _hud.Toast(liters > 0.01
             ? $"Залито {liters:F1} л за {cost:F0} €"
