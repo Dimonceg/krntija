@@ -29,22 +29,22 @@ public partial class Player : CharacterBody3D
     {
         AddChild(new CollisionShape3D
         {
-            Shape = new CapsuleShape3D { Radius = 0.34f, Height = 1.7f },
-            Position = new Vector3(0, 0.85f, 0),
+            Shape = new CapsuleShape3D { Radius = 0.34f, Height = 1.78f },
+            Position = new Vector3(0, 0.89f, 0),
         });
 
         var cloth = new StandardMaterial3D { AlbedoColor = new Color(0.33f, 0.37f, 0.44f), Roughness = 0.95f };
         AddChild(new MeshInstance3D
         {
-            Mesh = new CapsuleMesh { Radius = 0.34f, Height = 1.7f },
-            Position = new Vector3(0, 0.85f, 0),
+            Mesh = new CapsuleMesh { Radius = 0.34f, Height = 1.78f },
+            Position = new Vector3(0, 0.89f, 0),
             MaterialOverride = cloth,
         });
 
         AddChild(new MeshInstance3D
         {
-            Mesh = new SphereMesh { Radius = 0.17f, Height = 0.34f },
-            Position = new Vector3(0, 1.78f, 0),
+            Mesh = new SphereMesh { Radius = 0.15f, Height = 0.30f },
+            Position = new Vector3(0, 1.80f, 0),
             MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.84f, 0.7f, 0.56f), Roughness = 0.8f },
         });
     }

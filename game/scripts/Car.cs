@@ -57,6 +57,9 @@ public partial class Car : RigidBody3D
     /// <summary>Ручник взведён (стояночный режим).</summary>
     public bool HandbrakeOn => _handbrakeOn;
 
+    /// <summary>Стояночный тормоз: на старте взведён, чтобы машина не катилась.</summary>
+    public void SetHandbrake(bool on) => _handbrakeOn = on;
+
     /// <summary>Мокрое полотно держит хуже: множитель приходит из погоды.</summary>
     public float GripScale { get; set; } = 1f;
 
