@@ -1119,6 +1119,7 @@ public partial class Main : Node3D
         var plan = RoadPlanner.Generate(seed: 20261023, totalMeters: 2500);
         var road = RoadMeshBuilder.Build(plan, this);
         _road = road;
+        WorldArtGround.Configure(road.Points);
 
         foreach (var poi in road.Points)
         {
@@ -1131,7 +1132,7 @@ public partial class Main : Node3D
 
         TerrainBuilder.Build(road.Centerline, road.Headings, this);
         WorldScatter.ScatterHills(road.Centerline, road.Headings, this, seed: 20261023);
-        WorldScatter.ScatterTrees(road.Centerline, road.Headings, this, seed: 20261023);
+        WorldScatter.ScatterTrees(road.Centerline, road.Headings, this, seed: 20261023, landmarks: road.Points);
         WorldScatter.ScatterPowerLine(road.Centerline, road.Headings, this, seed: 20261023);
         WorldScatter.AddKilometerPosts(road.Centerline, road.Headings, this);
         WorldScatter.ScatterSigns(road.Centerline, road.Headings, this, seed: 20261023);
@@ -1152,6 +1153,7 @@ public partial class Main : Node3D
 
         if (model is not null)
         {
+            model.Name = $"Landmark_{feature}";
             model.Position = position;
             model.Rotation = new Vector3(0, -heading, 0);
             AddChild(model);

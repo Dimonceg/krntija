@@ -39,13 +39,13 @@ public static class TerrainBuilder
     public static float SurfaceHeight(float roadY, float lateral, Vector3 world)
     {
         float t = Mathf.Clamp((Mathf.Abs(lateral) - FlatShoulder) / (HalfWidth - FlatShoulder), 0f, 1f);
-        if (t <= 0f) return roadY;
+        if (t <= 0f) return WorldArtGround.HeightAt(roadY, world);
 
         float hills = 10f * (0.6f * Mathf.Sin(world.X * 0.011f) + 0.4f * Mathf.Sin(world.Z * 0.013f + 1.7f));
         float rise = t * (4f + hills * 0.9f);
         float bumps = Mathf.Sin(world.X * 0.09f) * Mathf.Cos(world.Z * 0.08f) * 0.35f * t;
 
-        return roadY + rise + bumps;
+        return WorldArtGround.HeightAt(roadY + rise + bumps, world);
     }
 
     public static void Build(List<Vector3> centerline, List<float> headings, Node3D parent)
