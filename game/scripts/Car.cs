@@ -31,6 +31,9 @@ public partial class Car : RigidBody3D
     public GameSession Session { get; private set; } = null!;
     public bool Autopilot { get; set; }
 
+    /// <summary>��������� ������ ������ ��� ������/��������� ���������.</summary>
+    public static string? ModelOverride { get; set; }
+
     /// <summary>За рулём ли игрок. Когда вышел — машина просто стоит и молотит на холостых.</summary>
     public bool Driven { get; set; } = true;
 
@@ -106,7 +109,7 @@ public partial class Car : RigidBody3D
         });
 
         // Если в assets/models/cars лежит модель — берём её, иначе собираем заглушку.
-        var model = ModelLibrary.CarBody(Session.Vehicle.Spec.Id);
+        var model = ModelLibrary.CarBody(ModelOverride ?? Session.Vehicle.Spec.Id);
         if (model is not null)
         {
             AddChild(model);

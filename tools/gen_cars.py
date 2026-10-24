@@ -164,22 +164,27 @@ def build_body(spec):
     tail = Mesh(center=(0, 0.55, rear))
 
     # Сечения: нос, капот, лобовое со наклоном, крыша, наклон задней стойки, корма.
-    rings = [
-        ring(front, half * 0.86, 0.36, 0.62),
-        ring(front + 0.22, half * 0.96, 0.30, 0.76),
-        ring(front + 0.60, half, 0.26, 0.82),
-        ring(cabin_front - 0.25, half, sill, 0.84),
-        ring(cabin_front - 0.05, half * 0.99, sill, 0.90),
-        ring(cabin_front + 0.28, half * 0.96, sill, roof * 0.93),
-        ring(cabin_front + 0.55, half * 0.94, sill, roof),
-        ring(cabin_back - 0.45, half * 0.94, sill, roof),
-        ring(cabin_back - 0.20, half * 0.95, sill, roof * 0.97),
-        ring(cabin_back + 0.10, half * 0.97, sill, roof * 0.72),
-        ring(cabin_back + 0.40, half * 0.99, sill, 0.82),
-        ring(rear - 0.25, half * 0.99, 0.24, 0.78),
-        ring(rear, half * 0.82, 0.32, 0.62),
-    ]
+    round_ratio = spec.get("round", 0.62)
+    nose = spec.get("nose", 0.86)
 
+    def sec(z, half_width, y_bottom, y_top):
+        return ring(z, half_width, y_bottom, y_top, round_ratio)
+
+    rings = [
+        sec(front, half * nose, 0.36, 0.62),
+        sec(front + 0.22, half * 0.96, 0.30, 0.76),
+        sec(front + 0.60, half, 0.26, 0.82),
+        sec(cabin_front - 0.25, half, sill, 0.84),
+        sec(cabin_front - 0.05, half * 0.99, sill, 0.90),
+        sec(cabin_front + 0.28, half * 0.96, sill, roof * 0.93),
+        sec(cabin_front + 0.55, half * 0.94, sill, roof),
+        sec(cabin_back - 0.45, half * 0.94, sill, roof),
+        sec(cabin_back - 0.20, half * 0.95, sill, roof * 0.97),
+        sec(cabin_back + 0.10, half * 0.97, sill, roof * 0.72),
+        sec(cabin_back + 0.40, half * 0.99, sill, 0.82),
+        sec(rear - 0.25, half * 0.99, 0.24, 0.78),
+        sec(rear, half * 0.82, 0.32, 0.62),
+    ]
     loft(paint, rings)
     cap(paint, rings[0], reverse=True)
     cap(paint, rings[-1])
@@ -204,15 +209,15 @@ def build_body(spec):
         pairs = ((cabin_front + 0.06, cabin_front + 0.56), (cabin_front + 0.66, cabin_back - 0.02))
         for z0, z1 in pairs:
             glass.quad(
-                (x, 0.86, z0),
-                (x, 0.86, z1),
+                (x, 0.80, z0),
+                (x, 0.80, z1),
                 (x, roof - 0.05, z1),
                 (x, roof - 0.05, z0),
             )
 
         # Стойка между окнами.
-        trim.box((side * (half * 0.96), (0.86 + roof - 0.05) / 2, cabin_front + 0.61),
-                 (0.02, roof - 0.91, 0.07))
+        trim.box((side * (half * 0.96), (0.80 + roof - 0.05) / 2, cabin_front + 0.61),
+                 (0.02, roof - 0.85, 0.07))
 
         # Молдинг по борту и колёсные арки.
         trim.box((side * (half + 0.006), 0.54, 0), (0.02, 0.05, length * 0.62))
@@ -363,6 +368,12 @@ SPECS = {
     "golf_2": dict(length=4.02, width=1.66, roof=1.26, cabin_front=-0.70, cabin_back=1.02),
     "vaz_2106": dict(length=4.04, width=1.60, roof=1.24, cabin_front=-0.66, cabin_back=0.98),
     "zaz_968": dict(length=3.72, width=1.54, roof=1.18, cabin_front=-0.58, cabin_back=0.90),
+    "zastava_boxy": dict(length=3.96, width=1.60, roof=1.16, cabin_front=-0.95, cabin_back=0.85,
+                         round=0.95, nose=0.97),
+    "zastava_rounded": dict(length=3.96, width=1.60, roof=1.22, cabin_front=-0.62, cabin_back=0.95,
+                            round=0.62, nose=0.86),
+    "zastava_hatch": dict(length=3.96, width=1.60, roof=1.18, cabin_front=-0.80, cabin_back=1.28,
+                          round=0.72, nose=0.90),
 }
 
 

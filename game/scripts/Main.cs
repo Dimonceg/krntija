@@ -34,6 +34,7 @@ public partial class Main : Node3D
     private bool _shotSettings;
     private bool _shotRain;
     private bool _shotCar;
+    private bool _shotLineup;
     private int _frames;
 
     private enum InteractionKind
@@ -68,6 +69,11 @@ public partial class Main : Node3D
             return;
         }
 
+        foreach (string arg in OS.GetCmdlineUserArgs())
+        {
+            if (arg.StartsWith("--model=", StringComparison.Ordinal))
+                Car.ModelOverride = arg["--model=".Length..];
+        }
         SetupInput();
         GameSettings.Load();
         GameSettings.Apply();
@@ -102,13 +108,15 @@ public partial class Main : Node3D
                 || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-day") >= 0
                 || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-settings") >= 0
                 || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-rain") >= 0
-                || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-car") >= 0;
+                || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-car") >= 0
+                || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-lineup") >= 0;
         _openJournalInShot = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-ui") >= 0;
         _shotMenu = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-menu") >= 0;
         _shotDay = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-day") >= 0;
         _shotSettings = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-settings") >= 0;
         _shotRain = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-rain") >= 0;
         _shotCar = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-car") >= 0;
+        _shotLineup = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-lineup") >= 0;
         _car.Autopilot = _smoke || _selfTest;
 
         _menu = new MenuUi();
@@ -156,13 +164,62 @@ public partial class Main : Node3D
             {
                 // Камера в три четверти: снимаем модель, а не дорогу.
                 _camera.ProcessMode = ProcessModeEnum.Disabled;
+                _hud.Visible = false;
                 Transform3D basis = _car.GlobalTransform;
-                Vector3 eye = basis * new Vector3(-5.2f, 1.7f, -2.2f);
+                Vector3 eye = basis * new Vector3(-4.4f, 1.15f, -0.7f);
                 _camera.LookAtFromPosition(eye, _car.GlobalPosition + new Vector3(0, 0.7f, 0));
             }
+
+            if (_shotLineup)
+                BuildLineup(road, index);
         }
 
         GD.Print($"[Krntija] старт. smoke={_smoke}, selftest={_selfTest}, машина: {session.Vehicle.Spec.Name}");
+    }
+
+    /// <summary>Три варианта кузова рядом — для сравнения силуэта.</summary>
+    private void BuildLineup(RoadBuildResult road, int index)
+    {
+        _car.Visible = false;
+        _car.ProcessMode = ProcessModeEnum.Disabled;
+        _hud.Visible = false;
+
+        Vector3 center = road.Centerline[index];
+        float heading = road.Headings[index];
+        var right = new Vector3(Mathf.Cos(heading), 0, Mathf.Sin(heading));
+        var forward = new Vector3(Mathf.Sin(heading), 0, -Mathf.Cos(heading));
+
+        string[] names = { "zastava_boxy", "zastava_rounded", "zastava_hatch" };
+
+        for (int i = 0; i < names.Length; i++)
+        {
+            var root = new Node3D
+            {
+                Position = center + right * ((i - 1) * 3.05f) + Vector3.Up * 0.595f,
+                Rotation = new Vector3(0, -heading, 0),
+            };
+            AddChild(root);
+
+            var model = ModelLibrary.Instantiate($"res://assets/models/cars/{names[i]}.glb");
+            if (model is not null) root.AddChild(model);
+
+            var rubber = new StandardMaterial3D { AlbedoColor = new Color(0.3f, 0.29f, 0.28f), Roughness = 1f };
+            foreach (var (x, z) in new[] { (-0.86f, -1.35f), (0.86f, -1.35f), (-0.86f, 1.35f), (0.86f, 1.35f) })
+            {
+                root.AddChild(new MeshInstance3D
+                {
+                    Mesh = new CylinderMesh { Height = 0.24f, TopRadius = 0.34f, BottomRadius = 0.34f },
+                    MaterialOverride = rubber,
+                    Position = new Vector3(x, -0.25f, z),
+                    Rotation = new Vector3(0, 0, Mathf.Pi / 2),
+                });
+            }
+        }
+
+        _camera.ProcessMode = ProcessModeEnum.Disabled;
+        Vector3 eye = center + forward * 7.2f - right * 2.4f + Vector3.Up * 2.1f;
+        _camera.LookAtFromPosition(eye, center + Vector3.Up * 0.75f);
+        _car.Session.Clock.SetTotalMinutes(12.0 * 60);
     }
 
     public override void _PhysicsProcess(double delta)
