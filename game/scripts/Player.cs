@@ -114,15 +114,16 @@ public partial class Player : CharacterBody3D
             {
                 var raised = new Transform3D(GlobalBasis, GlobalPosition + Vector3.Up * StepHeight);
                 bool freeAtStep = !TestMove(raised, dir * 0.3f);
-                bool supportAhead = TestMove(raised, Vector3.Down * (StepHeight + 0.1f));
 
-                // Опора должна быть почти сразу под ногой, а не на столе в метре.
-                bool lowStep = TestMove(GlobalTransform, Vector3.Down * 0.05f);
+                // Препятствие должно быть низким: на высоте пояса путь обязан быть
+                // свободен, иначе это стена или шкаф, а не ступенька.
+                var belt = new Transform3D(GlobalBasis, GlobalPosition + Vector3.Up * (StepHeight + 0.35f));
+                bool freeAtBelt = !TestMove(belt, dir * 0.3f);
 
-                if (freeAtStep && supportAhead && lowStep)
+                if (freeAtStep && freeAtBelt)
                 {
                     GlobalPosition += Vector3.Up * (StepHeight * 0.75f);
-                    _stepCooldown = 0.25f;
+                    _stepCooldown = 0.3f;
                 }
             }
         }
