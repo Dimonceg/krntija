@@ -56,10 +56,11 @@ public static class CarCatalog
         WheelRadiusM: 0.30,
         FinalDrive: 3.94,
         GearRatios: new[] { 3.45, 1.94, 1.29, 0.97, 0.76 },
-        WheelbaseM: 2.470,
-        TrackM: 1.42,
-        BodyLengthM: 4.02,
-        BodyWidthM: 1.66);
+        // Blender-модели пока нет: процедурный кузов живёт на старой раскладке
+        // колёс (±1.45 м, R 0.36). Значения заполним, когда арт-модель отдаст
+        // golf_2.glb и golf_2_wheel.glb — по образцу Zastava101 выше.
+        WheelbaseM: 0,
+        TrackM: 0);
 
     public static readonly CarSpec Vaz2106 = new(
         Id: "vaz_2106",
@@ -72,10 +73,8 @@ public static class CarCatalog
         WheelRadiusM: 0.31,
         FinalDrive: 3.9,
         GearRatios: new[] { 3.67, 2.10, 1.36, 1.00 },
-        WheelbaseM: 2.424,
-        TrackM: 1.365,
-        BodyLengthM: 4.17,
-        BodyWidthM: 1.61);
+        WheelbaseM: 0,
+        TrackM: 0);
 
     /// <summary>Заднемоторный, лёгкий и злой. Идеальная машина для плохой дороги.</summary>
     public static readonly CarSpec Zaz968 = new(
@@ -90,10 +89,8 @@ public static class CarCatalog
         FinalDrive: 4.1,
         GearRatios: new[] { 3.80, 2.10, 1.40, 1.00 },
         MaxRpm: 5600,
-        WheelbaseM: 2.16,
-        TrackM: 1.25,
-        BodyLengthM: 3.73,
-        BodyWidthM: 1.57);
+        WheelbaseM: 0,
+        TrackM: 0);
 
     public static readonly IReadOnlyList<CarSpec> All = new[] { Zastava101, Golf2, Vaz2106, Zaz968 };
 
