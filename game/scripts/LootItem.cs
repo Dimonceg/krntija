@@ -42,6 +42,15 @@ public partial class LootItem : Node3D
         };
         AddChild(mesh);
 
+        // Коллизия в отдельном слое: нужна только для мыши, игрока не держит.
+        var body = new StaticBody3D { CollisionLayer = 2, CollisionMask = 0 };
+        body.AddChild(new CollisionShape3D
+        {
+            Shape = new BoxShape3D { Size = new Vector3(0.55f, 0.55f, 0.55f) },
+            Position = new Vector3(0, 0.26f, 0),
+        });
+        AddChild(body);
+
         // Тонкая подложка, чтобы предмет читался в траве.
         AddChild(new MeshInstance3D
         {
