@@ -60,6 +60,13 @@ public partial class Main : Node3D
 
     public override void _Ready()
     {
+        if (Array.IndexOf(OS.GetCmdlineUserArgs(), "--balance") >= 0)
+        {
+            BalanceProbe.Run();
+            GetTree().Quit(0);
+            return;
+        }
+
         SetupInput();
         GameSettings.Load();
         GameSettings.Apply();

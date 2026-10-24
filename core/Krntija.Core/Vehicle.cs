@@ -58,10 +58,10 @@ public sealed class VehicleTuning
     public double FullThrottleLitersPerHour { get; init; } = 14.0;
 
     /// <summary>Тепло, которое двигатель выделяет на холостых, °C/мин.</summary>
-    public double IdleHeatPerMinute { get; init; } = 35;
+    public double IdleHeatPerMinute { get; init; } = 60;
 
     /// <summary>Дополнительное тепло на полном газу, °C/мин.</summary>
-    public double LoadHeatPerMinute { get; init; } = 85;
+    public double LoadHeatPerMinute { get; init; } = 120;
 
     /// <summary>Порог перегрева.</summary>
     public double OverheatC { get; init; } = 110;
@@ -188,7 +188,10 @@ public sealed class VehicleSystems
         double speedKmh = Math.Abs(sample.SpeedMps) * 3.6;
         double delta = st.EngineTempC - sample.AmbientC;
         double radiatorFactor = 0.25 + 0.75 * Math.Clamp(radiatorCondition, 0, 1);
-        double coolingPerMinute = radiatorFactor * (1.1 + 0.02 * speedKmh) * Math.Max(0, delta);
+
+        // Вентилятор и термостат: чем горячее мотор, тем сильнее охлаждение.
+        double thermostat = Math.Max(0, st.EngineTempC - 85) * 0.03;
+        double coolingPerMinute = radiatorFactor * (0.7 + 0.010 * speedKmh + thermostat) * Math.Max(0, delta);
         double heatPerMinute = st.EngineRunning
             ? _tuning.IdleHeatPerMinute + _tuning.LoadHeatPerMinute * throttle * (0.25 + 0.75 * throttle)
             : 0;
@@ -202,19 +205,19 @@ public sealed class VehicleSystems
         double hours = dt / 3600.0;
         double overheat = Math.Max(0, st.EngineTempC - _tuning.OverheatC);
 
-        Wear(PartSlot.Engine, (0.02 + 0.10 * throttle + 0.03 * overheat) * hours);
+        Wear(PartSlot.Engine, (0.03 + 0.15 * throttle + 0.03 * overheat) * hours);
         Wear(PartSlot.Radiator, (0.01 + 0.02 * throttle) * hours);
         Wear(PartSlot.Gearbox, (0.01 + 0.03 * throttle) * hours);
-        Wear(PartSlot.BrakesFront, 0.06 * brake * hours);
-        Wear(PartSlot.BrakesRear, 0.04 * brake * hours);
+        Wear(PartSlot.BrakesFront, 0.15 * brake * hours);
+        Wear(PartSlot.BrakesRear, 0.10 * brake * hours);
         Wear(PartSlot.SuspensionFront, 0.02 * speedKmh / 100.0 * hours);
         Wear(PartSlot.SuspensionRear, 0.02 * speedKmh / 100.0 * hours);
         Wear(PartSlot.Body, 0.002 * hours);
 
-        // Шины стираются по километрам, а не по часам.
+        // Шины стираются по километрам: комплект живёт примерно 2.5 тысячи км.
         double km = Math.Abs(sample.SpeedMps) * dt / 1000.0;
         foreach (var wheel in PartCatalog.Wheels)
-            Wear(wheel, 0.02 * km);
+            Wear(wheel, 0.0006 * km);
 
         st.OdometerKm += km;
 

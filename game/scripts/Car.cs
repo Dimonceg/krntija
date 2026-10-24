@@ -254,6 +254,7 @@ public partial class Car : RigidBody3D
         {
             _audio.Rpm = Session.DriveTrain.Rpm;
             _audio.SpeedMps = SpeedMps;
+            _audio.Load = input.Throttle;
             _audio.Running = Session.Vehicle.EngineRunning;
         }
 
