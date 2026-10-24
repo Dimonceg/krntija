@@ -11,7 +11,14 @@ public sealed class FuelTank
         Liters = Math.Clamp(liters, 0, CapacityLiters);
     }
 
-    public double CapacityLiters { get; }
+    public double CapacityLiters { get; private set; }
+
+    /// <summary>Улучшение бака: вместимость растёт, топливо не теряется.</summary>
+    public void RaiseCapacity(double extraLiters)
+    {
+        if (extraLiters <= 0) return;
+        CapacityLiters += extraLiters;
+    }
     public double Liters { get; private set; }
     public double Fraction => Liters / CapacityLiters;
     public bool IsEmpty => Liters <= 0.05;

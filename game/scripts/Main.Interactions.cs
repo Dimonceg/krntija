@@ -447,7 +447,7 @@ public partial class Main
         switch (WorldActions.TryRepairAtWorkbench(_car.Session, out var part))
         {
             case ActionResult.NothingToDo:
-                _hud.Toast("Всё в порядке, чинить нечего");
+                InstallUpgradeFromBag();
                 break;
             case ActionResult.NotEnoughMoney:
                 _hud.Toast($"Нужно {WorldActions.WorkbenchPrice:F0} €");
@@ -462,11 +462,30 @@ public partial class Main
         }
     }
 
+    /// <summary>Чинить нечего — ставим улучшение, если оно есть в кармане.</summary>
+    private void InstallUpgradeFromBag()
+    {
+        var session = _car.Session;
+
+        foreach (string id in Core.Items.UpgradeCatalog.All.Keys)
+        {
+            if (session.Upgrades.Contains(id) || session.Inventory.Count(id) < 1) continue;
+
+            session.Inventory.Remove(id, 1);
+            _hud.Toast(session.ApplyUpgrade(id) ?? "Установлено");
+            Sfx.PlayDoor(_car.GlobalPosition);
+            return;
+        }
+
+        _hud.Toast("Чинить нечего, улучшений нет");
+    }
+
     /// <summary>Сон дома: бесплатно, но время идёт.</summary>
     private void SleepAtHome()
     {
         WorldActions.SleepAtHome(_car.Session);
-        _hud.Toast("Выспался дома: 8 часов");
+        SaveGame();
+        _hud.Toast("Выспался дома: 8 часов, игра сохранена");
     }
 
     /// <summary>Скупщик берёт всё, кроме инструментов, по 70 % цены.</summary>

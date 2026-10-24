@@ -43,6 +43,9 @@ public static class ItemCatalog
             ["radio_part"] = new("radio_part", "Радиодеталь", 0.2, true, 8, ItemCategory.Junk, 9),
             ["scrap_metal"] = new("scrap_metal", "Металлолом", 1.4, true, 10, ItemCategory.Junk, 6),
             ["bottle_cap"] = new("bottle_cap", "Пробка", 0.02, true, 40, ItemCategory.Junk, 1),
+            ["upgrade_tank"] = new("upgrade_tank", "Увеличенный бак", 4.0, false, 1, ItemCategory.Part, 40),
+            ["upgrade_springs"] = new("upgrade_springs", "Усиленные рессоры", 6.0, false, 1, ItemCategory.Part, 35),
+            ["upgrade_toolbox"] = new("upgrade_toolbox", "Ящик с инструментом", 3.0, false, 1, ItemCategory.Part, 30),
         };
 
     static ItemCatalog()
@@ -95,8 +98,15 @@ public sealed class Inventory
     }
 
     public int SlotCount => _slots.Length;
-    public double MaxWeightKg { get; }
+    public double MaxWeightKg { get; private set; }
     public IReadOnlyList<ItemStack?> Slots => _slots;
+
+    /// <summary>Улучшение расширяет вместимость: рюкзак, багажник или склад.</summary>
+    public void RaiseCapacity(double extraKg)
+    {
+        if (extraKg <= 0) return;
+        MaxWeightKg += extraKg;
+    }
 
     public double WeightKg
     {

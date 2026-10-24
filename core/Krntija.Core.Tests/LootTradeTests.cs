@@ -80,6 +80,28 @@ public class LootTradeTests
     }
 
     [Fact]
+    public void UpgradesChangeStatsAndPersist()
+    {
+        var session = GameSession.NewGame();
+        double fuel = session.Vehicle.Fuel.CapacityLiters;
+        double trunk = session.Trunk.MaxWeightKg;
+        double pocket = session.Inventory.MaxWeightKg;
+
+        Assert.Contains("установлено", session.ApplyUpgrade(UpgradeCatalog.FuelTank));
+        Assert.Contains("установлено", session.ApplyUpgrade(UpgradeCatalog.Springs));
+        Assert.Contains("установлено", session.ApplyUpgrade(UpgradeCatalog.Toolbox));
+
+        Assert.Equal(fuel + 6, session.Vehicle.Fuel.CapacityLiters, 2);
+        Assert.Equal(trunk + 15, session.Trunk.MaxWeightKg, 2);
+        Assert.Equal(pocket + 10, session.Inventory.MaxWeightKg, 2);
+
+        var restored = GameSession.FromSave(session.ToSave());
+        Assert.Equal(fuel + 6, restored.Vehicle.Fuel.CapacityLiters, 2);
+        Assert.True(restored.Upgrades.Contains(UpgradeCatalog.Springs));
+        Assert.Contains("уже установлено", restored.ApplyUpgrade(UpgradeCatalog.FuelTank));
+    }
+
+    [Fact]
     public void HomeStorageSurvivesSaveRoundTrip()
     {
         var session = GameSession.NewGame();
