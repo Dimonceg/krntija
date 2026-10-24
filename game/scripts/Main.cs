@@ -42,6 +42,9 @@ public partial class Main : Node3D
     private string? _shotProp;
     private bool _shotCars;
     private bool _selfTestCars;
+    private bool _checkHouse;
+    private int _houseCheckFrames = -1;
+    private float _houseGroundY;
     private int _frames;
 
     private enum InteractionKind
@@ -173,8 +176,18 @@ public partial class Main : Node3D
         }
         _shotCars = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-cars") >= 0;
         _selfTestCars = Array.IndexOf(OS.GetCmdlineUserArgs(), "--selftest-cars") >= 0;
+        _checkHouse = Array.IndexOf(OS.GetCmdlineUserArgs(), "--check-house") >= 0;
         _perf = Array.IndexOf(OS.GetCmdlineUserArgs(), "--perf") >= 0;
         _car.Autopilot = _smoke || _selfTest || _perf || _selfTestCars;
+
+        // Проверка дверей: открываем все и через полсотни кадров меряем проёмы.
+        if (_checkHouse)
+        {
+            foreach (var point in _interactions)
+                if (point.Kind == InteractionKind.Door) point.Door?.Toggle();
+
+            _houseCheckFrames = 45;
+        }
 
         // Новая игра начинается на ручнике: машина не катится сама по себе.
         // В автотестах ручник не взводим, иначе автопилот не тронется.
@@ -198,7 +211,7 @@ public partial class Main : Node3D
         }
 
         // В автоматических прогонах меню не показываем: тесты должны ехать сразу.
-        bool automated = _smoke || _selfTest || _shot || _perf;
+        bool automated = _smoke || _selfTest || _shot || _perf || _checkHouse;
         if (!automated)
         {
             _menu.ShowMainMenu(HasSave());
@@ -361,6 +374,15 @@ public partial class Main : Node3D
 
     public override void _PhysicsProcess(double delta)
     {
+        if (_houseCheckFrames >= 0)
+        {
+            if (--_houseCheckFrames < 0)
+            {
+                RunHouseCheck();
+                return;
+            }
+        }
+
         if (!(_smoke || _selfTest || _shot || _perf) || _smokeDone) return;
 
         _frames++;
@@ -1511,6 +1533,54 @@ public partial class Main : Node3D
         featureId + "_a", featureId + "_b", featureId + "_c", featureId,
     };
 
+    /// <summary>
+    /// Проверка проходимости дверей: капсула игрока в центре каждого проёма
+    /// не должна ни с чем пересекаться. Двери к этому моменту открыты.
+    /// </summary>
+    private void RunHouseCheck()
+    {
+        var space = GetWorld3D().DirectSpaceState;
+        var capsule = new CapsuleShape3D { Radius = 0.34f, Height = 1.78f };
+        bool ok = true;
+
+        foreach (var point in _interactions)
+        {
+            if (point.Kind != InteractionKind.Door || point.Door is null) continue;
+            var door = point.Door;
+
+            Vector3 center = door.GlobalPosition + door.GlobalBasis.X.Normalized() * (door.Width * 0.5f);
+            center.Y = _houseGroundY + 0.95f;
+
+            var query = new PhysicsShapeQueryParameters3D
+            {
+                Shape = capsule,
+                Transform = new Transform3D(Basis.Identity, center),
+                CollideWithBodies = true,
+            };
+
+            var hits = space.IntersectShape(query, 4);
+            bool free = hits.Count == 0 && door.IsOpen;
+            ok &= free;
+
+            string what = string.Empty;
+            foreach (var hit in hits)
+            {
+                if (hit["collider"].As<GodotObject>() is Node3D node)
+                {
+                    Vector3 local = node.GetParent() is Node3D parent3D ? parent3D.Position : node.Position;
+                    what += $"{node.Name}@локально({local.X:F1}; {local.Y:F1}; {local.Z:F1}) ";
+                }
+                else if (hit["collider"].As<GodotObject>() is Node other)
+                    what += other.Name + " ";
+            }
+
+            GD.Print($"[housecheck] {door.Name,-16} {(free ? "свободно" : $"ЗАБЛОКИРОВАНО ({hits.Count}: {what.Trim()})")}");
+        }
+
+        GD.Print(ok ? "[housecheck] OK" : "[housecheck] FAIL");
+        GetTree().Quit(ok ? 0 : 1);
+    }
+
     /// <summary>Дом игрока у старта: слева от дороги, с дверями и чердаком.</summary>
     private void BuildPlayerHouse()
     {
@@ -1521,6 +1591,10 @@ public partial class Main : Node3D
         var right = new Vector3(Mathf.Cos(_road.Headings[index]), 0, Mathf.Sin(_road.Headings[index]));
         Vector3 spot = anchor - right * 15f;
         spot.Y = TerrainBuilder.SurfaceHeight(anchor.Y, -15f, spot);
+
+        // Фундамент: пол приподнят над газоном, чтобы рельеф не пробивал его.
+        spot.Y += 0.12f;
+        _houseGroundY = spot.Y;
 
         var doors = PlayerHouse.Build(this, spot, -_road.Headings[index] + Mathf.Pi * 0.5f);
         foreach (var (position, door) in doors)

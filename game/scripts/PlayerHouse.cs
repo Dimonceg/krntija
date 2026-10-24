@@ -16,6 +16,11 @@ public static class PlayerHouse
     private const float Thickness = 0.24f;
     private const float RidgeHeight = 4.6f;
 
+    // Проём двери: 2.1 м при росте игрока 1.78 — запас 32 см.
+    private const float DoorHeight = 2.1f;
+    private const float DoorWidth = 1.3f;
+    private const float InnerDoorWidth = 1.1f;
+
     private static readonly Color Wall = new(0.78f, 0.74f, 0.64f);
     private static readonly Color WallInner = new(0.82f, 0.79f, 0.71f);
     private static readonly Color Floor = new(0.42f, 0.34f, 0.25f);
@@ -23,6 +28,8 @@ public static class PlayerHouse
     private static readonly Color DoorColor = new(0.36f, 0.23f, 0.15f);
     private static readonly Color GarageDoorColor = new(0.55f, 0.55f, 0.52f);
     private static readonly Color Furniture = new(0.48f, 0.36f, 0.24f);
+    private static readonly Color Glass = new(0.55f, 0.68f, 0.75f);
+    private static readonly Color Frame = new(0.88f, 0.86f, 0.8f);
 
     /// <summary>Собрать дом. Возвращает двери вместе с мировыми точками для подсказок.</summary>
     public static List<(Vector3 Position, Door Door)> Build(Node3D parent, Vector3 origin, float heading)
@@ -32,22 +39,22 @@ public static class PlayerHouse
 
         var doors = new List<(Vector3, Door)>();
 
-        // --- полы и перекрытия ---
+        // --- фундамент и полы ---
+        Slab(root, new Vector3(Width + 0.3f, 0.6f, Depth + 0.3f), new Vector3(0, -0.4f, 0), new Color(0.5f, 0.48f, 0.44f));
         Slab(root, new Vector3(Width, 0.2f, Depth), new Vector3(0, -0.1f, 0), Floor);
         Slab(root, new Vector3(Width, 0.2f, Depth), new Vector3(0, WallHeight, 0), Floor, solid: false);
 
         // --- внешние стены с проёмами ---
         // Фасад (z = -Depth/2): вход в зал и ворота гаража.
         WallX(root, -Depth / 2, -Width / 2, -1.9f);
-        WallX(root, -Depth / 2, -0.8f, 2.2f);
-        WallX(root, -Depth / 2, 5.6f, Width / 2);
-        Lintel(root, new Vector3(-1.35f, 2.1f, -Depth / 2), new Vector3(1.1f, 0.6f, Thickness));
-        Lintel(root, new Vector3(4.1f, 2.3f, -Depth / 2), new Vector3(2.8f, 0.8f, Thickness));
+        WallX(root, -Depth / 2, -0.6f, 2.5f);
+        LintelAt(root, -Depth / 2, -1.9f + DoorWidth / 2, DoorWidth, DoorHeight, horizontal: true);
+        LintelAt(root, -Depth / 2, 2.5f + 1.5f, 3.0f, 2.2f, horizontal: true);
 
         // Задняя стена (z = +Depth/2): чёрный ход из кухни.
         WallX(root, Depth / 2, -Width / 2, -4.6f);
-        WallX(root, Depth / 2, -3.5f, Width / 2);
-        Lintel(root, new Vector3(-4.05f, 2.1f, Depth / 2), new Vector3(1.1f, 0.6f, Thickness));
+        WallX(root, Depth / 2, -4.6f + DoorWidth, Width / 2);
+        LintelAt(root, Depth / 2, -4.6f + DoorWidth / 2, DoorWidth, DoorHeight, horizontal: true);
 
         // Боковые стены.
         WallZ(root, -Width / 2, -Depth / 2, Depth / 2);
@@ -56,15 +63,22 @@ public static class PlayerHouse
         // --- внутренние перегородки ---
         // Гараж: отделён от зала и гостиной, с дверью в зал.
         WallZ(root, 2.2f, -Depth / 2, -2.0f, WallInner);
-        WallZ(root, 2.2f, -1.0f, 0f, WallInner);
+        WallZ(root, 2.2f, -2.0f + InnerDoorWidth, 0f, WallInner);
         WallX(root, 0f, 2.2f, Width / 2, WallInner);
-        Lintel(root, new Vector3(2.2f, 2.1f, -1.5f), new Vector3(Thickness, 0.6f, 1.0f));
+        LintelAt(root, 2.2f, -2.0f + InnerDoorWidth / 2, InnerDoorWidth, DoorHeight, horizontal: false);
 
-        // Кухня: угол в глубине, вход из гостиной.
+        // Кухня: угол в глубине, вход из гостиной (проём 2.35…3.45).
         WallX(root, 1.6f, -Width / 2, -2.2f, WallInner);
-        WallZ(root, -2.2f, 1.6f, 2.4f, WallInner);
-        WallZ(root, -2.2f, 3.4f, Depth / 2, WallInner);
-        Lintel(root, new Vector3(-2.2f, 2.1f, 2.9f), new Vector3(Thickness, 0.6f, 1.0f));
+        WallZ(root, -2.2f, 1.6f, 2.35f, WallInner);
+        WallZ(root, -2.2f, 3.45f, Depth / 2, WallInner);
+        LintelAt(root, -2.2f, 2.9f, InnerDoorWidth, DoorHeight, horizontal: false);
+
+        // --- окна ---
+        AddWindowX(root, -Depth / 2, -3.7f, 1.55f, 1.1f, 1.0f);
+        AddWindowX(root, -Depth / 2, 0.8f, 1.55f, 1.1f, 1.0f);
+        AddWindowX(root, Depth / 2, 1.2f, 1.55f, 1.1f, 1.0f);
+        AddWindowZ(root, -Width / 2, 0.6f, 1.55f, 1.1f, 1.0f);
+        AddWindowZ(root, Width / 2, -2.6f, 1.6f, 1.0f, 0.9f);
 
         // --- крыша и чердак ---
         BuildRoof(root);
@@ -79,29 +93,54 @@ public static class PlayerHouse
         // --- мебель ---
         BuildFurniture(root);
 
-        // --- свет ---
-        AddLight(root, new Vector3(0, 2.3f, -2.0f), 1.1f);
-        AddLight(root, new Vector3(-3.4f, 2.3f, 1.4f), 0.9f);
-        AddLight(root, new Vector3(4.0f, 2.3f, -2.0f), 0.7f);
-        AddLight(root, new Vector3(0, 3.6f, 0.4f), 0.8f);
+        // --- свет: интерьер без ламп был бы чёрным ---
+        AddLight(root, new Vector3(0, 2.35f, -2.0f), 1.7f);
+        AddLight(root, new Vector3(-3.4f, 2.35f, 1.4f), 1.5f);
+        AddLight(root, new Vector3(4.0f, 2.35f, -2.0f), 1.2f);
+        AddLight(root, new Vector3(0, 3.7f, 0.4f), 1.4f);
+
+        // Пандус с газона на крыльцо: высота 12 см, чтобы игрок заходил пешком.
+        var ramp = Slab(root, new Vector3(3.4f, 0.12f, 1.3f), new Vector3(-1.25f, -0.06f, -Depth / 2 - 2.1f),
+            new Color(0.55f, 0.52f, 0.46f));
+        ramp.Rotation = new Vector3(0.1f, 0, 0);
+
+        // --- крыльцо и дорожка к дороге ---
+        Slab(root, new Vector3(3.4f, 0.18f, 1.6f), new Vector3(-1.25f, -0.09f, -Depth / 2 - 0.9f), new Color(0.55f, 0.52f, 0.46f));
+        Slab(root, new Vector3(3.4f, 0.12f, 0.5f), new Vector3(-1.25f, -0.13f, -Depth / 2 - 1.9f), new Color(0.55f, 0.52f, 0.46f), solid: false);
+        Slab(root, new Vector3(1.5f, 0.06f, 6.5f), new Vector3(-1.25f, 0.0f, -Depth / 2 - 5.4f), new Color(0.62f, 0.58f, 0.5f), solid: false);
 
         // --- двери ---
         doors.Add((ToWorld(root, new Vector3(-1.9f, 0, -Depth / 2)), AddDoor(
-            root, "FrontDoor", new Vector3(-1.9f, 0f, -Depth / 2), 0f, 1.1f, 2.05f, DoorColor)));
+            root, "FrontDoor", new Vector3(-1.9f, 0f, -Depth / 2), 0f, DoorWidth, DoorHeight, DoorColor)));
 
         doors.Add((ToWorld(root, new Vector3(-4.6f, 0, Depth / 2)), AddDoor(
-            root, "BackDoor", new Vector3(-4.6f, 0f, Depth / 2), 0f, 1.1f, 2.05f, DoorColor)));
+            root, "BackDoor", new Vector3(-4.6f, 0f, Depth / 2), 0f, DoorWidth, DoorHeight, DoorColor)));
 
-        doors.Add((ToWorld(root, new Vector3(2.7f, 0, -Depth / 2)), AddDoor(
-            root, "GarageDoor", new Vector3(2.7f, 2.25f, -Depth / 2), 0f, 2.8f, 2.2f, GarageDoorColor, garage: true)));
+        doors.Add((ToWorld(root, new Vector3(2.5f, 0, -Depth / 2)), AddDoor(
+            root, "GarageDoor", new Vector3(2.5f, 2.25f, -Depth / 2), 0f, 3.0f, 2.2f, GarageDoorColor, garage: true)));
 
         doors.Add((ToWorld(root, new Vector3(2.2f, 0, -2.0f)), AddDoor(
-            root, "GarageInnerDoor", new Vector3(2.2f, 0f, -2.0f), Mathf.Pi / 2, 1.0f, 2.05f, DoorColor)));
+            root, "GarageInnerDoor", new Vector3(2.2f, 0f, -2.0f), -Mathf.Pi / 2, InnerDoorWidth, DoorHeight, DoorColor)));
 
         doors.Add((ToWorld(root, new Vector3(-2.2f, 0, 3.4f)), AddDoor(
-            root, "KitchenDoor", new Vector3(-2.2f, 0f, 3.4f), Mathf.Pi / 2, 1.0f, 2.05f, DoorColor)));
+            root, "KitchenDoor", new Vector3(-2.2f, 0f, 3.4f), Mathf.Pi / 2, InnerDoorWidth, DoorHeight, DoorColor)));
 
         return doors;
+    }
+
+    /// <summary>Перемычка над проёмом: от верха двери до потолка, а не навстречу голове.</summary>
+    private static void LintelAt(Node3D parent, float fixedCoord, float centerAlong, float width, float openingHeight,
+        bool horizontal)
+    {
+        float height = WallHeight - openingHeight;
+        var size = horizontal
+            ? new Vector3(width, height, Thickness)
+            : new Vector3(Thickness, height, width);
+        var center = horizontal
+            ? new Vector3(centerAlong, openingHeight + height / 2, fixedCoord)
+            : new Vector3(fixedCoord, openingHeight + height / 2, centerAlong);
+
+        Slab(parent, size, center, Wall);
     }
 
     private static Door AddDoor(Node3D root, string name, Vector3 position, float yaw, float width, float height,
@@ -132,8 +171,25 @@ public static class PlayerHouse
             new Vector3(x, WallHeight / 2, (fromZ + toZ) / 2), color ?? Wall);
     }
 
-    private static void Lintel(Node3D parent, Vector3 center, Vector3 size) =>
-        Slab(parent, size, center, Wall, solid: true);
+    /// <summary>Окно на стене вдоль X: рама и стекло без коллизии.</summary>
+    private static void AddWindowX(Node3D parent, float z, float x, float y, float width, float height)
+    {
+        Slab(parent, new Vector3(width, height, 0.06f), new Vector3(x, y, z), Glass, solid: false);
+        Slab(parent, new Vector3(width + 0.14f, 0.1f, 0.1f), new Vector3(x, y + height / 2 + 0.05f, z), Frame, solid: false);
+        Slab(parent, new Vector3(width + 0.14f, 0.1f, 0.1f), new Vector3(x, y - height / 2 - 0.05f, z), Frame, solid: false);
+        Slab(parent, new Vector3(0.1f, height + 0.2f, 0.1f), new Vector3(x - width / 2 - 0.05f, y, z), Frame, solid: false);
+        Slab(parent, new Vector3(0.1f, height + 0.2f, 0.1f), new Vector3(x + width / 2 + 0.05f, y, z), Frame, solid: false);
+    }
+
+    /// <summary>Окно на стене вдоль Z.</summary>
+    private static void AddWindowZ(Node3D parent, float x, float z, float y, float width, float height)
+    {
+        Slab(parent, new Vector3(0.06f, height, width), new Vector3(x, y, z), Glass, solid: false);
+        Slab(parent, new Vector3(0.1f, 0.1f, width + 0.14f), new Vector3(x, y + height / 2 + 0.05f, z), Frame, solid: false);
+        Slab(parent, new Vector3(0.1f, 0.1f, width + 0.14f), new Vector3(x, y - height / 2 - 0.05f, z), Frame, solid: false);
+        Slab(parent, new Vector3(0.1f, height + 0.2f, 0.1f), new Vector3(x, y, z - width / 2 - 0.05f), Frame, solid: false);
+        Slab(parent, new Vector3(0.1f, height + 0.2f, 0.1f), new Vector3(x, y, z + width / 2 + 0.05f), Frame, solid: false);
+    }
 
     private static void BuildRoof(Node3D parent)
     {
@@ -148,26 +204,27 @@ public static class PlayerHouse
             slab.Rotation = new Vector3(side * angle, 0, 0);
         }
 
-        // Фронтоны: закрывают торцы чердака.
+        // Фронтоны: ступенчатый треугольник из трёх блоков вместо одного ящика.
+        float h = RidgeHeight - WallHeight;
         for (int side = -1; side <= 1; side += 2)
         {
-            var gable = new MeshInstance3D
+            for (int step = 0; step < 3; step++)
             {
-                Mesh = new BoxMesh { Size = new Vector3(0.22f, RidgeHeight - WallHeight, Depth * 0.55f) },
-                Position = new Vector3(side * Width / 2, (WallHeight + RidgeHeight) / 2 - 0.2f, 0),
-                MaterialOverride = new StandardMaterial3D { AlbedoColor = Wall, Roughness = 0.9f },
-            };
-            parent.AddChild(gable);
+                float stepHeight = h / 3f;
+                float stepDepth = Depth * 0.5f * (1f - step * 0.3f);
+                Slab(parent, new Vector3(Thickness, stepHeight, stepDepth),
+                    new Vector3(side * Width / 2, WallHeight + stepHeight / 2 + step * stepHeight, 0), Wall, solid: false);
+            }
         }
     }
 
     private static void BuildFurniture(Node3D parent)
     {
         // Кухня: столешница, плита, мойка.
-        Slab(parent, new Vector3(2.6f, 0.85f, 0.65f), new Vector3(-4.0f, 0.42f, 3.6f), Furniture);
-        Slab(parent, new Vector3(0.65f, 0.9f, 0.65f), new Vector3(-4.9f, 0.45f, 3.6f), new Color(0.25f, 0.25f, 0.26f));
-        Slab(parent, new Vector3(0.6f, 0.06f, 0.5f), new Vector3(-4.9f, 0.93f, 3.6f), new Color(0.65f, 0.66f, 0.66f));
-        Slab(parent, new Vector3(2.6f, 0.6f, 0.06f), new Vector3(-4.0f, 1.9f, 3.94f), Furniture, solid: false);
+        Slab(parent, new Vector3(2.6f, 0.85f, 0.65f), new Vector3(-4.0f, 0.42f, 2.5f), Furniture);
+        Slab(parent, new Vector3(0.65f, 0.9f, 0.65f), new Vector3(-4.9f, 0.45f, 2.5f), new Color(0.25f, 0.25f, 0.26f));
+        Slab(parent, new Vector3(0.6f, 0.06f, 0.5f), new Vector3(-4.9f, 0.93f, 2.5f), new Color(0.65f, 0.66f, 0.66f));
+        Slab(parent, new Vector3(2.6f, 0.6f, 0.06f), new Vector3(-4.0f, 1.9f, 2.84f), Furniture, solid: false);
 
         // Гостиная: стол, четыре стула, диван.
         Slab(parent, new Vector3(1.6f, 0.08f, 1.0f), new Vector3(-1.4f, 0.78f, 1.2f), Furniture);
@@ -179,8 +236,8 @@ public static class PlayerHouse
         Slab(parent, new Vector3(2.4f, 0.6f, 0.25f), new Vector3(-4.0f, 0.55f, 0.1f), new Color(0.36f, 0.28f, 0.22f));
 
         // Гараж: верстак и пара ящиков.
-        Slab(parent, new Vector3(2.2f, 0.85f, 0.7f), new Vector3(4.2f, 0.42f, -3.4f), new Color(0.4f, 0.32f, 0.24f));
-        Slab(parent, new Vector3(0.6f, 0.6f, 0.6f), new Vector3(3.0f, 0.3f, -1.0f), new Color(0.45f, 0.36f, 0.2f));
+        Slab(parent, new Vector3(2.2f, 0.85f, 0.7f), new Vector3(4.3f, 0.42f, -0.55f), new Color(0.4f, 0.32f, 0.24f));
+        Slab(parent, new Vector3(0.6f, 0.6f, 0.6f), new Vector3(5.0f, 0.3f, -3.4f), new Color(0.45f, 0.36f, 0.2f));
 
         // Чердак: кровать и сундук.
         Slab(parent, new Vector3(1.9f, 0.35f, 0.9f), new Vector3(-3.6f, 2.95f, -1.8f), new Color(0.5f, 0.42f, 0.34f), solid: false);
@@ -193,7 +250,7 @@ public static class PlayerHouse
         {
             Position = position,
             LightEnergy = energy,
-            OmniRange = 7f,
+            OmniRange = 8f,
             LightColor = new Color(1f, 0.9f, 0.72f),
             ShadowEnabled = false,
         });
