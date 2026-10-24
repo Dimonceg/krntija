@@ -1580,6 +1580,8 @@ public partial class Main : Node3D
         WorldScatter.AddKilometerPosts(road.Centerline, road.Headings, this);
         WorldScatter.ScatterSigns(road.Centerline, road.Headings, this, seed: 20261023);
 
+        AddRoadBoundaries(road);
+
         var target = road.Points.Count > 0 ? road.Points[^1] : null;
         if (target is not null)
         {
@@ -2010,6 +2012,82 @@ public partial class Main : Node3D
 
         _interactions.Add(new InteractionPoint(position + Vector3.Up * 0.25f, InteractionKind.Loot, 2.2f,
             LootId: itemId, Node: item));
+    }
+
+    /// <summary>
+    /// Тупики на обоих концах дороги: бетонный отбойник во всю ширину обочины,
+    /// чтобы нельзя было уехать или уйти туда, где мир ещё не построен.
+    /// </summary>
+    private void AddRoadBoundaries(RoadBuildResult road)
+    {
+        if (road.Centerline.Count < 8) return;
+
+        AddBoundary(road, 1, -1f, "Начало");
+        AddBoundary(road, road.Centerline.Count - 2, 1f, "Конец");
+    }
+
+    private void AddBoundary(RoadBuildResult road, int index, float side, string label)
+    {
+        Vector3 point = road.Centerline[index];
+        float heading = road.Headings[index];
+
+        // Касательная дороги: по соглашению heading она равна (sin, 0, −cos).
+        var tangent = new Vector3(Mathf.Sin(heading), 0, -Mathf.Cos(heading));
+
+        Vector3 position = point + tangent * (3f * side);
+        position.Y = point.Y;
+
+        GD.Print($"[road] тупик {label}: сдвиг {3f * side:F0} м вдоль дороги");
+
+        var root = new Node3D { Name = $"Boundary_{label}", Position = position, Rotation = new Vector3(0, -heading, 0) };
+        AddChild(root);
+
+        var concrete = new StandardMaterial3D { AlbedoColor = new Color(0.62f, 0.6f, 0.56f), Roughness = 0.95f };
+        var paint = new StandardMaterial3D { AlbedoColor = new Color(0.75f, 0.2f, 0.15f), Roughness = 0.8f };
+
+        var wall = new MeshInstance3D
+        {
+            Mesh = new BoxMesh { Size = new Vector3(26f, 1.15f, 0.7f) },
+            Position = new Vector3(0, 0.58f, 0),
+            MaterialOverride = concrete,
+        };
+        root.AddChild(wall);
+
+        var stripe = new MeshInstance3D
+        {
+            Mesh = new BoxMesh { Size = new Vector3(26f, 0.18f, 0.72f) },
+            Position = new Vector3(0, 1.0f, 0),
+            MaterialOverride = paint,
+        };
+        root.AddChild(stripe);
+
+        var body = new StaticBody3D { Name = "Boundary" };
+        body.AddChild(new CollisionShape3D
+        {
+            Shape = new BoxShape3D { Size = new Vector3(26f, 2.4f, 1.2f) },
+            Position = new Vector3(0, 1.2f, 0),
+        });
+        root.AddChild(body);
+
+        // Невидимая стена шире обочины: обойти по траве тоже нельзя.
+        var wide = new StaticBody3D { Name = "BoundaryWide" };
+        wide.AddChild(new CollisionShape3D
+        {
+            Shape = new BoxShape3D { Size = new Vector3(70f, 4f, 1.5f) },
+            Position = new Vector3(0, 2f, -0.9f * side),
+        });
+        root.AddChild(wide);
+
+        // Столбики по краям — чтобы отбойник читался как настоящий.
+        for (int i = -1; i <= 1; i += 2)
+        {
+            root.AddChild(new MeshInstance3D
+            {
+                Mesh = new BoxMesh { Size = new Vector3(0.3f, 1.5f, 0.3f) },
+                Position = new Vector3(i * 12.6f, 0.75f, 0),
+                MaterialOverride = concrete,
+            });
+        }
     }
 
     /// <summary>Дом игрока у старта: слева от дороги, с дверями и чердаком.</summary>
