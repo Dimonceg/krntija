@@ -148,6 +148,11 @@ public partial class Main : Node3D
         {
             var road = _road;
             int index = 80;
+            foreach (string arg in OS.GetCmdlineUserArgs())
+            {
+                if (arg.StartsWith("--at=", StringComparison.Ordinal))
+                    index = Mathf.Clamp(int.Parse(arg["--at=".Length..]), 1, road.Centerline.Count - 2);
+            }
 
             _car.GlobalPosition = road.Centerline[index] + Vector3.Up * 0.6f;
             _car.Rotation = new Vector3(0, -road.Headings[index] + 0.35f, 0);
@@ -1069,6 +1074,7 @@ public partial class Main : Node3D
 
         foreach (var poi in road.Points)
         {
+            GD.Print($"[poi] {poi.Segment.Feature} at index {(int)Mathf.Round(poi.Segment.StartM / 4f)} ({poi.Segment.StartM:F0} м)");
             var right = new Vector3(Mathf.Cos(poi.Heading), 0, Mathf.Sin(poi.Heading));
             Vector3 spot = poi.Position - right * 16f; // левая обочина
             spot.Y = TerrainBuilder.SurfaceHeight(poi.Position.Y, -16f, spot);
@@ -1132,16 +1138,43 @@ public partial class Main : Node3D
         var village = new Node3D { Position = position, Rotation = new Vector3(0, -heading, 0) };
         AddChild(village);
 
-        var wall = new Color(0.78f, 0.74f, 0.64f);
-        var roof = new Color(0.55f, 0.28f, 0.2f);
+        var wall = new Color(0.80f, 0.76f, 0.66f);
+        var roof = new Color(0.52f, 0.26f, 0.19f);
+        var window = new Color(0.15f, 0.18f, 0.21f);
+        var door = new Color(0.33f, 0.23f, 0.15f);
+        var fence = new Color(0.42f, 0.34f, 0.24f);
 
         for (int i = 0; i < 3; i++)
         {
-            var house = new Node3D { Position = new Vector3(i * 9f - 9f, 0, -i * 6f) };
+            var house = new Node3D { Position = new Vector3(i * 10f - 10f, 0, -i * 7f) };
             village.AddChild(house);
-            Box(house, new Vector3(6, 3, 5), new Vector3(0, 1.5f, 0), wall);
-            Box(house, new Vector3(6.6f, 0.4f, 5.6f), new Vector3(0, 3.2f, 0), roof);
+
+            float width = 6.4f + i * 0.6f;
+            float depth = 5.2f;
+            float height = 3.0f + i * 0.25f;
+
+            Box(house, new Vector3(width, height, depth), new Vector3(0, height / 2, 0), wall);
+            GableRoof(house, height, width, depth, 1.7f, roof);
+
+            Box(house, new Vector3(0.9f, 1.1f, 0.12f), new Vector3(-1.7f, 1.8f, depth / 2), window);
+            Box(house, new Vector3(0.9f, 1.1f, 0.12f), new Vector3(1.7f, 1.8f, depth / 2), window);
+            Box(house, new Vector3(1.1f, 2.0f, 0.14f), new Vector3(0, 1.0f, depth / 2 + 0.02f), door);
+
+            // труба на крыше
+            Box(house, new Vector3(0.5f, 1.3f, 0.5f), new Vector3(width * 0.26f, height + 1.3f, -depth * 0.2f),
+                new Color(0.46f, 0.41f, 0.37f));
         }
+
+        // Забор вдоль улицы и столб с указателем села.
+        for (int i = 0; i < 11; i++)
+            Box(village, new Vector3(0.12f, 1.0f, 0.12f), new Vector3(-16 + i * 3.2f, 0.5f, 3.4f), fence);
+
+        Box(village, new Vector3(32, 0.08f, 0.08f), new Vector3(0, 0.85f, 3.4f), fence);
+        Box(village, new Vector3(32, 0.08f, 0.08f), new Vector3(0, 0.45f, 3.4f), fence);
+
+        var sign = Box(village, new Vector3(2.4f, 0.7f, 0.08f), new Vector3(-13f, 2.3f, 3.0f),
+            new Color(0.85f, 0.82f, 0.7f));
+        sign.Rotation = new Vector3(0, 0.3f, 0);
     }
 
     private void AddRuins(Vector3 position, float heading)
@@ -1149,10 +1182,19 @@ public partial class Main : Node3D
         var ruins = new Node3D { Position = position, Rotation = new Vector3(0, -heading, 0) };
         AddChild(ruins);
 
-        var stone = new Color(0.6f, 0.58f, 0.52f);
-        Box(ruins, new Vector3(8, 2.4f, 0.5f), new Vector3(0, 1.2f, 0), stone);
-        Box(ruins, new Vector3(0.5f, 3.6f, 6), new Vector3(4, 1.8f, 0), stone);
-        Box(ruins, new Vector3(3, 1.1f, 0.5f), new Vector3(-3, 0.55f, 0.2f), stone);
+        var stone = new Color(0.61f, 0.58f, 0.51f);
+        var beam = new Color(0.29f, 0.22f, 0.16f);
+
+        Box(ruins, new Vector3(9, 2.6f, 0.45f), new Vector3(0, 1.3f, 0), stone);
+        Box(ruins, new Vector3(0.45f, 3.6f, 6), new Vector3(4.2f, 1.8f, 0), stone);
+        Box(ruins, new Vector3(0.45f, 1.6f, 4), new Vector3(-4.2f, 0.8f, 0), stone);
+        Box(ruins, new Vector3(3.4f, 1.0f, 0.45f), new Vector3(-2.4f, 0.5f, 0.1f), stone);
+
+        var collapsed = Box(ruins, new Vector3(5.4f, 0.22f, 0.22f), new Vector3(0.6f, 1.6f, 1.2f), beam);
+        collapsed.Rotation = new Vector3(0, 0, 0.38f);
+
+        var collapsed2 = Box(ruins, new Vector3(4.2f, 0.2f, 0.2f), new Vector3(-1.1f, 0.95f, -0.9f), beam);
+        collapsed2.Rotation = new Vector3(0, 0, -0.52f);
     }
 
     private void AddFarm(Vector3 position, float heading)
@@ -1160,16 +1202,48 @@ public partial class Main : Node3D
         var farm = new Node3D { Position = position, Rotation = new Vector3(0, -heading, 0) };
         AddChild(farm);
 
-        Box(farm, new Vector3(10, 4, 7), new Vector3(0, 2, 0), new Color(0.62f, 0.5f, 0.36f));
-        Box(farm, new Vector3(11, 0.5f, 7.8f), new Vector3(0, 4.2f, 0), new Color(0.45f, 0.3f, 0.22f));
+        var wall = new Color(0.64f, 0.52f, 0.38f);
+        var roof = new Color(0.42f, 0.30f, 0.22f);
+        var fence = new Color(0.42f, 0.34f, 0.24f);
+
+        Box(farm, new Vector3(10, 4, 7), new Vector3(0, 2, 0), wall);
+        GableRoof(farm, 4, 10, 7, 2.2f, roof);
+        Box(farm, new Vector3(2.4f, 2.8f, 0.14f), new Vector3(0, 1.4f, 3.55f), new Color(0.29f, 0.21f, 0.15f));
 
         var silo = new MeshInstance3D
         {
-            Mesh = new CylinderMesh { Height = 8, TopRadius = 2, BottomRadius = 2 },
-            Position = new Vector3(8, 4, -2),
-            MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.72f, 0.7f, 0.64f), Roughness = 0.8f },
+            Mesh = new CylinderMesh { Height = 9, TopRadius = 1.9f, BottomRadius = 2.1f, RadialSegments = 12 },
+            Position = new Vector3(8.5f, 4.5f, -2),
+            MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.74f, 0.72f, 0.66f), Roughness = 0.85f },
         };
         farm.AddChild(silo);
+
+        farm.AddChild(new MeshInstance3D
+        {
+            Mesh = new SphereMesh { Radius = 1.95f, Height = 1.6f },
+            Position = new Vector3(8.5f, 9.2f, -2),
+            MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.5f, 0.5f, 0.48f), Roughness = 0.8f },
+        });
+
+        for (int i = 0; i < 6; i++)
+            Box(farm, new Vector3(0.14f, 1.1f, 0.14f), new Vector3(-6 + i * 2.4f, 0.55f, 5.2f), fence);
+
+        Box(farm, new Vector3(14, 0.1f, 0.1f), new Vector3(0, 0.95f, 5.2f), fence);
+    }
+
+    /// <summary>Двускатная крыша: две наклонённые плиты с коньком по центру.</summary>
+    private static void GableRoof(Node3D parent, float baseY, float width, float depth, float height, Color color)
+    {
+        float half = width / 2 + 0.45f;
+        float slant = Mathf.Sqrt(half * half + height * height);
+        float angle = Mathf.Atan2(height, half);
+
+        for (int side = -1; side <= 1; side += 2)
+        {
+            var slab = Box(parent, new Vector3(slant, 0.18f, depth + 0.9f),
+                new Vector3(side * half / 2, baseY + height / 2, 0), color);
+            slab.Rotation = new Vector3(0, 0, -side * angle);
+        }
     }
 
     private void AddCheckpoint(Vector3 position, float heading, Vector3 roadPoint, bool buildBooth = true)

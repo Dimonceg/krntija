@@ -97,7 +97,10 @@ public static class TerrainBuilder
             Mesh = st.Commit(),
             MaterialOverride = new StandardMaterial3D
             {
-                AlbedoColor = new Color(0.27f, 0.31f, 0.2f),
+                // Трава с пятнами: тёмная и выгоревшая, трипланарно по миру.
+                AlbedoTexture = ProcTexture.Noise(0.07f, new Color(0.26f, 0.32f, 0.19f), new Color(0.42f, 0.45f, 0.27f)),
+                Uv1Triplanar = true,
+                Uv1Scale = new Vector3(0.05f, 0.05f, 0.05f),
                 Roughness = 1f,
                 CullMode = BaseMaterial3D.CullModeEnum.Disabled,
             },

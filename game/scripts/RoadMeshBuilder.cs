@@ -62,7 +62,9 @@ public static class RoadMeshBuilder
 
         var roadMaterial = new StandardMaterial3D
         {
-            AlbedoColor = new Color(0.13f, 0.13f, 0.14f),
+            AlbedoTexture = ProcTexture.Noise(0.06f, new Color(0.09f, 0.09f, 0.10f), new Color(0.19f, 0.19f, 0.20f), seed: 3),
+            Uv1Triplanar = true,
+            Uv1Scale = new Vector3(0.22f, 0.22f, 0.22f),
             Roughness = 0.95f,
             CullMode = BaseMaterial3D.CullModeEnum.Disabled,
         };
@@ -72,6 +74,10 @@ public static class RoadMeshBuilder
         body.AddChild(BuildCollision(centers, headingsAll));
         parent.AddChild(body);
 
+        // Обочина пока отключена: полоса конфликтует с террейном по краю.
+        // Следующий шаг — красить обочину на самом террейне, а не отдельной лентой.
+        // AddShoulders(centers, headingsAll, parent);
+        AddPatches(centers, headingsAll, parent);
         AddCenterLine(centers, headingsAll, parent);
 
         AddRoadsidePosts(centers, headingsAll, parent);
@@ -84,6 +90,99 @@ public static class RoadMeshBuilder
         }
 
         return result;
+    }
+
+    /// <summary>Р“СЂР°РІРёР№РЅР°СЏ РѕР±РѕС‡РёРЅР° РїРѕ РѕР±Рµ СЃС‚РѕСЂРѕРЅС‹ РїРѕР»РѕС‚РЅР°.</summary>
+    private static void AddShoulders(List<Vector3> points, List<float> headings, Node3D parent)
+    {
+        var tool = new SurfaceTool();
+        tool.Begin(Mesh.PrimitiveType.Triangles);
+        tool.SetNormal(Vector3.Up);
+
+        float inner = Width * 0.5f + 0.05f;
+        float outer = inner + 1.3f;
+
+        for (int i = 0; i < points.Count - 1; i++)
+        {
+            for (int side = -1; side <= 1; side += 2)
+            {
+                Vector3 ra = new(Mathf.Cos(headings[i]), 0, Mathf.Sin(headings[i]));
+                Vector3 rb = new(Mathf.Cos(headings[i + 1]), 0, Mathf.Sin(headings[i + 1]));
+
+                Vector3 a1 = points[i] + ra * (inner * side) + Vector3.Up * 0.06f;
+                Vector3 a2 = points[i] + ra * (outer * side) + Vector3.Up * 0.05f;
+                Vector3 b1 = points[i + 1] + rb * (inner * side) + Vector3.Up * 0.06f;
+                Vector3 b2 = points[i + 1] + rb * (outer * side) + Vector3.Up * 0.05f;
+
+                tool.AddVertex(a1);
+                tool.AddVertex(b1);
+                tool.AddVertex(a2);
+                tool.AddVertex(a2);
+                tool.AddVertex(b1);
+                tool.AddVertex(b2);
+            }
+        }
+
+        parent.AddChild(new MeshInstance3D
+        {
+            Mesh = tool.Commit(),
+            MaterialOverride = new StandardMaterial3D
+            {
+                AlbedoTexture = ProcTexture.Noise(0.09f, new Color(0.37f, 0.34f, 0.28f), new Color(0.52f, 0.48f, 0.39f), seed: 11),
+                Uv1Triplanar = true,
+                Uv1Scale = new Vector3(0.35f, 0.35f, 0.35f),
+                Roughness = 1f,
+                CullMode = BaseMaterial3D.CullModeEnum.Disabled,
+            },
+        });
+    }
+
+    /// <summary>Р—Р°РїР»Р°С‚РєРё Рё РїРѕС‚С‘СЂС‚РѕСЃС‚Рё РЅР° Р°СЃС„Р°Р»СЊС‚Рµ: РїРѕР»РѕС‚РЅРѕ РЅРµ РґРѕР»Р¶РЅРѕ Р±С‹С‚СЊ РёРґРµР°Р»СЊРЅС‹Рј.</summary>
+    private static void AddPatches(List<Vector3> points, List<float> headings, Node3D parent)
+    {
+        if (points.Count < 20) return;
+
+        var rng = new Pcg32(4242, sequence: 7);
+        var tool = new SurfaceTool();
+        tool.Begin(Mesh.PrimitiveType.Triangles);
+        tool.SetNormal(Vector3.Up);
+
+        for (int patch = 0; patch < 90; patch++)
+        {
+            int index = (int)(rng.NextDouble() * (points.Count - 1));
+            float lateral = (float)(rng.Range(-1, 1)) * (Width * 0.42f);
+            float halfLength = (float)rng.Range(0.7, 2.4);
+            float halfWidth = (float)rng.Range(0.35, 1.1);
+
+            Vector3 right = new(Mathf.Cos(headings[index]), 0, Mathf.Sin(headings[index]));
+            Vector3 forward = new(Mathf.Sin(headings[index]), 0, -Mathf.Cos(headings[index]));
+            Vector3 center = points[index] + right * lateral + Vector3.Up * 0.015f;
+
+            Vector3 a = center - forward * halfLength - right * halfWidth;
+            Vector3 b = center + forward * halfLength - right * halfWidth;
+            Vector3 c = center + forward * halfLength + right * halfWidth;
+            Vector3 d = center - forward * halfLength + right * halfWidth;
+
+            tool.AddVertex(a);
+            tool.AddVertex(b);
+            tool.AddVertex(c);
+            tool.AddVertex(a);
+            tool.AddVertex(c);
+            tool.AddVertex(d);
+        }
+
+        parent.AddChild(new MeshInstance3D
+        {
+            Mesh = tool.Commit(),
+            MaterialOverride = new StandardMaterial3D
+            {
+                AlbedoTexture = ProcTexture.Noise(0.2f, new Color(0.06f, 0.06f, 0.07f), new Color(0.13f, 0.13f, 0.14f), seed: 21),
+                Uv1Triplanar = true,
+                Uv1Scale = new Vector3(0.6f, 0.6f, 0.6f),
+                Roughness = 0.9f,
+                CullMode = BaseMaterial3D.CullModeEnum.Disabled,
+            },
+        });
     }
 
     /// <summary>РџСЂРµСЂС‹РІРёСЃС‚Р°СЏ РѕСЃРµРІР°СЏ: РєР°Р¶РґС‹Р№ РІС‚РѕСЂРѕР№ С‡РµС‚С‹СЂС‘С…РјРµС‚СЂРѕРІС‹Р№ С€Р°Рі.</summary>

@@ -69,6 +69,7 @@ public static class RoadPlanner
         int index = 0;
         double nextFeatureAt = 450;
         int featuresPlaced = 0;
+        RoadFeature previousFeature = RoadFeature.None;
 
         while (start < totalMeters)
         {
@@ -77,7 +78,8 @@ public static class RoadPlanner
 
             if (start >= nextFeatureAt)
             {
-                (feature, title) = PickFeature(ref featuresPlaced, rng);
+                (feature, title) = PickFeature(ref featuresPlaced, rng, previousFeature);
+                previousFeature = feature;
                 nextFeatureAt = start + rng.Range(420, 720);
             }
 
@@ -95,7 +97,7 @@ public static class RoadPlanner
         return new RoadPlan(segments);
     }
 
-    private static (RoadFeature Feature, string Title) PickFeature(ref int placed, Pcg32 rng)
+    private static (RoadFeature Feature, string Title) PickFeature(ref int placed, Pcg32 rng, RoadFeature previous)
     {
         placed++;
 
@@ -113,7 +115,10 @@ public static class RoadPlanner
             (RoadFeature.GasStation, "Бензинска пумпа"),
         };
 
-        return rng.Pick(options);
+        // Не повторяем тот же проп два раза подряд: иначе можно проехать
+        // три блокпоста и не увидеть ни села, ни фермы.
+        var filtered = options.Where(option => option.Feature != previous).ToArray();
+        return rng.Pick(filtered.Length > 0 ? filtered : options);
     }
 
     /// <summary>Шаг поворота для построения геометрии: радианы на метр.</summary>
