@@ -1,0 +1,62 @@
+{
+  "jerry_can": {
+    "triangles": 458,
+    "surfaces": 1
+  },
+  "motor_oil": {
+    "triangles": 420,
+    "surfaces": 1
+  },
+  "water": {
+    "triangles": 1166,
+    "surfaces": 1
+  },
+  "bread": {
+    "triangles": 336,
+    "surfaces": 1
+  },
+  "medkit": {
+    "triangles": 332,
+    "surfaces": 1
+  },
+  "duct_tape": {
+    "triangles": 620,
+    "surfaces": 1
+  },
+  "wrench": {
+    "triangles": 470,
+    "surfaces": 1
+  },
+  "spark_plug": {
+    "triangles": 2744,
+    "surfaces": 1
+  },
+  "cassette": {
+    "triangles": 959,
+    "surfaces": 1
+  },
+  "cigarettes": {
+    "triangles": 122,
+    "surfaces": 1
+  },
+  "spare_tire": {
+    "triangles": 2168,
+    "surfaces": 1
+  },
+  "map": {
+    "triangles": 203,
+    "surfaces": 1
+  },
+  "radio_part": {
+    "triangles": 436,
+    "surfaces": 1
+  },
+  "scrap_metal": {
+    "triangles": 432,
+    "surfaces": 1
+  },
+  "bottle_cap": {
+    "triangles": 376,
+    "surfaces": 1
+  }
+}
