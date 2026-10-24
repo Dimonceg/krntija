@@ -129,6 +129,7 @@ public partial class Main : Node3D
         AddChild(_hud);
 
         _backpack = new BackpackUi();
+        _backpack.Clicked += OnBackpackClick;
         AddChild(_backpack);
 
         // Дом игрока у старта: слева от дороги, со своими дверями и чердаком.
@@ -307,7 +308,7 @@ public partial class Main : Node3D
 
             if (_shotBackpack)
             {
-                _backpack.Toggle(_car.Session.Inventory);
+                _backpack.Toggle(_car.Session.Inventory, _car.Session.Trunk);
                 _hud.Visible = false;
             }
 
@@ -631,6 +632,9 @@ public partial class Main : Node3D
                 break;
             case Key.B:
                 ToggleBackpack();
+                break;
+            case Key.X when _hud.Screen == HudScreen.Shop:
+                SellJunk();
                 break;
             case Key.E:
                 Interact();
@@ -1799,10 +1803,60 @@ public partial class Main : Node3D
         GetTree().Quit(ok ? 0 : 1);
     }
 
+    /// <summary>Клик в рюкзаке: использовать, переложить в багажник или забрать обратно.</summary>
+    private void OnBackpackClick(string itemId, bool fromTrunk)
+    {
+        var session = _car.Session;
+        string name = Core.Items.ItemCatalog.Get(itemId).Name;
+
+        if (fromTrunk)
+        {
+            if (!session.Inventory.TryAdd(itemId))
+            {
+                _hud.Toast("В кармане нет места");
+                return;
+            }
+
+            session.Trunk.Remove(itemId, 1);
+            _hud.Toast($"Из багажника: {name}");
+        }
+        else if (Core.Items.ItemUseService.TryUse(session, itemId, out string message))
+        {
+            _hud.Toast(message);
+        }
+        else if (session.Trunk.TryAdd(itemId))
+        {
+            session.Inventory.Remove(itemId, 1);
+            _hud.Toast($"В багажник: {name}");
+        }
+        else
+        {
+            _hud.Toast("Багажник полон");
+        }
+
+        _backpack.Refresh(session.Inventory, session.Trunk);
+    }
+
+    /// <summary>Скупка всего хлама — и из кармана, и из багажника.</summary>
+    private void SellJunk()
+    {
+        var (pocketCount, pocketMoney) =
+            Core.Economy.TradeService.SellJunk(_car.Session.Inventory, _car.Session.Wallet);
+        var (trunkCount, trunkMoney) =
+            Core.Economy.TradeService.SellJunk(_car.Session.Trunk, _car.Session.Wallet);
+
+        int total = pocketCount + trunkCount;
+        _hud.Toast(total > 0
+            ? $"Продано {total} шт. за {pocketMoney + trunkMoney:F0} €"
+            : "Нечего продавать");
+
+        _backpack.Refresh(_car.Session.Inventory, _car.Session.Trunk);
+    }
+
     /// <summary>Рюкзак: открыть/закрыть, заодно отпустить или захватить мышь.</summary>
     private void ToggleBackpack()
     {
-        _backpack.Toggle(_car.Session.Inventory);
+        _backpack.Toggle(_car.Session.Inventory, _car.Session.Trunk);
         SetCursorFree(_backpack.IsOpen);
     }
 
