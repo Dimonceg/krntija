@@ -1585,17 +1585,23 @@ public partial class Main : Node3D
             GD.Print($"[housecheck] {door.Name,-16} {(free ? "свободно" : $"ЗАБЛОКИРОВАНО ({hits.Count}: {what.Trim()})")}");
         }
 
-        // Проход тела игрока в парадную: старт в 3 м снаружи, 150 шагов физики.
-        var front = _interactions.FirstOrDefault(p => p.Kind == InteractionKind.Door && p.Door?.Name == "FrontDoor");
-        if (front?.Door is { } frontDoor)
+        // Проход тела игрока в каждую наружную дверь: старт в 4.5 м снаружи.
+        foreach (var point in _interactions)
         {
+            if (point.Kind != InteractionKind.Door || point.Door is null) continue;
+            var door = point.Door;
+            if (door.Name == "GarageInnerDoor" || door.Name == "KitchenDoor") continue;
+
             var body = new CharacterBody3D { Name = "WalkProbe" };
             body.AddChild(new CollisionShape3D { Shape = capsule, Position = new Vector3(0, 0.89f, 0) });
             AddChild(body);
 
-            Vector3 inward = frontDoor.GlobalBasis.Z.Normalized();
-            Vector3 start = frontDoor.GlobalPosition
-                            + frontDoor.GlobalBasis.X.Normalized() * (frontDoor.Width * 0.5f)
+            // Наружная стена смотрит вдоль локальной Z дома: знак задаёт сторону.
+            var houseNode = GetNodeOrNull<Node3D>("PlayerHouse")!;
+            float localZ = houseNode.ToLocal(door.GlobalPosition).Z;
+            Vector3 inward = door.GlobalBasis.Z.Normalized() * (localZ > 0 ? -1f : 1f);
+            Vector3 start = door.GlobalPosition
+                            + door.GlobalBasis.X.Normalized() * (door.Width * 0.5f)
                             - inward * 4.5f;
             start.Y = _houseGroundY - 0.1f;
             body.GlobalPosition = start;
@@ -1606,7 +1612,7 @@ public partial class Main : Node3D
                 body.MoveAndSlide();
             }
 
-            float depth = (body.GlobalPosition - frontDoor.GlobalPosition).Dot(inward);
+            float depth = (body.GlobalPosition - door.GlobalPosition).Dot(inward);
             bool inside = depth > 1.2f;
             ok &= inside;
 
@@ -1626,7 +1632,7 @@ public partial class Main : Node3D
                 }
             }
 
-            GD.Print($"[housewalk] вход: {depth:F2} м — {(inside ? "зашёл" : "НЕ ЗАШЁЛ")} {blocked.Trim()}");
+            GD.Print($"[housewalk] {door.Name,-12} {depth,5:F2} м — {(inside ? "зашёл" : "НЕ ЗАШЁЛ")} {blocked.Trim()}");
             body.QueueFree();
         }
 
