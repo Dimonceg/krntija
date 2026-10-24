@@ -24,6 +24,15 @@ public partial class ChaseCamera : Camera3D
     /// <summary>Пешком обзор крутит сам игрок, камера лишь следует за ним.</summary>
     public bool OrbitWithMouse { get; set; } = true;
 
+    /// <summary>Вид от первого лица: камера сидит в голове цели.</summary>
+    public bool FirstPerson { get; set; }
+
+    /// <summary>Смещение «головы» в локальных координатах цели.</summary>
+    public Vector3 FirstPersonOffset { get; set; } = new(0f, 1.45f, 0f);
+
+    /// <summary>Камера сама возвращается за спину, если мышью не трогали.</summary>
+    public bool AutoRecenter { get; set; } = true;
+
     public void ResetOrbit()
     {
         _yawOffset = 0;
@@ -38,7 +47,9 @@ public partial class ChaseCamera : Camera3D
 
         _yawOffset -= motion.Relative.X * Sensitivity * GameSettings.MouseSensitivity;
         _yawOffset = Mathf.Wrap(_yawOffset, -Mathf.Pi, Mathf.Pi);
-        _pitch = Mathf.Clamp(_pitch - motion.Relative.Y * Sensitivity * 0.8f * GameSettings.MouseSensitivity, -0.25f, 0.5f);
+
+        float pitch = _pitch - motion.Relative.Y * Sensitivity * 0.8f * GameSettings.MouseSensitivity;
+        _pitch = FirstPerson ? Mathf.Clamp(pitch, -1.1f, 1.1f) : Mathf.Clamp(pitch, -0.25f, 0.5f);
         _idle = 0;
     }
 
@@ -49,8 +60,20 @@ public partial class ChaseCamera : Camera3D
         float dt = (float)delta;
         _idle += dt;
 
+        if (FirstPerson)
+        {
+            Vector3 head = Target.GlobalPosition + Target.GlobalBasis * FirstPersonOffset;
+            GlobalPosition = GlobalPosition.Lerp(head, Mathf.Clamp(dt * 22f, 0f, 1f));
+
+            // Смотрим вперёд по цели, плюс поворот мышью.
+            Vector3 look = -Target.GlobalBasis.Z.Rotated(Vector3.Up, _yawOffset);
+            look = look.Rotated(Target.GlobalBasis.X.Normalized(), _pitch);
+            LookAt(GlobalPosition + look, Vector3.Up);
+            return;
+        }
+
         // Если мышью давно не трогали — плавно возвращаем камеру за спину.
-        if (_idle > RecenterDelay)
+        if (AutoRecenter && _idle > RecenterDelay)
         {
             _yawOffset = Mathf.Lerp(_yawOffset, 0, Mathf.Clamp(dt * 2f, 0f, 1f));
             _pitch = Mathf.Lerp(_pitch, 0, Mathf.Clamp(dt * 2f, 0f, 1f));

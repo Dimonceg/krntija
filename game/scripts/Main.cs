@@ -19,6 +19,7 @@ public partial class Main : Node3D
 
     private Car _car = null!;
     private ChaseCamera _camera = null!;
+    private bool _firstPerson;
     private Hud _hud = null!;
     private Player? _player;
     private bool _onFoot;
@@ -113,6 +114,18 @@ public partial class Main : Node3D
 
         AddChild(new Sfx());
 
+        // Отладочный старт от первого лица для скриншотов.
+        bool fpCar = Array.IndexOf(OS.GetCmdlineUserArgs(), "--fp") >= 0;
+        bool fpFoot = Array.IndexOf(OS.GetCmdlineUserArgs(), "--fp-foot") >= 0;
+        if (fpCar || fpFoot)
+        {
+            _firstPerson = true;
+            _camera.FirstPerson = true;
+            _camera.AutoRecenter = false;
+
+            if (fpFoot) ExitCar();
+            else _camera.FirstPersonOffset = new Vector3(0.30f, 0.86f, -1.05f);
+        }
         _smoke = Array.IndexOf(OS.GetCmdlineUserArgs(), "--smoke") >= 0;
         _selfTest = Array.IndexOf(OS.GetCmdlineUserArgs(), "--selftest") >= 0;
         _shot = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot") >= 0
@@ -449,6 +462,7 @@ public partial class Main : Node3D
                 Interact();
                 break;
             case Key.J: _hud.Screen = _hud.Screen == HudScreen.None ? HudScreen.Journal : HudScreen.None; break;
+            case Key.C: ToggleCameraMode(); break;
             case Key.F5:
                 SaveGame();
                 break;
@@ -621,6 +635,30 @@ public partial class Main : Node3D
         _hud.Toast("Выспались. Утро, силы восстановлены");
     }
 
+    /// <summary>Переключение вида: от первого лица / от третьего.</summary>
+    private void ToggleCameraMode()
+    {
+        _firstPerson = !_firstPerson;
+
+        _camera.FirstPerson = _firstPerson;
+        _camera.AutoRecenter = !_firstPerson;
+        _camera.ResetOrbit();
+
+        if (_onFoot)
+        {
+            _camera.FirstPersonOffset = new Vector3(0f, 1.45f, 0f);
+            _camera.OrbitWithMouse = false;
+            _player?.SetModelVisible(!_firstPerson);
+        }
+        else
+        {
+            _camera.FirstPersonOffset = new Vector3(0.30f, 0.86f, -1.05f);
+            _camera.OrbitWithMouse = !_firstPerson;
+        }
+
+        _hud.Toast(_firstPerson ? "Вид от первого лица (C)" : "Вид от третьего лица (C)");
+    }
+
     private void ExitCar()
     {
         Vector3 side = -_car.GlobalBasis.X.Normalized() * 1.5f;
@@ -638,6 +676,8 @@ public partial class Main : Node3D
         _camera.Height = 2.4f;
         _camera.LookHeight = 1.4f;
         _camera.OrbitWithMouse = false;
+        _camera.FirstPersonOffset = new Vector3(0f, 1.45f, 0f);
+        _player.SetModelVisible(!_firstPerson);
         _camera.ResetOrbit();
         Sfx.PlayDoor(_car.GlobalPosition);
 
@@ -656,6 +696,7 @@ public partial class Main : Node3D
         _camera.Height = 3.2f;
         _camera.LookHeight = 0.9f;
         _camera.OrbitWithMouse = true;
+        _camera.FirstPersonOffset = new Vector3(0.30f, 0.86f, -1.05f);
         _camera.ResetOrbit();
         Sfx.PlayDoor(_car.GlobalPosition);
 
