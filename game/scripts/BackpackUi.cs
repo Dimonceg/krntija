@@ -147,7 +147,7 @@ public partial class BackpackUi : Control
         {
             CustomMinimumSize = new Vector2(98, 98),
             Flat = true,
-            TooltipText = $"{stack.Definition.Name} — {stack.Definition.Value} €",
+            TooltipText = $"{stack.Definition.Name} — {Krntija.Core.Economy.Money.Format(stack.Definition.Value)}",
             ClipContents = true,
         };
 

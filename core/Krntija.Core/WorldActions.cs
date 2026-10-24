@@ -49,7 +49,7 @@ public static class WorldActions
         return true;
     }
 
-    /// <summary>Мотель: 15 €, восемь часов сна и подъём в 7 утра.</summary>
+    /// <summary>Мотель: плата, восемь часов сна и подъём в 7 утра.</summary>
     public static bool TrySleepAtMotel(GameSession session)
     {
         if (!session.Wallet.TrySpend(MotelPrice))
@@ -76,7 +76,7 @@ public static class WorldActions
 
     public static void DrinkFromWell(GameSession session) => session.Survival.Drink(WellHydration);
 
-    /// <summary>Верстак: самая изношенная деталь становится как новая за 25 € и изоленту.</summary>
+    /// <summary>Верстак: самая изношенная деталь становится как новая за плату и изоленту.</summary>
     public static ActionResult TryRepairAtWorkbench(GameSession session, out Part? repaired)
     {
         repaired = session.Vehicle.Parts.Values
@@ -135,7 +135,7 @@ public static class WorldActions
         return ActionResult.NothingToDo;
     }
 
-    /// <summary>Починка закрытого выезда: 60 € и моток изоленты.</summary>
+    /// <summary>Починка закрытого выезда: плата и моток изоленты.</summary>
     public static ActionResult TryRepairExit(Wallet wallet, Inventory bag) =>
         PayWithTape(wallet, bag, ExitRepairPrice);
 

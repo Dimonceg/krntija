@@ -247,14 +247,14 @@ public partial class Main : Node3D
 
         if (_objectiveDone || _objectivePosition is null) return;
 
-        _hud.Objective = $"Добраться до: {_objectiveTitle}  (+{WorldActions.ObjectiveReward:F0} €)";
+        _hud.Objective = $"Добраться до: {_objectiveTitle}  (+{Krntija.Core.Economy.Money.Format(WorldActions.ObjectiveReward)})";
 
         if (_car.GlobalPosition.DistanceTo(_objectivePosition.Value) > 30f) return;
 
         _objectiveDone = true;
         _car.Session.Wallet.Earn(WorldActions.ObjectiveReward);
         _hud.Objective = string.Empty;
-        _hud.Toast($"Задача выполнена: {_objectiveTitle}. +{WorldActions.ObjectiveReward:F0} €");
+        _hud.Toast($"Задача выполнена: {_objectiveTitle}. +{Krntija.Core.Economy.Money.Format(WorldActions.ObjectiveReward)}");
     }
 
     /// <summary>Солнце по игровым часам: рассвет, полдень, закат, ночь.</summary>

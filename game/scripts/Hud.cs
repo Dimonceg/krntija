@@ -197,7 +197,7 @@ public partial class Hud : CanvasLayer
         string ignition = vehicle.EngineRunning ? string.Empty : "  · заглушен";
 
         _speed.Text = $"{Car.Kmh:F0} км/ч\n{train.GearText} · {train.Rpm:F0} об/мин{ignition}{heat}";
-        _info.Text = $"{session.Clock}\n{session.Wallet.Money:F0} €   топливо {vehicle.Fuel.Liters:F1}/{vehicle.Fuel.CapacityLiters:F0} л";
+        _info.Text = $"{session.Clock}\n{Money.Format(session.Wallet.Money)}   топливо {vehicle.Fuel.Liters:F1}/{vehicle.Fuel.CapacityLiters:F0} л";
         _vitals.Text = $"Здоровье {survival.Health * 100:F0}%   голод {survival.Hunger * 100:F0}%   "
                        + $"жажда {survival.Thirst * 100:F0}%   сон {survival.Fatigue * 100:F0}%";
         _objective.Text = Objective;
@@ -214,7 +214,7 @@ public partial class Hud : CanvasLayer
         var survival = session.Survival;
 
         sb.AppendLine($"[b]ЖУРНАЛ — {vehicle.Spec.Name}[/b]");
-        sb.AppendLine($"{session.Clock}   пробег {vehicle.OdometerKm:F1} км   денег {session.Wallet.Money:F0} €");
+        sb.AppendLine($"{session.Clock}   пробег {vehicle.OdometerKm:F1} км   денег {Money.Format(session.Wallet.Money)}");
         if (!string.IsNullOrEmpty(Objective))
             sb.AppendLine($"[color=#e8d9a8]Задача: {Objective}[/color]");
         sb.AppendLine();
@@ -268,14 +268,14 @@ public partial class Hud : CanvasLayer
         var sb = new System.Text.StringBuilder();
 
         sb.AppendLine("[b]ЛАВКА У ДОРОГИ[/b]");
-        sb.AppendLine($"Денег в кармане: [b]{session.Wallet.Money:F0} €[/b]");
+        sb.AppendLine($"Денег в кармане: [b]{Money.Format(session.Wallet.Money)}[/b]");
         sb.AppendLine();
 
         int index = 1;
         foreach (var entry in TradeService.Shop)
         {
             var def = ItemCatalog.Get(entry.ItemId);
-            sb.AppendLine($"[b]{index}[/b]   {def.Name,-18} {entry.Price,4:F0} €   ({def.WeightKg:F1} кг)");
+            sb.AppendLine($"[b]{index}[/b]   {def.Name,-18} {Money.Format(entry.Price),6}   ({def.WeightKg:F1} кг)");
             index++;
         }
 
@@ -294,7 +294,7 @@ public partial class Hud : CanvasLayer
         else
         {
             foreach (var item in carried)
-                sb.AppendLine($"    {item.Definition.Name} — {PartCatalog.All[item.DefId].Price * 0.5:F0} €");
+                sb.AppendLine($"    {item.Definition.Name} — {Money.Format(PartCatalog.All[item.DefId].Price * 0.5)}");
         }
 
         sb.AppendLine();
