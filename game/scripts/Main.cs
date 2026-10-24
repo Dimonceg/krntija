@@ -982,13 +982,26 @@ public partial class Main : Node3D
 
     private void AddLandmark(RoadFeature feature, Vector3 position, float heading, Vector3 roadPoint)
     {
+        var model = ModelLibrary.Prop(feature.ToString().ToLowerInvariant());
+
+        if (model is not null)
+        {
+            model.Position = position;
+            model.Rotation = new Vector3(0, -heading, 0);
+            AddChild(model);
+        }
+
         switch (feature)
         {
-            case RoadFeature.GasStation: AddGasStation(position, heading); break;
-            case RoadFeature.Village: AddVillage(position, heading); break;
-            case RoadFeature.Ruins: AddRuins(position, heading); break;
-            case RoadFeature.Farm: AddFarm(position, heading); break;
-            case RoadFeature.Checkpoint: AddCheckpoint(position, heading, roadPoint); break;
+            case RoadFeature.GasStation:
+                if (model is null) AddGasStation(position, heading);
+                else AddGasStationInteractions(position, heading);
+                break;
+
+            case RoadFeature.Village: if (model is null) AddVillage(position, heading); break;
+            case RoadFeature.Ruins: if (model is null) AddRuins(position, heading); break;
+            case RoadFeature.Farm: if (model is null) AddFarm(position, heading); break;
+            case RoadFeature.Checkpoint: AddCheckpoint(position, heading, roadPoint, model is null); break;
         }
     }
 
@@ -1049,16 +1062,19 @@ public partial class Main : Node3D
         farm.AddChild(silo);
     }
 
-    private void AddCheckpoint(Vector3 position, float heading, Vector3 roadPoint)
+    private void AddCheckpoint(Vector3 position, float heading, Vector3 roadPoint, bool buildBooth = true)
     {
-        var checkpoint = new Node3D { Position = position, Rotation = new Vector3(0, -heading, 0) };
-        AddChild(checkpoint);
+        if (buildBooth)
+        {
+            var checkpoint = new Node3D { Position = position, Rotation = new Vector3(0, -heading, 0) };
+            AddChild(checkpoint);
 
-        // Будка смотрителя и пара фонарей на обочине.
-        Box(checkpoint, new Vector3(2.4f, 2.6f, 2.4f), new Vector3(0, 1.3f, 0), new Color(0.72f, 0.7f, 0.6f));
-        Box(checkpoint, new Vector3(3.0f, 0.2f, 3.0f), new Vector3(0, 2.7f, 0), new Color(0.4f, 0.38f, 0.34f));
+            // Будка смотрителя и козырёк на обочине.
+            Box(checkpoint, new Vector3(2.4f, 2.6f, 2.4f), new Vector3(0, 1.3f, 0), new Color(0.72f, 0.7f, 0.6f));
+            Box(checkpoint, new Vector3(3.0f, 0.2f, 3.0f), new Vector3(0, 2.7f, 0), new Color(0.4f, 0.38f, 0.34f));
+        }
 
-        // Сам шлагбаум стоит поперёк дороги.
+        // Сам шлагбаум стоит поперёк дороги и нужен всегда — это механика.
         var gate = CheckpointGate.Create(roadPoint, heading);
         AddChild(gate);
 
@@ -1114,11 +1130,17 @@ public partial class Main : Node3D
         });
         station.AddChild(shop);
 
-        // Точки взаимодействия: колонка и вход в лавку (снаружи, у стены).
-        _interactions.Add(new InteractionPoint(
-            station.ToGlobal(new Vector3(0, 1f, 0)), InteractionKind.Pump, 4.5f));
-        _interactions.Add(new InteractionPoint(
-            station.ToGlobal(new Vector3(0, 1.6f, -6.4f)), InteractionKind.Shop, 4.5f));
+        AddGasStationInteractions(origin, heading);
+    }
+
+    /// <summary>Колонка и вход в лавку — считаются от точки POI, без привязки к узлу.</summary>
+    private void AddGasStationInteractions(Vector3 origin, float heading)
+    {
+        Vector3 pump = origin + new Vector3(0, 1f, 0).Rotated(Vector3.Up, -heading);
+        Vector3 shop = origin + new Vector3(0, 1.6f, -6.4f).Rotated(Vector3.Up, -heading);
+
+        _interactions.Add(new InteractionPoint(pump, InteractionKind.Pump, 4.5f));
+        _interactions.Add(new InteractionPoint(shop, InteractionKind.Shop, 4.5f));
     }
 
     // ---------- ввод ----------

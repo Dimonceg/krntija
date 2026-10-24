@@ -105,6 +105,22 @@ public partial class Car : RigidBody3D
             Position = new Vector3(0, 0.12f, 0),
         });
 
+        // Если в assets/models/cars лежит модель — берём её, иначе собираем заглушку.
+        var model = ModelLibrary.CarBody(Session.Vehicle.Spec.Id);
+        if (model is not null) AddChild(model);
+        else BuildProceduralShell();
+
+        BuildWheels();
+
+        AddHeadlights();
+
+        _audio = new EngineAudio();
+        AddChild(_audio);
+    }
+
+    /// <summary>Процедурный кузов: работает, пока модели нет.</summary>
+    private void BuildProceduralShell()
+    {
         var paint = new StandardMaterial3D { AlbedoColor = new Color(0.66f, 0.45f, 0.24f), Roughness = 0.7f, Metallic = 0.05f };
         var trim = new StandardMaterial3D { AlbedoColor = new Color(0.16f, 0.16f, 0.17f), Roughness = 0.85f };
         var glass = new StandardMaterial3D { AlbedoColor = new Color(0.08f, 0.11f, 0.13f), Roughness = 0.15f, Metallic = 0.4f };
@@ -153,7 +169,10 @@ public partial class Car : RigidBody3D
             Rotation = new Vector3(Mathf.Pi / 2, 0, 0),
             MaterialOverride = trim,
         });
+    }
 
+    private void BuildWheels()
+    {
         var rubber = new StandardMaterial3D { AlbedoColor = new Color(0.3f, 0.29f, 0.28f), Roughness = 1.0f };
         var hubMaterial = new StandardMaterial3D { AlbedoColor = new Color(0.6f, 0.6f, 0.58f), Metallic = 0.5f, Roughness = 0.55f };
 
@@ -177,11 +196,6 @@ public partial class Car : RigidBody3D
 
             _wheels[i] = wheel;
         }
-
-        AddHeadlights();
-
-        _audio = new EngineAudio();
-        AddChild(_audio);
     }
 
     private void Part(Vector3 size, Vector3 position, Material material)
