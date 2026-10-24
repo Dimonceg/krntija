@@ -107,10 +107,10 @@ public partial class Main : Node3D
         _camera = new ChaseCamera
         {
             Target = _car,
-            Distance = 5.6f,
-            Height = 2.4f,
-            LookHeight = 0.85f,
-            Fov = 70f,
+            Distance = 5.2f,
+            Height = 2.15f,
+            LookHeight = 0.8f,
+            Fov = 68f,
         };
         AddChild(_camera);
         _camera.GlobalPosition = _car.GlobalPosition + new Vector3(0, 4.5f, 10);
@@ -799,10 +799,10 @@ public partial class Main : Node3D
         _car.Driven = true;
 
         _camera.Target = _car;
-        _camera.Distance = 5.6f;
-        _camera.Height = 2.4f;
-        _camera.LookHeight = 0.85f;
-        _camera.Fov = 70f;
+        _camera.Distance = 5.2f;
+        _camera.Height = 2.15f;
+        _camera.LookHeight = 0.8f;
+        _camera.Fov = 68f;
         _camera.OrbitWithMouse = true;
         _camera.PitchWithMouse = false;
         _camera.UseTargetYaw = false;
