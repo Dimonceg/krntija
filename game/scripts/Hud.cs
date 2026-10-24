@@ -134,7 +134,7 @@ public partial class Hud : CanvasLayer
             $"температура {vehicle.EngineTempC,4:F0} °C\n" +
             $"Здоровье {survival.Health * 100,3:F0}%   голод {survival.Hunger * 100,3:F0}%   " +
             $"жажда {survival.Thirst * 100,3:F0}%   {session.Wallet.Money:F0} €\n" +
-            $"{session.Clock}   [W/S/A/D] [V] зажигание [E] выйти/сесть [J] журнал [F5/F9] сейв";
+            $"{session.Clock}   [W/S/A/D] [V] зажигание [E] выйти/сесть [J] журнал [C] вид [F5/F9] сейв";
 
         _panel.Visible = Screen != HudScreen.None;
         if (Screen != HudScreen.None)

@@ -16,6 +16,15 @@ public partial class Player : CharacterBody3D
 
     private float _stepTimer;
 
+    /// <summary>Спрятать тело игрока в виде от первого лица.</summary>
+    public void SetModelVisible(bool visible)
+    {
+        foreach (var child in GetChildren())
+        {
+            if (child is MeshInstance3D mesh) mesh.Visible = visible;
+        }
+    }
+
     public override void _Ready()
     {
         AddChild(new CollisionShape3D
