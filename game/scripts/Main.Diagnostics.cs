@@ -27,8 +27,8 @@ public partial class Main
     private bool _checkHouse;
     private int _houseCheckFrames = -1;
     private int _frames;
-    private float _offroadStartY;
-    private float _playerStartY;
+    private float _offroadGroundY;
+    private float _playerGroundY;
     private float _handbrakeSpeed;
     private Vector3 _creepPosition;
 
@@ -480,16 +480,19 @@ public partial class Main
             return;
         }
 
-        _car.GlobalPosition = pump.Position + new Vector3(7f, 1.2f, 7f);
+        // Высоту берём лучом до настоящей земли: рельеф вокруг заправки
+        // меняется вместе с артом, а высота колонки — нет.
+        Vector3 spot = pump.Position + new Vector3(7f, 0f, 7f);
+        _offroadGroundY = GroundY(spot);
+        _car.GlobalPosition = new Vector3(spot.X, _offroadGroundY + 0.62f, spot.Z);
         _car.LinearVelocity = Vector3.Zero;
         _car.AngularVelocity = Vector3.Zero;
-        _offroadStartY = _car.GlobalPosition.Y;
     }
 
     private void CheckOffroad()
     {
         float y = _car.GlobalPosition.Y;
-        Check(y > _offroadStartY - 2f, $"машина не провалилась у заправки (Y={y:F1})");
+        Check(y > _offroadGroundY - 0.5f, $"машина не провалилась у заправки (Y={y:F1}, земля {_offroadGroundY:F1})");
         Check(_car.GroundedWheels > 0, "колёса стоят на земле у заправки");
     }
 
@@ -505,8 +508,9 @@ public partial class Main
             return;
         }
 
-        _player.Teleport(_car.GlobalPosition + new Vector3(-10f, 1.5f, 0f));
-        _playerStartY = _player.GlobalPosition.Y;
+        Vector3 spot = _car.GlobalPosition + new Vector3(-10f, 0f, 0f);
+        _playerGroundY = GroundY(spot);
+        _player.Teleport(new Vector3(spot.X, _playerGroundY + 1.0f, spot.Z));
     }
 
     private void CheckPlayerOffroad()
@@ -518,8 +522,20 @@ public partial class Main
         }
 
         float y = _player.GlobalPosition.Y;
-        Check(y > _playerStartY - 2f, $"пешеход не провалился за дорогой (Y={y:F1})");
+        Check(y > _playerGroundY - 0.5f, $"пешеход не провалился за дорогой (Y={y:F1}, земля {_playerGroundY:F1})");
         Check(_player.IsOnFloor(), "пешеход стоит на земле");
+    }
+
+    /// <summary>Высота первой твёрдой поверхности под точкой, без машины и пешехода.</summary>
+    private float GroundY(Vector3 at)
+    {
+        var query = PhysicsRayQueryParameters3D.Create(at + Vector3.Up * 40f, at + Vector3.Down * 40f);
+        var exclude = new Godot.Collections.Array<Rid> { _car.GetRid() };
+        if (_player is not null) exclude.Add(_player.GetRid());
+        query.Exclude = exclude;
+
+        var hit = GetWorld3D().DirectSpaceState.IntersectRay(query);
+        return hit.Count > 0 ? ((Vector3)hit["position"]).Y : at.Y;
     }
 
     private void Check(bool condition, string what)
@@ -729,6 +745,7 @@ public partial class Main
             Vector3 startWorld = house.ToGlobal(new Vector3(4.2f, 0.35f, 3.8f));
             Vector3 topWorld = house.ToGlobal(new Vector3(4.2f, 0.35f, 0.5f));
             Vector3 direction = (topWorld - startWorld).Normalized();
+            float climbLength = startWorld.DistanceTo(topWorld);
             climb.GlobalPosition = startWorld;
 
             Vector3 climbPrevious = climb.GlobalPosition;
@@ -736,6 +753,9 @@ public partial class Main
 
             for (int i = 0; i < 420; i++)
             {
+                // Наверху лестницы останавливаемся: дальше уже чердак, а не подъём.
+                if ((climb.GlobalPosition - startWorld).Dot(direction) >= climbLength) break;
+
                 climb.Velocity = direction * 2.4f - Vector3.Up * 0.2f;
 
                 // Тот же шаг вверх: иначе тест не повторит путь игрока.
@@ -771,6 +791,18 @@ public partial class Main
             bool reached = height > 2.3f;
             ok &= reached;
             GD.Print($"[houseclimb] чердак: {height:F2} м — {(reached ? "ок" : "НЕ ПОДНЯЛСЯ")} {climbTrace.Trim()}");
+
+            // По чердаку к фасаду: пол держит, наружу не выйти.
+            for (int i = 0; i < 240; i++)
+            {
+                climb.Velocity = direction * 2.4f - Vector3.Up * 2f;
+                climb.MoveAndSlide();
+            }
+
+            Vector3 attic = house.ToLocal(climb.GlobalPosition);
+            bool stays = attic.Y > 2.5f && Mathf.Abs(attic.Z) < 4f;
+            ok &= stays;
+            GD.Print($"[houseattic] по чердаку: Y={attic.Y:F2}, Z={attic.Z:F2} — {(stays ? "ок" : "ПРОВАЛИЛСЯ ИЛИ ВЫШЕЛ")}");
             climb.QueueFree();
         }
 
