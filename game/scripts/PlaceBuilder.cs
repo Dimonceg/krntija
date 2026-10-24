@@ -27,27 +27,14 @@ public static class PlaceBuilder
 
     public sealed record Built(PlacePlan Plan, Vector3 Local, List<Use> Uses, List<Loot> Loot);
 
-    /// <summary>Радиус, внутри которого у места нет деревьев и травы.</summary>
-    public static float ClearRadius(PlaceKind kind) => kind switch
-    {
-        PlaceKind.House or PlaceKind.GasStation or PlaceKind.Village or PlaceKind.Farm => 20f,
-        PlaceKind.Ruins or PlaceKind.Barn or PlaceKind.Abandoned => 15f,
-        PlaceKind.Checkpoint => 12f,
-        _ => 7f,
-    };
-
-    /// <summary>Центр места в мире: на оси дороги или сбоку от неё.</summary>
-    public static (double X, double Z) Center(RoadCurve curve, PlacePlan place)
-    {
-        var (x, _, z) = curve.Offset(place.S, place.Lateral);
-        return (x, z);
-    }
+    /// <summary>Радиус, внутри которого у места нет деревьев и травы: габарит и запас на крону.</summary>
+    public static float ClearRadius(PlacePlan place) => (float)place.Footprint.Radius + 4f;
 
     /// <param name="local">Мировые (x, y, z) → координаты корня куска.</param>
     public static Built Build(RoadCurve curve, PlacePlan place, Node3D chunkRoot,
         Func<double, double, double, Vector3> local)
     {
-        var (cx, cz) = Center(curve, place);
+        var (cx, cz) = PlaceGeometry.Center(place, curve);
         float cy = place.OnRoad ? (float)curve.Height(place.S) : ChunkBuilder.Ground(curve, cx, cz).Height;
         var built = new Built(place, local(cx, cy, cz), new List<Use>(), new List<Loot>());
 

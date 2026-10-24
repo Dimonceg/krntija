@@ -61,8 +61,8 @@ public sealed class ChunkBuilder
         _clearings = new (double, double, float)[plan.Places.Count];
         for (int i = 0; i < plan.Places.Count; i++)
         {
-            var (x, z) = PlaceBuilder.Center(curve, plan.Places[i]);
-            _clearings[i] = (x, z, PlaceBuilder.ClearRadius(plan.Places[i].Kind));
+            var (x, z) = PlaceGeometry.Center(plan.Places[i], curve);
+            _clearings[i] = (x, z, PlaceBuilder.ClearRadius(plan.Places[i]));
         }
     }
 

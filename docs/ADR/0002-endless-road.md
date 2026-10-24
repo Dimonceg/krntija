@@ -225,8 +225,13 @@ public sealed record UsePlan(string Id, string Kind,
     GLB-модели стоит до 8 мс и ничего не сливает (текстуры).
   - Модели мест грузятся заранее (`PlaceBuilder.Preload`): первая загрузка GLB
     посреди поездки — рывок 20–35 мс. Новую модель места добавить в `ModelIds`.
-  - Деревья и трава не растут в круге `PlaceBuilder.ClearRadius` — временно,
-    до `Footprint`.
+  - Деревья и трава не растут в круге `Footprint.Radius + 4 м`
+    (`PlaceBuilder.ClearRadius`). Площадку земли по `Footprint` пока не
+    выравниваем.
+  - Оси `Footprint` (исправлено в 2б, тест `FootprintAxesMatchTheRoadLikeTheScene`):
+    `HalfWidth` — поперёк дороги (ось X места), `HalfDepth` — вдоль дороги.
+    `PlayerHouse` стоит фасадом (11 м) вдоль дороги, глубина 8 м поперёк —
+    его габарит `(4, 5.5)`, а в `FootprintFor` сейчас `(5, 4)`.
 
 ## Ход фазы 2
 

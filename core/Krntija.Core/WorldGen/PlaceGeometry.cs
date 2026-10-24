@@ -21,11 +21,12 @@ public static class PlaceGeometry
         double halfWidth = place.Footprint.HalfWidth;
         double halfDepth = place.Footprint.HalfDepth;
 
-        // Ось места: вперёд (глубина) по курсу места, вбок (ширина) — вправо.
+        // Оси места как в сцене (узел повёрнут на −Yaw): глубина — вдоль дороги,
+        // касательная (sin, −cos); ширина — вправо, как в RoadCurve.Offset (cos, sin).
         double forwardX = Math.Sin(place.Yaw);
-        double forwardZ = Math.Cos(place.Yaw);
+        double forwardZ = -Math.Cos(place.Yaw);
         double rightX = Math.Cos(place.Yaw);
-        double rightZ = -Math.Sin(place.Yaw);
+        double rightZ = Math.Sin(place.Yaw);
 
         return new[]
         {
