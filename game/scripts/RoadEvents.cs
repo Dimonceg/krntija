@@ -102,7 +102,9 @@ public partial class RoadEvents : Node3D
 
     public override void _PhysicsProcess(double delta)
     {
-        if (_car is null || _hud is null) return;
+        // Машину пересоздают при новой игре и загрузке сейва: старый узел может
+        // на кадр оказаться вне дерева, и GlobalPosition уже не посчитать.
+        if (_car is null || _hud is null || !IsInstanceValid(_car) || !_car.IsInsideTree()) return;
 
         Vector3 carPosition = _car.GlobalPosition;
         float speed = _car.SpeedMps;

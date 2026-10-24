@@ -55,6 +55,9 @@ public partial class CheckpointGate : Node3D
 
     public void Open() => IsOpen = true;
 
+    /// <summary>Закрыть шлагбаум: нужно при старте новой игры в том же мире.</summary>
+    public void Close() => IsOpen = false;
+
     public override void _Process(double delta)
     {
         float target = IsOpen ? Mathf.DegToRad(74) : 0f;

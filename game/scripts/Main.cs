@@ -1044,19 +1044,41 @@ public partial class Main : Node3D
 
     /// <summary>
     /// Новая игра на выбранной машине: сессия собирается заново, поэтому
-    /// топливо, детали, деньги и задача начинаются с чистого листа.
-    /// Сцену не перезагружаем — мир (дорога, события, погода) остаётся тем же.
+    /// топливо, детали, деньги, время и задача начинаются с чистого листа.
+    /// Мир (дорога, террейн) остаётся, но его состояние сбрасывается:
+    /// события, открытые шлагбаумы и награды за посещённые места.
     /// </summary>
     private void StartNewGame(CarSpec spec)
     {
         Respawn(GameSession.NewGame(car: spec));
         PlaceCarAtStart();
+        ResetWorldState();
+
         _objectiveDone = false;
         _hud.Objective = string.Empty;
 
         ResumeGame();
         _hud.Toast($"Новая игра: {spec.Name}");
         GD.Print($"[newgame] {spec.Id}");
+    }
+
+    /// <summary>Сброс состояния мира при новой игре в той же сцене.</summary>
+    private void ResetWorldState()
+    {
+        _visitedPoi.Clear();
+
+        foreach (var point in _interactions)
+            point.Gate?.Close();
+
+        // События хранят сработавшие точки и ссылки на старую машину:
+        // проще собрать их заново, чем чинить флаги и удалённые узлы.
+        if (_road is not null)
+        {
+            _events?.QueueFree();
+            _events = new RoadEvents();
+            AddChild(_events);
+            _events.Setup(_road.Centerline, _road.Headings, _car, _hud);
+        }
     }
 
     private void ContinueGame()
@@ -1167,12 +1189,17 @@ public partial class Main : Node3D
         Vector3 position = _car.GlobalPosition;
         Vector3 rotation = _car.GlobalRotation;
 
+        // Сначала убираем старую машину из дерева: QueueFree освобождает узел
+        // в конце кадра, и без RemoveChild две машины успели бы побыть в мире
+        // одновременно — старая ещё участвует в физике.
+        RemoveChild(_car);
         _car.QueueFree();
+
         _car = Car.Build(session);
         AddChild(_car);
         _car.GlobalPosition = position;
         _car.GlobalRotation = rotation;
-        _car.Autopilot = _smoke;
+        _car.Autopilot = _smoke || _selfTest || _perf || _selfTestCars;
 
         _camera.Target = _car;
         _hud.Car = _car;
@@ -1219,6 +1246,34 @@ public partial class Main : Node3D
                      + $"получили {actual}/{fuel:F0} л — {(match ? "ок" : "FAIL")}");
             ok &= match;
         }
+
+        // Вторая часть: новая игра не должна копить события, награды и шлагбаумы.
+        var gatePoint = _interactions.FirstOrDefault(p => p.Gate is not null);
+        gatePoint?.Gate?.Open();
+
+        for (int i = 0; i < 2; i++)
+        {
+            _visitedPoi.Add(999);
+            _menu.ShowCarSelect();
+            _menu.PressCar(0);
+        }
+
+        // Считаем только живые узлы: QueueFree освобождает старые в конце кадра.
+        int eventNodes = 0;
+        foreach (var child in GetChildren())
+        {
+            if (child is RoadEvents events && !events.IsQueuedForDeletion()) eventNodes++;
+        }
+
+        bool singleEvents = eventNodes == 1;
+        bool visitedCleared = _visitedPoi.Count == 0;
+        bool gateClosed = gatePoint?.Gate is { IsOpen: false };
+
+        GD.Print($"[carselftest] события: {eventNodes} (ждём 1) — {(singleEvents ? "ок" : "FAIL")}, "
+                 + $"награды сброшены: {_visitedPoi.Count} — {(visitedCleared ? "ок" : "FAIL")}, "
+                 + $"шлагбаум закрыт — {(gateClosed ? "ок" : "FAIL")}");
+
+        ok &= singleEvents && visitedCleared && gateClosed;
 
         GD.Print(ok ? "[carselftest] OK" : "[carselftest] FAIL");
         GetTree().Quit(ok ? 0 : 1);
