@@ -59,8 +59,8 @@ public partial class Hud : CanvasLayer
         _panel = new Panel
         {
             Visible = false,
-            Position = new Vector2(20, 130),
-            Size = new Vector2(560, 540),
+            Position = new Vector2(20, 112),
+            Size = new Vector2(640, 520),
         };
         _panel.AddThemeStyleboxOverride("panel", new StyleBoxFlat
         {
@@ -78,10 +78,10 @@ public partial class Hud : CanvasLayer
             BbcodeEnabled = true,
             ScrollActive = true,
             Position = new Vector2(16, 12),
-            Size = new Vector2(528, 516),
+            Size = new Vector2(608, 496),
         };
-        _panelText.AddThemeFontSizeOverride("normal_font_size", 15);
-        _panelText.AddThemeFontSizeOverride("bold_font_size", 15);
+        _panelText.AddThemeFontSizeOverride("normal_font_size", 13);
+        _panelText.AddThemeFontSizeOverride("bold_font_size", 13);
         _panel.AddChild(_panelText);
 
         _prompt = new Label { HorizontalAlignment = HorizontalAlignment.Center };
@@ -129,7 +129,7 @@ public partial class Hud : CanvasLayer
         string heat = session.Systems.Overheating ? "  !! ПЕРЕГРЕВ !!" : string.Empty;
 
         _status.Text =
-            $"{Car.Kmh,5:F0} км/ч   {train.Gear} передача   {train.Rpm,4:F0} об/мин   двигатель {ignition}{heat}\n" +
+            $"{Car.Kmh,5:F0} км/ч   {train.GearText} передача   {train.Rpm,4:F0} об/мин   двигатель {ignition}{heat}\n" +
             $"{vehicle.Spec.Name}   топливо {vehicle.Fuel.Liters,5:F1} / {vehicle.Fuel.CapacityLiters:F0} л   " +
             $"температура {vehicle.EngineTempC,4:F0} °C\n" +
             $"Здоровье {survival.Health * 100,3:F0}%   голод {survival.Hunger * 100,3:F0}%   " +
@@ -178,18 +178,21 @@ public partial class Hud : CanvasLayer
         sb.AppendLine($"[b]ИНВЕНТАРЬ[/b]  {session.Inventory.Items.Count()}/{session.Inventory.SlotCount} слотов, " +
                       $"{session.Inventory.WeightKg:F1} / {session.Inventory.MaxWeightKg:F0} кг");
 
+        int slotNumber = 1;
         foreach (var item in session.Inventory.Items)
         {
             string extra = item.Liters > 0.01 ? $"  ({item.Liters:F1} л)" : string.Empty;
             string wear = item.Condition < 0.999 ? $"  износ {(1 - item.Condition) * 100:F0}%" : string.Empty;
-            sb.AppendLine($"{item.Definition.Name} ×{item.Count}{extra}{wear}");
+            sb.AppendLine($"[b]{slotNumber}[/b]  {item.Definition.Name} ×{item.Count}{extra}{wear}");
+            slotNumber++;
         }
 
         sb.AppendLine();
         sb.AppendLine($"[b]СОСТОЯНИЕ[/b]  здоровье {survival.Health * 100:F0}%, голод {survival.Hunger * 100:F0}%, " +
                       $"жажда {survival.Thirst * 100:F0}%, сон {survival.Fatigue * 100:F0}%");
         sb.AppendLine();
-        sb.AppendLine("[color=#8a8578][↑/↓] выбрать   [T] поставить из сумки   [R] изолента   [F] канистра   [J] закрыть[/color]");
+        sb.AppendLine("[color=#8a8578][↑/↓] выбрать деталь   [T] поставить   [R] изолента   [F] канистра[/color]");
+        sb.AppendLine("[color=#8a8578][1..9] использовать предмет из списка   [J] закрыть[/color]");
 
         return sb.ToString();
     }

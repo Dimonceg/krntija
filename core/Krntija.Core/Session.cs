@@ -61,13 +61,13 @@ public sealed class GameSession
             new Wallet(120));
     }
 
-    public void Step(double dt, in VehicleSample sample, in DriveInput input)
+    public void Step(double dt, in VehicleSample sample, in DriveInput input, bool reversing = false)
     {
         if (dt <= 0) return;
 
         Clock.Advance(dt);
         Systems.Step(dt, sample, input);
-        DriveTrain.Update(sample.SpeedMps, input.Throttle, dt);
+        DriveTrain.Update(sample.SpeedMps, input.Throttle, dt, reversing);
         Survival.Step(dt * Clock.TimeScale / 3600.0, sample.AmbientC);
     }
 

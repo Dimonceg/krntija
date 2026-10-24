@@ -16,7 +16,8 @@ public sealed record CarSpec(
     double FinalDrive,
     IReadOnlyList<double> GearRatios,
     double IdleRpm = 800,
-    double MaxRpm = 6200)
+    double MaxRpm = 6200,
+    double ReverseRatio = 3.4)
 {
     /// <summary>Тяга на ведущей оси при нулевой скорости, Н (упрощённо).</summary>
     public double MaxTractionN => PowerKw * 1000 / 4.0;
@@ -102,11 +103,32 @@ public sealed class DriveTrain
 
     public bool IsRedline => Rpm >= Spec.MaxRpm * 0.95;
 
-    public void Update(double speedMps, double throttle, double dt)
+    public bool IsReverse => Gear == -1;
+
+    public string GearText => Gear == -1 ? "R" : Gear.ToString();
+
+    public void Update(double speedMps, double throttle, double dt, bool reverse = false)
     {
         if (dt <= 0) return;
 
         double wheelRpm = Math.Abs(speedMps) / (2 * Math.PI * Spec.WheelRadiusM) * 60;
+
+        double k = Math.Clamp(dt * 8.0, 0, 1);
+
+        if (reverse)
+        {
+            Gear = -1;
+            double reverseTarget = Math.Clamp(
+                wheelRpm * Spec.ReverseRatio * Spec.FinalDrive,
+                Spec.IdleRpm,
+                Spec.MaxRpm * 0.6);
+
+            Rpm += (reverseTarget - Rpm) * k;
+            return;
+        }
+
+        if (Gear == -1) Gear = 1;
+
         double RpmInGear(int gear) => wheelRpm * Spec.GearRatios[gear - 1] * Spec.FinalDrive;
 
         if (RpmInGear(Gear) > ShiftUpRpm && Gear < Spec.GearRatios.Count)
@@ -118,7 +140,6 @@ public sealed class DriveTrain
         if (throttle < 0.05) target = Math.Max(Spec.IdleRpm, target * 0.9);
 
         // Сглаживание, чтобы стрелка не дёргалась.
-        double k = Math.Clamp(dt * 8.0, 0, 1);
         Rpm += (target - Rpm) * k;
     }
 

@@ -6,6 +6,7 @@ using Krntija.Core;
 using Krntija.Core.Economy;
 using Krntija.Core.Items;
 using Krntija.Core.Parts;
+using Krntija.Core.Vehicle;
 using Krntija.Core.Workshop;
 using Krntija.Core.World;
 
@@ -27,6 +28,7 @@ public partial class Main : Node3D
     private bool _selfTestDone;
     private bool _selfTestOk;
     private bool _shot;
+    private bool _openJournalInShot;
     private int _frames;
 
     private enum InteractionKind
@@ -66,7 +68,9 @@ public partial class Main : Node3D
 
         _smoke = Array.IndexOf(OS.GetCmdlineUserArgs(), "--smoke") >= 0;
         _selfTest = Array.IndexOf(OS.GetCmdlineUserArgs(), "--selftest") >= 0;
-        _shot = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot") >= 0;
+        _shot = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot") >= 0
+                || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-ui") >= 0;
+        _openJournalInShot = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-ui") >= 0;
         _car.Autopilot = _smoke || _selfTest;
 
         if (_shot && _road is { Centerline.Count: > 90 })
@@ -89,6 +93,9 @@ public partial class Main : Node3D
 
         _frames++;
 
+        if (_shot && _frames == 120 && _openJournalInShot)
+            _hud.Screen = HudScreen.Journal;
+
         if (_shot && _frames >= 180)
         {
             _smokeDone = true;
@@ -103,7 +110,8 @@ public partial class Main : Node3D
         if (_selfTest)
         {
             if (_frames == 120) RunSelfTest();
-            if (_frames >= 160)
+            if (_frames == 230) CheckReverse();
+            if (_frames >= 240)
             {
                 _smokeDone = true;
                 GetTree().Quit(_selfTestOk ? 0 : 1);
@@ -181,6 +189,12 @@ public partial class Main : Node3D
         if (_hud.Screen == HudScreen.Shop && key.Keycode == Key.S)
         {
             SellCarriedPart();
+            return;
+        }
+
+        if (_hud.Screen == HudScreen.Journal && key.Keycode >= Key.Key1 && key.Keycode <= Key.Key9)
+        {
+            UseInventoryItem((int)key.Keycode - (int)Key.Key1);
             return;
         }
 
@@ -403,6 +417,23 @@ public partial class Main : Node3D
             : "Не хватает денег или места");
     }
 
+    /// <summary>Использовать предмет из сумки по номеру в журнале.</summary>
+    private void UseInventoryItem(int index)
+    {
+        var session = _car.Session;
+        var item = session.Inventory.Items.ElementAtOrDefault(index);
+
+        if (item is null)
+        {
+            _hud.Toast("В сумке нет такого предмета");
+            return;
+        }
+
+        string name = item.Definition.Name;
+        ItemUseService.TryUse(session, item.DefId, out string message);
+        _hud.Toast($"{name}: {message}");
+    }
+
     /// <summary>Сдать первую попавшуюся деталь из сумки за половину цены.</summary>
     private void SellCarriedPart()
     {
@@ -457,6 +488,12 @@ public partial class Main : Node3D
 
             Check(TradeService.TryBuy(session.Inventory, session.Wallet, "bread"), "покупка в лавке");
 
+            double thirstBefore = session.Survival.Thirst;
+            int waterBefore = session.Inventory.Count(ItemIds.Water);
+            bool used = ItemUseService.TryUse(session, ItemIds.Water, out _);
+            Check(used && session.Survival.Thirst > thirstBefore && session.Inventory.Count(ItemIds.Water) < waterBefore,
+                "предмет из сумки используется");
+
             double moneyAtSave = session.Wallet.Money;
             SaveGame();
 
@@ -483,6 +520,10 @@ public partial class Main : Node3D
             EnterCar();
             Check(!_onFoot && _car.Driven && _player is null, "возвращение за руль");
 
+            _car.LinearVelocity = Vector3.Zero;
+            _car.AngularVelocity = Vector3.Zero;
+            _car.ForcedInput = new DriveInput(Ignition: true, Brake: 1.0);
+
             var gatePoint = _interactions.FirstOrDefault(p => p.Kind == InteractionKind.Gate);
             if (gatePoint?.Gate is not null)
             {
@@ -498,6 +539,18 @@ public partial class Main : Node3D
             _selfTestOk = false;
             GD.PrintErr($"[selftest] исключение: {e}");
         }
+    }
+
+    /// <summary>Проверка заднего хода: машина должна поехать назад на «S».</summary>
+    private void CheckReverse()
+    {
+        float forwardSpeed = _car.LinearVelocity.Dot(-_car.GlobalBasis.Z);
+        Check(forwardSpeed < -0.5f, $"задний ход ({forwardSpeed:F2} м/с)");
+        Check(_car.Session.DriveTrain.IsReverse, "коробка показывает R");
+
+        _car.ForcedInput = null;
+        _car.LinearVelocity = Vector3.Zero;
+        _car.AngularVelocity = Vector3.Zero;
     }
 
     private void Check(bool condition, string what)

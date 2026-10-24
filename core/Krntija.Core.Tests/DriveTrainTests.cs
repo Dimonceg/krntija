@@ -62,4 +62,30 @@ public class DriveTrainTests
         Assert.True(vaz.TotalMassKg > zastava.TotalMassKg);
         Assert.Equal(CarCatalog.Vaz2106.FuelCapacityL, vaz.Fuel.CapacityLiters, 3);
     }
+
+    [Fact]
+    public void Reverse_MarksReverseGear_AndRaisesRpm()
+    {
+        var box = new DriveTrain(CarCatalog.Zastava101);
+
+        for (double t = 0; t < 2; t += 1.0 / 60)
+            box.Update(speedMps: 2.5, throttle: 0, dt: 1.0 / 60, reverse: true);
+
+        Assert.True(box.IsReverse);
+        Assert.Equal("R", box.GearText);
+        Assert.True(box.Rpm > 900, $"на заднем ходу обороты должны расти, а не {box.Rpm:F0}");
+    }
+
+    [Fact]
+    public void ForwardAgain_LeavesReverseGear()
+    {
+        var box = new DriveTrain(CarCatalog.Zastava101);
+        box.Update(2.5, 0.5, 1.0 / 60, reverse: true);
+        Assert.True(box.IsReverse);
+
+        box.Update(5, 0.5, 1.0 / 60);
+
+        Assert.False(box.IsReverse);
+        Assert.Equal(1, box.Gear);
+    }
 }

@@ -16,6 +16,7 @@ public partial class Car : RigidBody3D
     private const float SpringDamping = 3000f;
     private const float MaxBrakeForce = 11000f;
     private const float MaxSteerRad = 0.55f;
+    private const float MaxReverseSpeed = 8f;
 
     private static readonly Vector3[] Anchors =
     {
@@ -32,6 +33,9 @@ public partial class Car : RigidBody3D
 
     /// <summary>За рулём ли игрок. Когда вышел — машина просто стоит и молотит на холостых.</summary>
     public bool Driven { get; set; } = true;
+
+    /// <summary>Принудительный ввод для автотестов: заменяет клавиатуру.</summary>
+    public DriveInput? ForcedInput { get; set; }
 
     public int GroundedWheels { get; private set; }
 
@@ -168,12 +172,20 @@ public partial class Car : RigidBody3D
         float dt = (float)delta;
         _physicsFrames++;
 
-        var input = Autopilot
-            ? new DriveInput(Ignition: true, Throttle: 1.0)
-            : ReadInput();
+        var input = ForcedInput
+            ?? (Autopilot
+                ? new DriveInput(Ignition: true, Throttle: 1.0)
+                : ReadInput());
 
         var sample = new VehicleSample(LinearVelocity.Length(), AmbientC: 20);
-        Session.Step(dt, sample, input);
+
+        float forwardSpeed = LinearVelocity.Dot(-GlobalBasis.Z);
+        bool reversing = input.Brake > 0.5
+                         && !input.Handbrake
+                         && Session.Vehicle.EngineRunning
+                         && forwardSpeed <= 0.6f;
+
+        Session.Step(dt, sample, input, reversing);
         UpdateHeadlights();
 
         if (_audio is not null)
@@ -183,7 +195,7 @@ public partial class Car : RigidBody3D
             _audio.Running = Session.Vehicle.EngineRunning;
         }
 
-        ApplyForces(dt, input);
+        ApplyForces(dt, input, forwardSpeed, reversing);
         SpinWheels(dt);
     }
 
@@ -196,7 +208,7 @@ public partial class Car : RigidBody3D
             Handbrake: Input.IsActionPressed("handbrake"))
         : default;
 
-    private void ApplyForces(float dt, in DriveInput input)
+    private void ApplyForces(float dt, in DriveInput input, float forwardSpeed, bool reversing)
     {
         Vector3 up = GlobalBasis.Y.Normalized();
         Vector3 forward = -GlobalBasis.Z.Normalized();
@@ -256,13 +268,20 @@ public partial class Car : RigidBody3D
             ApplyForce(wheelRight * lateralForce, point - com);
 
             // Тяга — на заднюю ось, но без пары сил: иначе машина встаёт на дыбы.
-            if (i >= 2 && throttle > 0.01f && SpeedMps < maxSpeed)
+            if (i >= 2 && throttle > 0.01f && forwardSpeed < maxSpeed)
             {
                 ApplyForce(forward * throttle * driveForce);
             }
 
-            // Тормоз — на все колёса.
-            if (brake > 0.01f && SpeedMps > 0.3f)
+            // Задний ход: та же задняя ось, сила в противоположную сторону.
+            if (i >= 2 && reversing && forwardSpeed > -MaxReverseSpeed)
+            {
+                float reverseForce = Mathf.Min(powerW / Mathf.Max(Mathf.Abs(forwardSpeed), 4f), 5200f) * 0.75f;
+                ApplyForce(-forward * reverseForce);
+            }
+
+            // Тормоз — только когда действительно катимся, и не в режиме заднего хода.
+            if (!reversing && brake > 0.01f && Mathf.Abs(forwardSpeed) > 0.3f)
             {
                 Vector3 back = -LinearVelocity.Normalized();
                 ApplyForce(back * brake * MaxBrakeForce * 0.25f, point - com);
