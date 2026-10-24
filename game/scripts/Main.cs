@@ -85,7 +85,7 @@ public partial class Main : Node3D
         AddChild(_car);
         // Ставим машину не на самом краю полотна, иначе половина висит в воздухе.
         Vector3 start = _road is { Centerline.Count: > 4 } ? _road.Centerline[4] : new Vector3(0, 0.6f, 0);
-        _car.GlobalPosition = start + Vector3.Up * 0.56f;
+        _car.GlobalPosition = start + Vector3.Up * 0.62f;
         _car.Path = _road?.Centerline;
 
         _camera = new ChaseCamera { Target = _car };
@@ -221,9 +221,9 @@ public partial class Main : Node3D
             {
                 root.AddChild(new MeshInstance3D
                 {
-                    Mesh = new CylinderMesh { Height = 0.22f, TopRadius = 0.32f, BottomRadius = 0.32f },
+                    Mesh = new CylinderMesh { Height = 0.24f, TopRadius = 0.36f, BottomRadius = 0.36f },
                     MaterialOverride = rubber,
-                    Position = new Vector3(x, -0.20f, z),
+                    Position = new Vector3(x, -0.26f, z),
                     Rotation = new Vector3(0, 0, Mathf.Pi / 2),
                 });
             }
@@ -1018,13 +1018,41 @@ public partial class Main : Node3D
             Sky = new Sky { SkyMaterial = skyMaterial },
             AmbientLightSource = Godot.Environment.AmbientSource.Sky,
             AmbientLightEnergy = 0.7f,
+            ReflectedLightSource = Godot.Environment.ReflectionSource.Sky,
+
             FogEnabled = true,
             FogLightColor = new Color(0.7f, 0.68f, 0.6f),
             FogDensity = 0.0022f,
+            FogAerialPerspective = 0.35f,
+            FogSkyAffect = 0.2f,
+
+            // Объём: SSAO подчёркивает стыки, тонмаппинг убирает «пластик».
+            SsaoEnabled = true,
+            SsaoRadius = 1.6f,
+            SsaoIntensity = 1.6f,
+            SsaoPower = 1.4f,
+
+            GlowEnabled = true,
+            GlowIntensity = 0.22f,
+            GlowBloom = 0.05f,
+
+            TonemapMode = Godot.Environment.ToneMapper.Filmic,
+            TonemapExposure = 1.05f,
+            TonemapWhite = 1.0f,
         };
         AddChild(new WorldEnvironment { Environment = _environment });
 
-        _sun = new DirectionalLight3D { LightEnergy = 1.3f, ShadowEnabled = true };
+        _sun = new DirectionalLight3D
+        {
+            LightEnergy = 1.5f,
+            LightColor = new Color(1.0f, 0.95f, 0.86f),
+            ShadowEnabled = true,
+            DirectionalShadowMode = DirectionalLight3D.ShadowMode.Orthogonal,
+            DirectionalShadowMaxDistance = 140f,
+            ShadowBias = 0.04f,
+            ShadowNormalBias = 0.8f,
+            ShadowBlur = 1.2f,
+        };
         _sun.RotationDegrees = new Vector3(-48, -35, 0);
         AddChild(_sun);
 

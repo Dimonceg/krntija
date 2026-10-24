@@ -14,41 +14,59 @@ public static class WorldScatter
     public static void ScatterTrees(List<Vector3> centerline, List<float> headings, Node3D parent, ulong seed)
     {
         var rng = new Pcg32(seed, sequence: 99);
-        var spots = new List<(Vector3 Position, float Scale, float Yaw)>();
+        var spots = new List<(Vector3 Position, float Scale, float Yaw, bool Pine)>();
 
         for (int i = 4; i < centerline.Count; i += 2)
         {
             for (int side = -1; side <= 1; side += 2)
             {
-                if (!rng.Chance(0.55)) continue;
+                if (!rng.Chance(0.62)) continue;
 
-                float offset = (float)rng.Range(11, 30);
+                float offset = (float)rng.Range(14, 42);
                 var right = new Vector3(Mathf.Cos(headings[i]), 0, Mathf.Sin(headings[i]));
                 Vector3 tree = centerline[i] + right * offset * side;
                 tree.Y = TerrainBuilder.SurfaceHeight(centerline[i].Y, offset * side, tree);
 
                 spots.Add((
                     tree,
-                    (float)rng.Range(0.75, 1.45),
-                    (float)rng.Range(0, Mathf.Tau)));
+                    (float)rng.Range(0.65, 1.15),
+                    (float)rng.Range(0, Mathf.Tau),
+                    rng.Chance(0.62)));
             }
         }
 
         if (spots.Count == 0) return;
 
-        var trunkMesh = new CylinderMesh { TopRadius = 0.14f, BottomRadius = 0.26f, Height = 2.4f, RadialSegments = 6 };
-        var crownMesh = new CylinderMesh { TopRadius = 0f, BottomRadius = 1.7f, Height = 3.6f, RadialSegments = 7 };
+        var trunkMesh = new CylinderMesh { TopRadius = 0.13f, BottomRadius = 0.22f, Height = 3.0f, RadialSegments = 6 };
+        var pineCrown = BuildPineCrown();
+        var roundCrown = new SphereMesh { Radius = 1.6f, Height = 2.7f, RadialSegments = 8, Rings = 5 };
+
+        int pineCount = 0;
+        foreach (var spot in spots)
+            if (spot.Pine) pineCount++;
 
         var trunks = new MultiMesh { TransformFormat = MultiMesh.TransformFormatEnum.Transform3D, Mesh = trunkMesh, InstanceCount = spots.Count };
-        var crowns = new MultiMesh { TransformFormat = MultiMesh.TransformFormatEnum.Transform3D, Mesh = crownMesh, InstanceCount = spots.Count };
+        var pines = new MultiMesh { TransformFormat = MultiMesh.TransformFormatEnum.Transform3D, Mesh = pineCrown, InstanceCount = pineCount };
+        var rounds = new MultiMesh { TransformFormat = MultiMesh.TransformFormatEnum.Transform3D, Mesh = roundCrown, InstanceCount = spots.Count - pineCount };
+
+        int pineIndex = 0;
+        int roundIndex = 0;
 
         for (int i = 0; i < spots.Count; i++)
         {
-            var (position, scale, yaw) = spots[i];
+            var (position, scale, yaw, pine) = spots[i];
             var basis = new Basis(Vector3.Up, yaw).Scaled(new Vector3(scale, scale, scale));
 
-            trunks.SetInstanceTransform(i, new Transform3D(basis, position + Vector3.Up * (1.2f * scale)));
-            crowns.SetInstanceTransform(i, new Transform3D(basis, position + Vector3.Up * (3.2f * scale)));
+            trunks.SetInstanceTransform(i, new Transform3D(basis, position + Vector3.Up * (1.5f * scale)));
+
+            if (pine)
+            {
+                pines.SetInstanceTransform(pineIndex++, new Transform3D(basis, position + Vector3.Up * (1.4f * scale)));
+            }
+            else
+            {
+                rounds.SetInstanceTransform(roundIndex++, new Transform3D(basis, position + Vector3.Up * (3.1f * scale)));
+            }
         }
 
         parent.AddChild(new MultiMeshInstance3D
@@ -57,11 +75,49 @@ public static class WorldScatter
             MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.29f, 0.22f, 0.15f), Roughness = 1f },
         });
 
-        parent.AddChild(new MultiMeshInstance3D
+        if (pineCount > 0)
         {
-            Multimesh = crowns,
-            MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.2f, 0.29f, 0.16f), Roughness = 1f },
-        });
+            parent.AddChild(new MultiMeshInstance3D
+            {
+                Multimesh = pines,
+                MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.17f, 0.25f, 0.15f), Roughness = 1f },
+            });
+        }
+
+        if (roundIndex > 0)
+        {
+            parent.AddChild(new MultiMeshInstance3D
+            {
+                Multimesh = rounds,
+                MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.27f, 0.34f, 0.17f), Roughness = 1f },
+            });
+        }
+    }
+
+    /// <summary>Ёлка из трёх конусов — читается как хвойное дерево, а не как конус.</summary>
+    private static ArrayMesh BuildPineCrown()
+    {
+        var tool = new SurfaceTool();
+        tool.Begin(Mesh.PrimitiveType.Triangles);
+
+        AppendCone(tool, radius: 1.75f, height: 2.6f, y: 3.2f);
+        AppendCone(tool, radius: 1.35f, height: 2.2f, y: 4.6f);
+        AppendCone(tool, radius: 0.95f, height: 1.9f, y: 6.0f);
+
+        return tool.Commit();
+    }
+
+    private static void AppendCone(SurfaceTool tool, float radius, float height, float y)
+    {
+        var cone = new CylinderMesh
+        {
+            TopRadius = 0f,
+            BottomRadius = radius,
+            Height = height,
+            RadialSegments = 7,
+        };
+
+        tool.AppendFrom(cone, 0, new Transform3D(Basis.Identity, new Vector3(0, y, 0)));
     }
 
     public static void ScatterPowerLine(List<Vector3> centerline, List<float> headings, Node3D parent, ulong seed)
