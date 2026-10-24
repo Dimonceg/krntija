@@ -14,33 +14,50 @@ public sealed class RoadCurve
     public const double MinTurnRadius = 60.0;
     public const double MaxGrade = 0.08;
 
-    private readonly double _phase1;
-    private readonly double _phase2;
-    private readonly double _phase3;
+    /// <summary>
+    /// Три волны: длинные петли (~3 км), повороты (~900 м) и мелкая извилистость
+    /// (~300 м). Амплитуда и длина каждой слегка зависят от сида, поэтому миры
+    /// с разным сидом различаются формой, а не только сдвигом.
+    /// Худший случай (все волны в фазе): наклон ≤ 1,27 (52°), радиус ≥ 88 м —
+    /// в пределах ограничений ниже.
+    /// </summary>
+    private readonly (double Amplitude, double Frequency, double Phase)[] _waves;
 
     public RoadCurve(ulong worldSeed)
     {
-        ulong hash = Hash.Mix(worldSeed, 17);
-        _phase1 = (hash % 1000) / 1000.0 * Math.Tau;
-        _phase2 = (hash >> 10) % 1000 / 1000.0 * Math.Tau;
-        _phase3 = (hash >> 20) % 1000 / 1000.0 * Math.Tau;
+        var rng = new Pcg32(Hash.Mix(worldSeed, 17), sequence: 5);
+        _waves = new[]
+        {
+            Wave(rng, amplitude: 240, wavelength: 3200),
+            Wave(rng, amplitude: 60, wavelength: 900),
+            Wave(rng, amplitude: 12, wavelength: 300),
+        };
     }
 
+    private static (double, double, double) Wave(Pcg32 rng, double amplitude, double wavelength) =>
+        (amplitude * rng.Range(0.85, 1.0), Math.Tau / (wavelength * rng.Range(0.9, 1.15)), rng.Range(0, Math.Tau));
+
     /// <summary>Смещение вбок, метры. Ограничение производной гарантирует, что дорога не идёт поперёк оси.</summary>
-    public double Lateral(double s) =>
-        30.0 * Math.Sin(s * 0.0031 + _phase1)
-        + 12.0 * Math.Sin(s * 0.0087 + _phase2)
-        + 5.0 * Math.Sin(s * 0.0210 + _phase3);
+    public double Lateral(double s)
+    {
+        double sum = 0;
+        foreach (var (a, f, p) in _waves) sum += a * Math.Sin(s * f + p);
+        return sum;
+    }
 
-    public double LateralSlope(double s) =>
-        30.0 * 0.0031 * Math.Cos(s * 0.0031 + _phase1)
-        + 12.0 * 0.0087 * Math.Cos(s * 0.0087 + _phase2)
-        + 5.0 * 0.0210 * Math.Cos(s * 0.0210 + _phase3);
+    public double LateralSlope(double s)
+    {
+        double sum = 0;
+        foreach (var (a, f, p) in _waves) sum += a * f * Math.Cos(s * f + p);
+        return sum;
+    }
 
-    public double LateralCurvature(double s) =>
-        -30.0 * 0.0031 * 0.0031 * Math.Sin(s * 0.0031 + _phase1)
-        - 12.0 * 0.0087 * 0.0087 * Math.Sin(s * 0.0087 + _phase2)
-        - 5.0 * 0.0210 * 0.0210 * Math.Sin(s * 0.0210 + _phase3);
+    public double LateralCurvature(double s)
+    {
+        double sum = 0;
+        foreach (var (a, f, p) in _waves) sum -= a * f * f * Math.Sin(s * f + p);
+        return sum;
+    }
 
     public double Height(double s) => RoadProfile.HeightAt(s);
 

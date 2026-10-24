@@ -97,7 +97,7 @@ public class LootTradeTests
 
         var restored = GameSession.FromSave(session.ToSave());
         Assert.Equal(fuel + 6, restored.Vehicle.Fuel.CapacityLiters, 2);
-        Assert.True(restored.Upgrades.Contains(UpgradeCatalog.Springs));
+        Assert.Contains(UpgradeCatalog.Springs, restored.Upgrades);
         Assert.Contains("уже установлено", restored.ApplyUpgrade(UpgradeCatalog.FuelTank));
     }
 

@@ -85,6 +85,45 @@ public class WorldGenTests
     }
 
     [Fact]
+    public void RoadActuallyTurns()
+    {
+        // Защита от «бесконечной прямой»: за 20 км дорога должна заметно петлять.
+        var curve = WorldGenerator.Curve(Seed);
+        double maxHeading = 0, minLateral = double.MaxValue, maxLateral = double.MinValue;
+
+        for (double s = 0; s <= 20_000; s += 10)
+        {
+            maxHeading = Math.Max(maxHeading, Math.Abs(curve.Heading(s)));
+            minLateral = Math.Min(minLateral, curve.Lateral(s));
+            maxLateral = Math.Max(maxLateral, curve.Lateral(s));
+        }
+
+        Assert.True(maxHeading > 25 * Math.PI / 180, $"самый крутой поворот всего {maxHeading * 180 / Math.PI:F0}°");
+        Assert.True(maxLateral - minLateral > 200, $"дорога гуляет вбок всего на {maxLateral - minLateral:F0} м");
+    }
+
+    [Fact]
+    public void RoadShapeDependsOnSeed()
+    {
+        var a = WorldGenerator.Curve(1);
+        var b = WorldGenerator.Curve(2);
+
+        // Не просто сдвиг фазы: на одной и той же станции дороги расходятся.
+        Assert.True(Math.Abs(a.Lateral(5_000) - b.Lateral(5_000)) > 1);
+        Assert.NotEqual(a.TurnRadius(1_234).ToString("F3"), b.TurnRadius(1_234).ToString("F3"));
+    }
+
+    [Fact]
+    public void RandomSeedsOfPlacesAndChunksDoNotCollide()
+    {
+        // Сид ГПСЧ каждого места (и уровня куска: место −1) уникален на первых 300 кусках.
+        var seen = new HashSet<ulong>();
+        for (int chunk = 0; chunk < 300; chunk++)
+        for (int place = -1; place < 8; place++)
+            Assert.True(seen.Add(Hash.Mix(Seed, chunk, place)), $"совпадение сидов: кусок {chunk}, место {place}");
+    }
+
+    [Fact]
     public void PlacesStayOffRoadAndDoNotOverlap()
     {
         for (int chunk = 0; chunk < 30; chunk++)
