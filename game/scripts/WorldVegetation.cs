@@ -8,29 +8,38 @@ namespace Krntija.Game;
 /// <summary>Blender vegetation rendered in spatial chunks, never a node per tree.</summary>
 public static class WorldVegetation
 {
-    private readonly record struct Spot(Vector3 Position, float Scale, float Yaw, Color Tint);
+    public readonly record struct Spot(Vector3 Position, float Scale, float Yaw, Color Tint);
 
-    public static bool Scatter(List<Vector3> road, List<float> headings, Node3D parent,
-        ulong seed, List<RoadMeshBuilder.PointOfInterest>? landmarks)
+    /// <summary>Виды растительности по порядку групп: дуб, тополь, сосна, куст.</summary>
+    public static readonly string[] Ids = { "tree_oak", "tree_poplar", "tree_pine", "shrub" };
+
+    private static Mesh[]? _meshes;
+    private static ShaderMaterial? _material;
+
+    /// <summary>Модели деревьев и общий материал с покачиванием. Null — модели не найдены.</summary>
+    public static bool TryLoadAssets(out Mesh[] meshes, out ShaderMaterial material)
     {
-        string[] ids = { "tree_oak", "tree_poplar", "tree_pine", "shrub" };
-        var meshes = new Mesh[ids.Length];
-        for (int i = 0; i < ids.Length; i++)
+        if (_meshes is null)
         {
-            var root = ModelLibrary.Prop(ids[i]);
-            if (root is null) return false;
-            var mesh = FindMesh(root);
-            root.Free();
-            if (mesh is null) return false;
-            meshes[i] = mesh;
-        }
+            var loaded = new Mesh[Ids.Length];
+            for (int i = 0; i < Ids.Length; i++)
+            {
+                var root = ModelLibrary.Prop(Ids[i]);
+                if (root is null) { meshes = null!; material = null!; return false; }
+                var mesh = FindMesh(root);
+                root.Free();
+                if (mesh is null) { meshes = null!; material = null!; return false; }
+                loaded[i] = mesh;
+            }
 
-        var material = new ShaderMaterial
-        {
-            Shader = new Shader { Code = @"shader_type spatial;
+            _meshes = loaded;
+            _material = new ShaderMaterial
+            {
+                Shader = new Shader { Code = @"shader_type spatial;
 render_mode cull_back;
+global uniform vec3 world_origin;
 void vertex() {
-    vec3 world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+    vec3 world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz + world_origin;
     float foliage = step(COLOR.r * 1.05, COLOR.g);
     float weight = foliage * clamp(VERTEX.y / 6.0, 0.0, 1.0);
     VERTEX.x += sin(TIME * 1.05 + world.x * 0.17 + world.z * 0.08) * 0.075 * weight;
@@ -40,7 +49,19 @@ void fragment() {
     ALBEDO = COLOR.rgb;
     ROUGHNESS = 0.95;
 }" }
-        };
+            };
+        }
+
+        meshes = _meshes;
+        material = _material!;
+        return true;
+    }
+
+    public static bool Scatter(List<Vector3> road, List<float> headings, Node3D parent,
+        ulong seed, List<RoadMeshBuilder.PointOfInterest>? landmarks)
+    {
+        if (!TryLoadAssets(out var meshes, out var material)) return false;
+        string[] ids = Ids;
 
         var rng = new Pcg32(seed, sequence: 99);
         Vector3? home = road.Count > 20
@@ -87,42 +108,53 @@ void fragment() {
                 }
             }
 
-            for (int kind = 0; kind < ids.Length; kind++)
-            {
-                var spots = groups[kind];
-                if (spots.Count == 0) continue;
-                var mm = new MultiMesh
-                {
-                    TransformFormat = MultiMesh.TransformFormatEnum.Transform3D,
-                    UseColors = true,
-                    Mesh = meshes[kind],
-                    InstanceCount = spots.Count,
-                };
-                Aabb bounds = default;
-                for (int i = 0; i < spots.Count; i++)
-                {
-                    var spot = spots[i];
-                    var basis = new Basis(Vector3.Up, spot.Yaw).Scaled(Vector3.One * spot.Scale);
-                    var transform = new Transform3D(basis, spot.Position);
-                    mm.SetInstanceTransform(i, transform);
-                    mm.SetInstanceColor(i, spot.Tint);
-                    var aabb = (transform * meshes[kind].GetAabb()).Grow(0.2f);
-                    bounds = i == 0 ? aabb : bounds.Merge(aabb);
-                }
-                parent.AddChild(new MultiMeshInstance3D
-                {
-                    Name = $"Vegetation_{start}_{ids[kind]}",
-                    Multimesh = mm,
-                    MaterialOverride = material,
-                    CustomAabb = bounds,
-                    VisibilityRangeEnd = kind == 3 ? 150 : 420,
-                    VisibilityRangeEndMargin = 20,
-                });
-                instanceCount += spots.Count;
-            }
+            instanceCount += AddBatches(parent, $"Vegetation_{start}", groups);
         }
         GD.Print($"[world-art] vegetation: {instanceCount} instances, four shared meshes");
         return true;
+    }
+
+    /// <summary>По MultiMesh на вид растительности. Возвращает число экземпляров.</summary>
+    public static int AddBatches(Node3D parent, string name, List<Spot>[] groups)
+    {
+        if (!TryLoadAssets(out var meshes, out var material)) return 0;
+
+        int count = 0;
+        for (int kind = 0; kind < Ids.Length; kind++)
+        {
+            var spots = groups[kind];
+            if (spots.Count == 0) continue;
+            var mm = new MultiMesh
+            {
+                TransformFormat = MultiMesh.TransformFormatEnum.Transform3D,
+                UseColors = true,
+                Mesh = meshes[kind],
+                InstanceCount = spots.Count,
+            };
+            Aabb bounds = default;
+            for (int i = 0; i < spots.Count; i++)
+            {
+                var spot = spots[i];
+                var basis = new Basis(Vector3.Up, spot.Yaw).Scaled(Vector3.One * spot.Scale);
+                var transform = new Transform3D(basis, spot.Position);
+                mm.SetInstanceTransform(i, transform);
+                mm.SetInstanceColor(i, spot.Tint);
+                var aabb = (transform * meshes[kind].GetAabb()).Grow(0.2f);
+                bounds = i == 0 ? aabb : bounds.Merge(aabb);
+            }
+            parent.AddChild(new MultiMeshInstance3D
+            {
+                Name = $"{name}_{Ids[kind]}",
+                Multimesh = mm,
+                MaterialOverride = material,
+                CustomAabb = bounds,
+                VisibilityRangeEnd = kind == 3 ? 150 : 420,
+                VisibilityRangeEndMargin = 20,
+            });
+            count += spots.Count;
+        }
+
+        return count;
     }
 
     private static Mesh? FindMesh(Node node)

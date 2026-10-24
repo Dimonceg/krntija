@@ -123,7 +123,7 @@ public partial class Main
         var hit = space.IntersectRay(query);
 
         LootItem? found = null;
-        if (hit.Count > 0 && hit["collider"].As<GodotObject>() is Node3D body)
+        if (hit.Count > 0 && PhysicsHit.Collider<Node3D>(hit) is { } body)
             found = body.GetParent() as LootItem;
 
         if (found == _hoveredLoot) return;

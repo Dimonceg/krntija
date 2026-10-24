@@ -123,8 +123,19 @@ godot --path game -- --shot-cars
 Все проверки разом — `.\tools\check.ps1` (около 2–3 минут, `-Quick` — без
 Godot). На 2026-10-25 всё зелёное.
 
-Известное: Godot иногда (≈1 из 5) падает с segfault уже после успешной
-проверки, при выходе. `check.ps1` в этом случае повторяет прогон.
+Падение Godot при выходе (0xC0000005, раньше ≈1 из 5 прогонов) вызывали
+неосвобождённые `Variant` из `hit["collider"]` и `GetScript()` — исправлено
+(`PhysicsHit`, правило в ARCHITECTURE). `check.ps1` на всякий случай повторяет
+прогон, если код возврата не 0 и не 1.
+
+Мир кусками (ADR 0002, фаза 2а) включается флагом `--world=chunks`:
+
+```powershell
+godot --path game -- --world=chunks                 # играть в бесконечном мире
+godot --headless --path game -- --chunk-bench       # время шагов постройки куска
+godot --path game -- --chunk-run                    # 10 км: дыры, утечки, сдвиг начала
+godot --path game -- --world=chunks --shot-day --at=700
+```
 
 ## Модели машин
 

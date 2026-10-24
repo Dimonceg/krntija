@@ -46,6 +46,19 @@ public partial class Main
     private bool _shotMapUi;
     private string? _shotProp;
 
+    private bool _chunkBench;
+    private bool _chunkRun;
+    private double _runStation;
+    private int _runFrames;
+    private ulong _runLastUsec;
+    private double _runFrameSum;
+    private double _runPeakFrame;
+    private int _runMisses;
+    private int _runMaxLoaded;
+    private double _runNodesStart;
+    private int _runShifts;
+    private int _runSpikes;
+
     /// <summary>В автопрогонах машина едет сама и не стоит на ручнике.</summary>
     private bool DrivesItself => _smoke || _selfTest || _perf || _selfTestCars;
 
@@ -74,6 +87,9 @@ public partial class Main
         if (_perf) DisplayServer.WindowSetVsyncMode(DisplayServer.VSyncMode.Disabled);
         _selfTestCars = HasArg("--selftest-cars");
         _checkHouse = HasArg("--check-house");
+        _chunkBench = HasArg("--chunk-bench");
+        _chunkRun = HasArg("--chunk-run");
+        if (_chunkRun) DisplayServer.WindowSetVsyncMode(DisplayServer.VSyncMode.Disabled);
 
         _openJournalInShot = HasArg("--shot-ui");
         _shotMenu = HasArg("--shot-menu");
@@ -110,6 +126,17 @@ public partial class Main
     /// <summary>Снимок для документации: ставим машину, свет, камеру и нужный экран.</summary>
     private void SetupShot()
     {
+        if (_streamer is not null)
+        {
+            // Мир кусками: --at — номер точки, как в старом мире (×4 м).
+            double s = ArgValue("--at=") is { } point ? int.Parse(point) * 4.0 : 320;
+            _streamer.BuildAround(s);
+            PlaceCarOnChunkRoad(s);
+            _camera.GlobalPosition = _car.GlobalPosition + _car.GlobalBasis.Z * 9f + Vector3.Up * 4f;
+            _car.Session.Clock.SetTotalMinutes((_shotDay ? 12.0 : 18.75) * 60);
+            return;
+        }
+
         if (_road is not { Centerline.Count: > 90 }) return;
 
         var road = _road;
@@ -591,6 +618,118 @@ public partial class Main
                  + $"тел {rows.Sum(r => r.Bodies)}, узлов {rows.Sum(r => r.Nodes)}, разных материалов-override {materials.Count}");
     }
 
+    /// <summary>
+    /// --chunk-bench: постройка кусков 10–19 по шагам. Печатает среднее и пик на шаг;
+    /// провал, если шаг заметно дольше бюджета кадра (ADR 0002: ≤ 4 мс).
+    /// </summary>
+    private void RunChunkBench()
+    {
+        var sums = new double[ChunkBuilder.StepCount];
+        var peaks = new double[ChunkBuilder.StepCount];
+        const int from = 10, count = 10;
+
+        for (int index = from; index < from + count; index++)
+        {
+            var times = _streamer!.Bench(index);
+            for (int step = 0; step < times.Length; step++)
+            {
+                sums[step] += times[step];
+                peaks[step] = System.Math.Max(peaks[step], times[step]);
+            }
+        }
+
+        string[] names = { "дорога+стены", "земля", "земля: физика", "горы", "деревья", "трава+столбы" };
+        double worst = 0;
+        for (int step = 0; step < sums.Length; step++)
+        {
+            GD.Print($"[chunk-bench] {names[step],-14} среднее {sums[step] / count,5:F2} мс, пик {peaks[step],5:F2} мс");
+            worst = System.Math.Max(worst, peaks[step]);
+        }
+
+        double total = 0;
+        foreach (double sum in sums) total += sum;
+        GD.Print($"[chunk-bench] кусок целиком: {total / count:F1} мс; худший шаг {worst:F1} мс (бюджет кадра {ChunkStreamer.BudgetMs} мс)");
+
+        // Запас ×3: замер без окна и на разных машинах скачет, ловим только явный регресс.
+        bool ok = worst <= ChunkStreamer.BudgetMs * 3;
+        GD.Print(ok ? "[chunk-bench] OK" : "[chunk-bench] FAIL: шаг постройки слишком долгий");
+        GetTree().Quit(ok ? 0 : 1);
+    }
+
+    /// <summary>
+    /// --chunk-run: машину ведут по дороге 10 км по 8 м за кадр. Под машиной всегда
+    /// должна быть дорога, кусков — не больше окна подгрузки, узлов — без утечки,
+    /// начало координат — сдвигаться.
+    /// </summary>
+    private void ChunkRunStep()
+    {
+        const double length = 10_000, step = 8;
+        ulong now = Time.GetTicksUsec();
+
+        if (_runFrames == 0)
+        {
+            _car.Freeze = true;
+            // Не кратно шагу ленты (4 м): иначе луч идёт ровно по ребру треугольников.
+            _runStation = StartStation + 1.3;
+            _runShifts = _streamer!.Shifts;
+        }
+        else if (_streamer!.Shifts != _runShifts)
+        {
+            // Кадр сдвига: тела кусков переедут при следующем шаге физики, луч сейчас
+            // смотрел бы в старое место. В игре машина сдвигается вместе с ними.
+            _runShifts = _streamer.Shifts;
+        }
+        else
+        {
+            double frame = (now - _runLastUsec) / 1000.0;
+            _runFrameSum += frame;
+            // Первые кадры — компиляция шейдеров, к подгрузке отношения не имеют.
+            if (_runFrames > 30) _runPeakFrame = System.Math.Max(_runPeakFrame, frame);
+            if (_runFrames > 30 && frame > 30 && _runSpikes++ < 8)
+                GD.Print($"[chunk-run] рывок {frame:F0} мс на {_runStation:F0} м (кусок {_streamer!.CurrentChunk}, сдвигов {_streamer.Shifts})");
+
+            // Дорога под машиной: луч сверху вниз должен попасть в полотно.
+            var from = _car.GlobalPosition + Vector3.Up * 5f;
+            var query = PhysicsRayQueryParameters3D.Create(from, from + Vector3.Down * 20f);
+            query.Exclude = new Godot.Collections.Array<Rid> { _car.GetRid() };
+            var hit = GetWorld3D().DirectSpaceState.IntersectRay(query);
+            bool onRoad = hit.Count > 0 && PhysicsHit.Collider<Node>(hit) is { Name: var name } && name == "RoadSurface";
+            if (!onRoad && _runMisses++ < 5)
+                GD.PrintErr($"[chunk-run] нет дороги под машиной на {_runStation:F0} м: "
+                            + (hit.Count > 0 ? $"{PhysicsHit.Collider<Node>(hit)?.GetPath()} y={PhysicsHit.Position(hit).Y:F2}, машина y={_car.GlobalPosition.Y - 1:F2}" : "пусто"));
+        }
+
+        _runLastUsec = now;
+        _runFrames++;
+
+        // Узлы считаем после первого километра: к этому времени окно подгрузки заполнено.
+        if (_runNodesStart == 0 && _runStation >= StartStation + 1000)
+            _runNodesStart = Performance.GetMonitor(Performance.Monitor.ObjectNodeCount);
+        _runMaxLoaded = System.Math.Max(_runMaxLoaded, _streamer!.LoadedChunks);
+
+        if (_runStation >= StartStation + length)
+        {
+            double nodes = Performance.GetMonitor(Performance.Monitor.ObjectNodeCount);
+            double growth = nodes / _runNodesStart - 1;
+            GD.Print($"[chunk-run] {length / 1000:F0} км за {_runFrames} кадров; кадр в среднем {_runFrameSum / (_runFrames - 1):F2} мс, "
+                     + $"пик {_runPeakFrame:F1} мс; сдвигов начала {_streamer.Shifts}; кусков максимум {_runMaxLoaded}; "
+                     + $"узлов {_runNodesStart:F0} → {nodes:F0} ({growth * 100:+0;-0}%); промахов мимо дороги {_runMisses}; "
+                     + $"шагов постройки {_streamer.StepsBuilt}, пик шага {_streamer.PeakStepMs:F1} мс");
+
+            bool ok = _runMisses == 0
+                      && _streamer.Shifts >= 4
+                      && _runMaxLoaded <= ChunkStreamer.Behind + ChunkStreamer.Ahead + 3
+                      && growth < 0.25;
+            GD.Print(ok ? "[chunk-run] OK" : "[chunk-run] FAIL");
+            GetTree().Quit(ok ? 0 : 1);
+            return;
+        }
+
+        _runStation += step;
+        _car.GlobalPosition = _streamer.RoadPoint(_runStation) + Vector3.Up * 1.0f;
+        _car.Rotation = new Vector3(0, -_streamer.RoadHeading(_runStation), 0);
+    }
+
     /// <summary>Высота первой твёрдой поверхности под точкой, без машины и пешехода.</summary>
     private float GroundY(Vector3 at)
     {
@@ -600,7 +739,7 @@ public partial class Main
         query.Exclude = exclude;
 
         var hit = GetWorld3D().DirectSpaceState.IntersectRay(query);
-        return hit.Count > 0 ? ((Vector3)hit["position"]).Y : at.Y;
+        return hit.Count > 0 ? PhysicsHit.Position(hit).Y : at.Y;
     }
 
     private void Check(bool condition, string what)
@@ -712,12 +851,12 @@ public partial class Main
             string what = string.Empty;
             foreach (var hit in hits)
             {
-                if (hit["collider"].As<GodotObject>() is Node3D node)
+                if (PhysicsHit.Collider<Node3D>(hit) is { } node)
                 {
                     Vector3 local = node.GetParent() is Node3D parent3D ? parent3D.Position : node.Position;
                     what += $"{node.Name}@локально({local.X:F1}; {local.Y:F1}; {local.Z:F1}) ";
                 }
-                else if (hit["collider"].As<GodotObject>() is Node other)
+                else if (PhysicsHit.Collider<Node>(hit) is { } other)
                     what += other.Name + " ";
             }
 
@@ -795,7 +934,7 @@ public partial class Main
             };
             foreach (var hit in space.IntersectShape(probe, 4))
             {
-                if (hit["collider"].As<GodotObject>() is Node3D node)
+                if (PhysicsHit.Collider<Node3D>(hit) is { } node)
                 {
                     Vector3 local = node.GetParent() is Node3D parent3D ? parent3D.Position : node.Position;
                     blocked += $"{node.Name}@локально({local.X:F1}; {local.Y:F1}; {local.Z:F1}) ";

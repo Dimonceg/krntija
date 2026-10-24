@@ -45,6 +45,9 @@ public partial class Car : RigidBody3D
     /// <summary>Осевая дороги для автопилота (тесты и будущий трафик).</summary>
     public System.Collections.Generic.List<Vector3>? Path { get; set; }
 
+    /// <summary>Точка впереди на дороге для автопилота (мир кусками). Важнее <see cref="Path"/>.</summary>
+    public System.Func<Vector3, Vector3>? PathTarget { get; set; }
+
     private int _pathIndex;
 
     public int GroundedWheels { get; private set; }
@@ -393,7 +396,7 @@ public partial class Car : RigidBody3D
             }
 
             contacts++;
-            Vector3 point = (Vector3)hit["position"];
+            Vector3 point = PhysicsHit.Position(hit);
             float distance = anchor.DistanceTo(point);
             float compression = Mathf.Max(0f, RestLength + WheelRadius - distance);
 
@@ -466,6 +469,9 @@ public partial class Car : RigidBody3D
     /// <summary>Простое следование по осевой: смотрим на точку впереди и рулим к ней.</summary>
     private float AutopilotSteer()
     {
+        if (PathTarget is not null)
+            return Mathf.Clamp((GlobalTransform.AffineInverse() * PathTarget(GlobalPosition)).X * 0.12f, -1f, 1f);
+
         if (Path is null || Path.Count < 2) return 0;
 
         float best = float.MaxValue;

@@ -110,9 +110,10 @@ public static class WorldScatter
 render_mode cull_disabled;
 uniform vec4 tint : source_color = vec4(0.3, 0.4, 0.2, 1.0);
 uniform float amount = 0.035;
+global uniform vec3 world_origin;
 
 void vertex() {
-    vec3 world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+    vec3 world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz + world_origin;
     float h = max(VERTEX.y, 0.0);
     float sway = sin(TIME * 1.1 + world.x * 0.3 + world.z * 0.21);
     VERTEX.x += sway * amount * h;

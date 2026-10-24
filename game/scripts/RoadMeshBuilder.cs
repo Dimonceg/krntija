@@ -85,6 +85,28 @@ public static class RoadMeshBuilder
         return result;
     }
 
+    /// <summary>
+    /// Отрезок дороги для куска мира: полотно, коллизия, заплатки, разметка, столбики.
+    /// <paramref name="firstIndex"/> — номер первой точки от начала дороги: по нему
+    /// UV асфальта и заплатки продолжаются через стык кусков без шва.
+    /// </summary>
+    /// <param name="collisionPoints">Ось для коллизии: длиннее видимой полосы, чтобы на
+    /// стыке кусков колесо не попадало ровно в шов между двумя полосами.</param>
+    public static void BuildStrip(List<Vector3> points, List<float> headings, Node3D parent,
+        StandardMaterial3D material, int firstIndex, List<Vector3> collisionPoints, List<float> collisionHeadings)
+    {
+        if (points.Count < 2) return;
+
+        var body = new StaticBody3D { Name = "RoadSurface" };
+        body.AddChild(new MeshInstance3D { Mesh = BuildRibbon(points, headings, firstIndex), MaterialOverride = material });
+        body.AddChild(BuildCollision(collisionPoints, collisionHeadings));
+        parent.AddChild(body);
+
+        AddPatches(points, headings, parent, seed: (ulong)firstIndex, count: 9);
+        AddCenterLine(points, headings, parent);
+        AddRoadsidePosts(points, headings, parent);
+    }
+
     /// <summary>Гравийная обочина по обе стороны полотна.</summary>
     private static void AddShoulders(List<Vector3> points, List<float> headings, Node3D parent)
     {
@@ -131,16 +153,19 @@ public static class RoadMeshBuilder
     }
 
     /// <summary>Заплатки и потёртости на асфальте: полотно не должно быть идеальным.</summary>
-    private static void AddPatches(List<Vector3> points, List<float> headings, Node3D parent)
+    private static StandardMaterial3D? _patchMaterial;
+
+    private static void AddPatches(List<Vector3> points, List<float> headings, Node3D parent,
+        ulong seed = 4242, int count = 90)
     {
         if (points.Count < 20) return;
 
-        var rng = new Pcg32(4242, sequence: 7);
+        var rng = new Pcg32(seed, sequence: 7);
         var tool = new SurfaceTool();
         tool.Begin(Mesh.PrimitiveType.Triangles);
         tool.SetNormal(Vector3.Up);
 
-        for (int patch = 0; patch < 90; patch++)
+        for (int patch = 0; patch < count; patch++)
         {
             int index = (int)(rng.NextDouble() * (points.Count - 1));
             float lateral = (float)(rng.Range(-1, 1)) * (Width * 0.42f);
@@ -167,7 +192,7 @@ public static class RoadMeshBuilder
         parent.AddChild(new MeshInstance3D
         {
             Mesh = tool.Commit(),
-            MaterialOverride = new StandardMaterial3D
+            MaterialOverride = _patchMaterial ??= new StandardMaterial3D
             {
                 AlbedoTexture = ProcTexture.Noise(0.2f, new Color(0.06f, 0.06f, 0.07f), new Color(0.13f, 0.13f, 0.14f), seed: 21),
                 Uv1Triplanar = true,
@@ -293,8 +318,10 @@ public static class RoadMeshBuilder
         st.AddVertex(new Vector3(vertex.X, y, vertex.Z));
     }
 
-    private static ArrayMesh BuildRibbon(List<Vector3> points, List<float> headings)
+    private static ArrayMesh BuildRibbon(List<Vector3> points, List<float> headings, int firstIndex = 0)
     {
+        // UV по длине повторяется каждые 4 м: целый сдвиг номера не даёт шва.
+        firstIndex %= 4096;
         var st = new SurfaceTool();
         st.Begin(Mesh.PrimitiveType.Triangles);
 
@@ -305,12 +332,13 @@ public static class RoadMeshBuilder
             Vector3 leftB = Edge(points[i + 1], headings[i + 1], -1);
             Vector3 rightB = Edge(points[i + 1], headings[i + 1], +1);
 
-            AddRoadVertex(st, leftA, 0, i);
-            AddRoadVertex(st, leftB, 0, i + 1);
-            AddRoadVertex(st, rightA, Width, i);
-            AddRoadVertex(st, rightA, Width, i);
-            AddRoadVertex(st, leftB, 0, i + 1);
-            AddRoadVertex(st, rightB, Width, i + 1);
+            int a = firstIndex + i;
+            AddRoadVertex(st, leftA, 0, a);
+            AddRoadVertex(st, leftB, 0, a + 1);
+            AddRoadVertex(st, rightA, Width, a);
+            AddRoadVertex(st, rightA, Width, a);
+            AddRoadVertex(st, leftB, 0, a + 1);
+            AddRoadVertex(st, rightB, Width, a + 1);
         }
 
         return st.Commit();

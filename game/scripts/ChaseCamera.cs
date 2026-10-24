@@ -132,7 +132,7 @@ public partial class ChaseCamera : Camera3D
         var hit = space.IntersectRay(query);
         if (hit.Count == 0) return to;
 
-        Vector3 point = (Vector3)hit["position"];
+        Vector3 point = PhysicsHit.Position(hit);
         Vector3 direction = (to - from).Normalized();
         float distance = from.DistanceTo(point) - 0.25f;
         return from + direction * Mathf.Max(0.6f, distance);
