@@ -22,7 +22,8 @@ public sealed class GameSession
         GameClock clock,
         Pcg32 rng,
         Wallet? wallet = null,
-        Inventory? trunk = null)
+        Inventory? trunk = null,
+        Inventory? home = null)
     {
         Vehicle = vehicle;
         Systems = new VehicleSystems(vehicle);
@@ -33,6 +34,7 @@ public sealed class GameSession
         Rng = rng;
         Wallet = wallet ?? new Wallet();
         Trunk = trunk ?? new Inventory(slots: 12, maxWeightKg: 60);
+        Home = home ?? new Inventory(slots: 24, maxWeightKg: 200);
     }
 
     public VehicleState Vehicle { get; }
@@ -43,6 +45,9 @@ public sealed class GameSession
 
     /// <summary>Багажник: второе хранилище, в него кладут тяжёлое.</summary>
     public Inventory Trunk { get; }
+
+    /// <summary>Склад в доме игрока: сюда можно сгрузить всё лишнее.</summary>
+    public Inventory Home { get; }
     public GameClock Clock { get; }
     public Pcg32 Rng { get; }
     public Wallet Wallet { get; }
@@ -107,6 +112,9 @@ public sealed class GameSession
         TrunkItems = Trunk.Items
             .Select(i => new ItemSave { DefId = i.DefId, Count = i.Count, Condition = i.Condition, Liters = i.Liters })
             .ToList(),
+        HomeItems = Home.Items
+            .Select(i => new ItemSave { DefId = i.DefId, Count = i.Count, Condition = i.Condition, Liters = i.Liters })
+            .ToList(),
         RngState = Rng.State,
         WeatherKind = Weather.Kind.ToString(),
         Wetness = Weather.Wetness,
@@ -157,7 +165,11 @@ public sealed class GameSession
         foreach (var item in data.TrunkItems)
             trunk.TryAdd(item.DefId, item.Count, item.Condition, item.Liters);
 
-        var session = new GameSession(vehicle, survival, inventory, clock, rng, new Wallet(data.Money), trunk);
+        var home = new Inventory(slots: 24, maxWeightKg: 200);
+        foreach (var item in data.HomeItems)
+            home.TryAdd(item.DefId, item.Count, item.Condition, item.Liters);
+
+        var session = new GameSession(vehicle, survival, inventory, clock, rng, new Wallet(data.Money), trunk, home);
 
         if (Enum.TryParse<WeatherKind>(data.WeatherKind, out var kind))
             session.Weather.Restore(kind, data.Wetness, data.RainIntensity, data.WeatherTimer);
@@ -198,6 +210,7 @@ public sealed class SaveData
     public double Fatigue { get; set; } = 0.9;
     public List<ItemSave> Items { get; set; } = new();
     public List<ItemSave> TrunkItems { get; set; } = new();
+    public List<ItemSave> HomeItems { get; set; } = new();
     public ulong RngState { get; set; }
 }
 
