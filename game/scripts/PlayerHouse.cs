@@ -40,7 +40,7 @@ public static class PlayerHouse
         var doors = new List<(Vector3, Door)>();
 
         // --- фундамент и полы ---
-        Slab(root, new Vector3(Width + 0.3f, 0.6f, Depth + 0.3f), new Vector3(0, -0.4f, 0), new Color(0.5f, 0.48f, 0.44f));
+        Slab(root, new Vector3(Width, 0.6f, Depth), new Vector3(0, -0.4f, 0), new Color(0.5f, 0.48f, 0.44f));
         Slab(root, new Vector3(Width, 0.2f, Depth), new Vector3(0, -0.1f, 0), Floor);
         Slab(root, new Vector3(Width, 0.2f, Depth), new Vector3(0, WallHeight, 0), Floor, solid: false);
 
@@ -99,15 +99,11 @@ public static class PlayerHouse
         AddLight(root, new Vector3(4.0f, 2.35f, -2.0f), 1.2f);
         AddLight(root, new Vector3(0, 3.7f, 0.4f), 1.4f);
 
-        // Пандус с газона на крыльцо: высота 12 см, чтобы игрок заходил пешком.
-        var ramp = Slab(root, new Vector3(3.4f, 0.12f, 1.3f), new Vector3(-1.25f, -0.06f, -Depth / 2 - 2.1f),
-            new Color(0.55f, 0.52f, 0.46f));
-        ramp.Rotation = new Vector3(0.1f, 0, 0);
-
         // --- крыльцо и дорожка к дороге ---
-        Slab(root, new Vector3(3.4f, 0.18f, 1.6f), new Vector3(-1.25f, -0.09f, -Depth / 2 - 0.9f), new Color(0.55f, 0.52f, 0.46f));
-        Slab(root, new Vector3(3.4f, 0.12f, 0.5f), new Vector3(-1.25f, -0.13f, -Depth / 2 - 1.9f), new Color(0.55f, 0.52f, 0.46f), solid: false);
-        Slab(root, new Vector3(1.5f, 0.06f, 6.5f), new Vector3(-1.25f, 0.0f, -Depth / 2 - 5.4f), new Color(0.62f, 0.58f, 0.5f), solid: false);
+        // Крыльцо вровень с полом и заходит под стену: никакого порожка в проёме.
+        Slab(root, new Vector3(3.4f, 0.18f, 1.8f), new Vector3(-1.25f, -0.09f, -Depth / 2 - 0.7f), new Color(0.55f, 0.52f, 0.46f));
+        Slab(root, new Vector3(3.4f, 0.12f, 0.5f), new Vector3(-1.25f, -0.18f, -Depth / 2 - 1.75f), new Color(0.55f, 0.52f, 0.46f), solid: false);
+        Slab(root, new Vector3(1.5f, 0.06f, 6.5f), new Vector3(-1.25f, -0.14f, -Depth / 2 - 4.6f), new Color(0.62f, 0.58f, 0.5f), solid: false);
 
         // --- двери ---
         doors.Add((ToWorld(root, new Vector3(-1.9f, 0, -Depth / 2)), AddDoor(

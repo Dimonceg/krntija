@@ -76,8 +76,9 @@ public partial class ChaseCamera : Camera3D
             Vector3 head = Target.GlobalPosition + Target.GlobalBasis * FirstPersonOffset;
             GlobalPosition = GlobalPosition.Lerp(head, Mathf.Clamp(dt * 22f, 0f, 1f));
 
-            // Смотрим вперёд по цели, плюс поворот мышью.
-            Vector3 look = -Target.GlobalBasis.Z.Rotated(Vector3.Up, _yawOffset);
+            // Пешком обзор жёстко привязан к персонажу: иначе клавиши «плывут».
+            float fpYaw = UseTargetYaw ? 0f : _yawOffset;
+            Vector3 look = -Target.GlobalBasis.Z.Rotated(Vector3.Up, fpYaw);
             look = look.Rotated(Target.GlobalBasis.X.Normalized(), _pitch);
             LookAt(GlobalPosition + look, Vector3.Up);
             return;
@@ -103,8 +104,37 @@ public partial class ChaseCamera : Camera3D
 
         Vector3 desired = Target.GlobalPosition + back * Distance + Vector3.Up * height;
 
+        // Стены не должны пропускать камеру: если за спиной препятствие — придвигаемся.
+        desired = PullIn(focus, desired);
+
         float t = Mathf.Clamp(dt * 6f, 0f, 1f);
         GlobalPosition = GlobalPosition.Lerp(desired, t);
         LookAt(focus, Vector3.Up);
+    }
+
+    /// <summary>Луч от цели к камере: при попадании ставим камеру перед стеной.</summary>
+    private Vector3 PullIn(Vector3 from, Vector3 to)
+    {
+        var space = GetWorld3D()?.DirectSpaceState;
+        if (space is null) return to;
+
+        var exclude = new Godot.Collections.Array<Rid>();
+        if (Target is CollisionObject3D body) exclude.Add(body.GetRid());
+
+        var query = new PhysicsRayQueryParameters3D
+        {
+            From = from,
+            To = to,
+            CollisionMask = 1,
+            Exclude = exclude,
+        };
+
+        var hit = space.IntersectRay(query);
+        if (hit.Count == 0) return to;
+
+        Vector3 point = (Vector3)hit["position"];
+        Vector3 direction = (to - from).Normalized();
+        float distance = from.DistanceTo(point) - 0.25f;
+        return from + direction * Mathf.Max(0.6f, distance);
     }
 }
