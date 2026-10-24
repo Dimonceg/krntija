@@ -23,6 +23,8 @@ public partial class MenuUi : CanvasLayer
     private Label _subtitle = null!;
 
     private bool _mainMode = true;
+    private bool _hasSave;
+    private bool _settingsMode;
 
     public bool IsOpen => _root.Visible;
 
@@ -84,13 +86,22 @@ public partial class MenuUi : CanvasLayer
 
     public override void _UnhandledInput(InputEvent @event)
     {
-        if (@event is InputEventKey { Pressed: true, Echo: false, Keycode: Key.Escape })
-            EscapePressed?.Invoke();
+        if (@event is not InputEventKey { Pressed: true, Echo: false, Keycode: Key.Escape }) return;
+
+        if (_settingsMode)
+        {
+            ShowMainMenu(_hasSave);
+            return;
+        }
+
+        EscapePressed?.Invoke();
     }
 
     public void ShowMainMenu(bool hasSave)
     {
         _mainMode = true;
+        _settingsMode = false;
+        _hasSave = hasSave;
         _title.Text = "KRNTIJA";
         _subtitle.Text = "ржавая машина, плохая дорога";
 
@@ -98,7 +109,42 @@ public partial class MenuUi : CanvasLayer
 
         AddButton("Новая игра", () => NewGameRequested?.Invoke());
         AddButton("Продолжить", () => ContinueRequested?.Invoke(), hasSave);
+        AddButton("Настройки", ShowSettings);
         AddButton("Выход", () => QuitRequested?.Invoke());
+
+        _root.Visible = true;
+    }
+
+    public void ShowSettings()
+    {
+        _mainMode = false;
+        _settingsMode = true;
+        _title.Text = "НАСТРОЙКИ";
+        _subtitle.Text = "звук, мышь, экран";
+
+        Clear();
+
+        AddSlider("Громкость", 0f, 1f, 0.01f, GameSettings.MasterVolume, value =>
+        {
+            GameSettings.MasterVolume = value;
+            GameSettings.Apply();
+            GameSettings.Save();
+        });
+
+        AddSlider("Чувствительность мыши", 0.2f, 3f, 0.05f, GameSettings.MouseSensitivity, value =>
+        {
+            GameSettings.MouseSensitivity = value;
+            GameSettings.Save();
+        });
+
+        AddToggle("Полный экран", GameSettings.Fullscreen, value =>
+        {
+            GameSettings.Fullscreen = value;
+            GameSettings.Apply();
+            GameSettings.Save();
+        });
+
+        AddButton("Назад", () => ShowMainMenu(_hasSave));
 
         _root.Visible = true;
     }
@@ -106,6 +152,7 @@ public partial class MenuUi : CanvasLayer
     public void ShowPause()
     {
         _mainMode = false;
+        _settingsMode = false;
         _title.Text = "ПАУЗА";
         _subtitle.Text = "дорога никуда не денется";
 
@@ -140,5 +187,42 @@ public partial class MenuUi : CanvasLayer
         button.AddThemeFontSizeOverride("font_size", 20);
         button.Pressed += action;
         _buttons.AddChild(button);
+    }
+
+    private void AddSlider(string label, float min, float max, float step, float value, Action<float> onChanged)
+    {
+        var row = new HBoxContainer { CustomMinimumSize = new Vector2(0, 40) };
+        row.AddThemeConstantOverride("separation", 12);
+
+        var name = new Label { Text = label, CustomMinimumSize = new Vector2(210, 0) };
+        name.AddThemeFontSizeOverride("font_size", 16);
+        row.AddChild(name);
+
+        var slider = new HSlider
+        {
+            MinValue = min,
+            MaxValue = max,
+            Step = step,
+            Value = value,
+            CustomMinimumSize = new Vector2(150, 0),
+            SizeFlagsVertical = Control.SizeFlags.ShrinkCenter,
+        };
+        slider.ValueChanged += v => onChanged((float)v);
+        row.AddChild(slider);
+
+        _buttons.AddChild(row);
+    }
+
+    private void AddToggle(string label, bool value, Action<bool> onChanged)
+    {
+        var toggle = new CheckButton
+        {
+            Text = label,
+            ButtonPressed = value,
+            CustomMinimumSize = new Vector2(0, 40),
+        };
+        toggle.AddThemeFontSizeOverride("font_size", 18);
+        toggle.Toggled += pressed => onChanged(pressed);
+        _buttons.AddChild(toggle);
     }
 }

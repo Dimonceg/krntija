@@ -3,15 +3,14 @@ using Godot;
 namespace Krntija.Game;
 
 /// <summary>
-/// Пешеход. Пока без мыши: A/D поворачивают, W/S идут, Shift — бег.
-/// Этого хватает, чтобы выйти из машины, дойти до колонки и вернуться.
+/// Пешеход. Мышь — обзор, W/S — идти, A/D — шаг вбок, Shift — бежать.
 /// </summary>
 public partial class Player : CharacterBody3D
 {
     private const float WalkSpeed = 3.4f;
     private const float RunSpeed = 5.8f;
-    private const float TurnSpeed = 2.6f;
     private const float Gravity = 22f;
+    private const float MouseSensitivity = 0.0035f;
 
     public float Yaw { get; set; }
 
@@ -39,20 +38,29 @@ public partial class Player : CharacterBody3D
         });
     }
 
+    public override void _UnhandledInput(InputEvent @event)
+    {
+        if (Input.MouseMode != Input.MouseModeEnum.Captured) return;
+        if (@event is InputEventMouseMotion motion)
+            Yaw -= motion.Relative.X * MouseSensitivity * GameSettings.MouseSensitivity;
+    }
+
     public override void _PhysicsProcess(double delta)
     {
         float dt = (float)delta;
 
-        Yaw -= Input.GetAxis("steer_left", "steer_right") * TurnSpeed * dt;
         Rotation = new Vector3(0, Yaw, 0);
 
         float move = Input.GetActionStrength("accelerate") - Input.GetActionStrength("brake");
+        float strafe = Input.GetAxis("steer_left", "steer_right");
         float speed = Input.IsActionPressed("handbrake") ? RunSpeed : WalkSpeed;
+
         Vector3 forward = -GlobalBasis.Z;
+        Vector3 right = GlobalBasis.X;
 
         Vector3 velocity = Velocity;
-        velocity.X = forward.X * move * speed;
-        velocity.Z = forward.Z * move * speed;
+        velocity.X = forward.X * move * speed + right.X * strafe * speed * 0.8f;
+        velocity.Z = forward.Z * move * speed + right.Z * strafe * speed * 0.8f;
         velocity.Y -= Gravity * dt;
 
         Velocity = velocity;

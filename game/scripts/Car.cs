@@ -85,27 +85,58 @@ public partial class Car : RigidBody3D
     {
         AddChild(new CollisionShape3D
         {
-            Shape = new BoxShape3D { Size = new Vector3(1.5f, 0.5f, 4.2f) },
-            Position = new Vector3(0, 0.10f, 0),
+            Shape = new BoxShape3D { Size = new Vector3(1.6f, 0.52f, 4.1f) },
+            Position = new Vector3(0, 0.12f, 0),
         });
 
-        var paint = new StandardMaterial3D { AlbedoColor = new Color(0.62f, 0.42f, 0.22f), Roughness = 0.75f };
-
-        var body = new MeshInstance3D
+        var paint = new StandardMaterial3D { AlbedoColor = new Color(0.66f, 0.45f, 0.24f), Roughness = 0.7f, Metallic = 0.05f };
+        var trim = new StandardMaterial3D { AlbedoColor = new Color(0.16f, 0.16f, 0.17f), Roughness = 0.85f };
+        var glass = new StandardMaterial3D { AlbedoColor = new Color(0.08f, 0.11f, 0.13f), Roughness = 0.15f, Metallic = 0.4f };
+        var chrome = new StandardMaterial3D { AlbedoColor = new Color(0.72f, 0.72f, 0.7f), Metallic = 0.8f, Roughness = 0.35f };
+        var lamp = new StandardMaterial3D
         {
-            Mesh = new BoxMesh { Size = new Vector3(1.5f, 0.5f, 4.2f) },
-            Position = new Vector3(0, 0.10f, 0),
-            MaterialOverride = paint,
+            AlbedoColor = new Color(1f, 0.95f, 0.8f),
+            EmissionEnabled = true,
+            Emission = new Color(1f, 0.92f, 0.7f),
+            EmissionEnergyMultiplier = 1.2f,
         };
-        AddChild(body);
-
-        var cabin = new MeshInstance3D
+        var tail = new StandardMaterial3D
         {
-            Mesh = new BoxMesh { Size = new Vector3(1.34f, 0.55f, 1.9f) },
-            Position = new Vector3(0, 0.58f, 0.15f),
-            MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.55f, 0.38f, 0.2f), Roughness = 0.8f },
+            AlbedoColor = new Color(0.8f, 0.1f, 0.08f),
+            EmissionEnabled = true,
+            Emission = new Color(0.7f, 0.05f, 0.03f),
+            EmissionEnergyMultiplier = 0.8f,
         };
-        AddChild(cabin);
+
+        // Кузов собирается из простых объёмов: низ, борта, капот, багажник, кабина.
+        Part(new Vector3(1.62f, 0.34f, 4.02f), new Vector3(0, 0.02f, 0), paint);
+        Part(new Vector3(1.66f, 0.30f, 3.9f), new Vector3(0, 0.26f, 0), paint);
+        Part(new Vector3(1.5f, 0.12f, 1.1f), new Vector3(0, 0.45f, -1.32f), paint);
+        Part(new Vector3(1.5f, 0.10f, 0.9f), new Vector3(0, 0.44f, 1.52f), paint);
+        Part(new Vector3(1.44f, 0.5f, 1.86f), new Vector3(0, 0.66f, 0.12f), paint);
+        Part(new Vector3(1.47f, 0.26f, 1.9f), new Vector3(0, 0.70f, 0.12f), glass);
+        Part(new Vector3(1.3f, 0.07f, 1.7f), new Vector3(0, 0.9f, 0.12f), paint);
+
+        Part(new Vector3(1.72f, 0.14f, 0.2f), new Vector3(0, 0.13f, -2.02f), trim);
+        Part(new Vector3(1.72f, 0.14f, 0.2f), new Vector3(0, 0.13f, 2.02f), trim);
+        Part(new Vector3(0.95f, 0.16f, 0.06f), new Vector3(0, 0.32f, -2.03f), trim);
+
+        Part(new Vector3(0.3f, 0.15f, 0.05f), new Vector3(-0.56f, 0.36f, -2.03f), lamp);
+        Part(new Vector3(0.3f, 0.15f, 0.05f), new Vector3(0.56f, 0.36f, -2.03f), lamp);
+        Part(new Vector3(0.3f, 0.13f, 0.05f), new Vector3(-0.6f, 0.36f, 2.03f), tail);
+        Part(new Vector3(0.3f, 0.13f, 0.05f), new Vector3(0.6f, 0.36f, 2.03f), tail);
+
+        Part(new Vector3(0.36f, 0.12f, 0.02f), new Vector3(0, 0.16f, -2.04f), chrome);
+        Part(new Vector3(0.12f, 0.09f, 0.16f), new Vector3(-0.85f, 0.66f, -0.7f), trim);
+        Part(new Vector3(0.12f, 0.09f, 0.16f), new Vector3(0.85f, 0.66f, -0.7f), trim);
+
+        AddChild(new MeshInstance3D
+        {
+            Mesh = new CylinderMesh { Height = 0.18f, TopRadius = 0.055f, BottomRadius = 0.055f },
+            Position = new Vector3(0.48f, 0.06f, 2.06f),
+            Rotation = new Vector3(Mathf.Pi / 2, 0, 0),
+            MaterialOverride = trim,
+        });
 
         var rubber = new StandardMaterial3D { AlbedoColor = new Color(0.3f, 0.29f, 0.28f), Roughness = 1.0f };
         var hubMaterial = new StandardMaterial3D { AlbedoColor = new Color(0.6f, 0.6f, 0.58f), Metallic = 0.5f, Roughness = 0.55f };
@@ -135,6 +166,16 @@ public partial class Car : RigidBody3D
 
         _audio = new EngineAudio();
         AddChild(_audio);
+    }
+
+    private void Part(Vector3 size, Vector3 position, Material material)
+    {
+        AddChild(new MeshInstance3D
+        {
+            Mesh = new BoxMesh { Size = size },
+            Position = position,
+            MaterialOverride = material,
+        });
     }
 
     private void AddHeadlights()

@@ -31,6 +31,7 @@ public partial class Main : Node3D
     private bool _openJournalInShot;
     private bool _shotMenu;
     private bool _shotDay;
+    private bool _shotSettings;
     private int _frames;
 
     private enum InteractionKind
@@ -54,6 +55,8 @@ public partial class Main : Node3D
     public override void _Ready()
     {
         SetupInput();
+        GameSettings.Load();
+        GameSettings.Apply();
         BuildWorld();
 
         var session = GameSession.NewGame();
@@ -74,10 +77,12 @@ public partial class Main : Node3D
         _shot = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot") >= 0
                 || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-ui") >= 0
                 || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-menu") >= 0
-                || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-day") >= 0;
+                || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-day") >= 0
+                || Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-settings") >= 0;
         _openJournalInShot = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-ui") >= 0;
         _shotMenu = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-menu") >= 0;
         _shotDay = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-day") >= 0;
+        _shotSettings = Array.IndexOf(OS.GetCmdlineUserArgs(), "--shot-settings") >= 0;
         _car.Autopilot = _smoke || _selfTest;
 
         _menu = new MenuUi();
@@ -98,9 +103,10 @@ public partial class Main : Node3D
             _hud.Visible = false;
             GetTree().Paused = true;
         }
-        else if (_shotMenu)
+        else if (_shotMenu || _shotSettings)
         {
-            _menu.ShowMainMenu(HasSave());
+            if (_shotSettings) _menu.ShowSettings();
+            else _menu.ShowMainMenu(HasSave());
             _hud.Visible = false;
         }
 
@@ -273,7 +279,7 @@ public partial class Main : Node3D
         {
             if (DistanceToCar() < 3.5f) return "[E] сесть в машину";
             if (point is not null) return PromptFor(point);
-            return "W/S — идти, A/D — поворот, Shift — бежать";
+            return "мышь — обзор, W/S — идти, A/D — шаг вбок, Shift — бежать";
         }
 
         if (point is not null && _car.SpeedMps < 2f) return PromptFor(point);
@@ -381,6 +387,8 @@ public partial class Main : Node3D
         _camera.Distance = 4.6f;
         _camera.Height = 2.4f;
         _camera.LookHeight = 1.4f;
+        _camera.OrbitWithMouse = false;
+        _camera.ResetOrbit();
 
         _hud.Toast("Вышел из машины");
     }
@@ -396,6 +404,8 @@ public partial class Main : Node3D
         _camera.Distance = 7.5f;
         _camera.Height = 3.2f;
         _camera.LookHeight = 0.9f;
+        _camera.OrbitWithMouse = true;
+        _camera.ResetOrbit();
 
         _hud.Toast("За рулём");
     }
@@ -614,6 +624,7 @@ public partial class Main : Node3D
     {
         GetTree().Paused = true;
         _hud.Visible = false;
+        Input.MouseMode = Input.MouseModeEnum.Visible;
         _menu.ShowPause();
     }
 
@@ -621,6 +632,7 @@ public partial class Main : Node3D
     {
         GetTree().Paused = false;
         _hud.Visible = true;
+        Input.MouseMode = Input.MouseModeEnum.Captured;
         _menu.Close();
     }
 
