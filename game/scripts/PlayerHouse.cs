@@ -86,11 +86,15 @@ public static class PlayerHouse
         // --- крыша и чердак ---
         BuildRoof(root);
 
-        // Лестница на чердак: вдоль правой стены, поднимается к передней части.
+        // Лестница на чердак: пандус 38° с коллизией, ступени поверх — только для вида.
+        // Верх пандуса должен попадать в проём перекрытия (z ≈ 0.55).
+        var stairs = Slab(root, new Vector3(1.9f, 0.2f, 4.34f), new Vector3(4.2f, 1.35f, 2.24f), Floor);
+        stairs.Rotation = new Vector3(0.67f, 0, 0);
+
         for (int i = 0; i < 12; i++)
         {
             float y = 0.11f + i * 0.225f;
-            Slab(root, new Vector3(1.9f, 0.22f, 0.28f), new Vector3(4.2f, y, 3.4f - i * 0.26f), Floor);
+            Slab(root, new Vector3(1.9f, 0.22f, 0.28f), new Vector3(4.2f, y, 3.4f - i * 0.26f), Floor, solid: false);
         }
 
         // --- мебель ---
@@ -109,11 +113,14 @@ public static class PlayerHouse
         Slab(root, new Vector3(1.5f, 0.06f, 6.5f), new Vector3(-1.25f, -0.14f, -Depth / 2 - 4.6f), new Color(0.62f, 0.58f, 0.5f), solid: false);
 
         // --- двери ---
-        doors.Add((ToWorld(root, new Vector3(-1.9f, 0, -Depth / 2)), AddDoor(
-            root, "FrontDoor", new Vector3(-1.9f, 0f, -Depth / 2), 0f, DoorWidth, DoorHeight, DoorColor)));
+        // Уличные открываются НАРУЖУ: полотно не должно стоять в проёме.
+        var frontDoor = AddDoor(root, "FrontDoor", new Vector3(-1.9f, 0f, -Depth / 2), 0f, DoorWidth, DoorHeight, DoorColor);
+        frontDoor.OpenAngle = -1.75f;
+        doors.Add((frontDoor.GlobalPosition, frontDoor));
 
-        doors.Add((ToWorld(root, new Vector3(-4.6f, 0, Depth / 2)), AddDoor(
-            root, "BackDoor", new Vector3(-4.6f, 0f, Depth / 2), 0f, DoorWidth, DoorHeight, DoorColor)));
+        var backDoor = AddDoor(root, "BackDoor", new Vector3(-4.6f, 0f, Depth / 2), 0f, DoorWidth, DoorHeight, DoorColor);
+        backDoor.OpenAngle = 1.75f;
+        doors.Add((backDoor.GlobalPosition, backDoor));
 
         doors.Add((ToWorld(root, new Vector3(2.5f, 0, -Depth / 2)), AddDoor(
             root, "GarageDoor", new Vector3(2.5f, 2.25f, -Depth / 2), 0f, 3.0f, 2.2f, GarageDoorColor, garage: true)));

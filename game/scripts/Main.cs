@@ -1630,6 +1630,31 @@ public partial class Main : Node3D
             body.QueueFree();
         }
 
+        // Подъём на чердак: тело идёт от подножия вверх по пандусу.
+        if (GetNodeOrNull<Node3D>("PlayerHouse") is { } house)
+        {
+            var climb = new CharacterBody3D { Name = "ClimbProbe" };
+            climb.AddChild(new CollisionShape3D { Shape = capsule, Position = new Vector3(0, 0.89f, 0) });
+            AddChild(climb);
+
+            Vector3 startWorld = house.ToGlobal(new Vector3(4.2f, 0.35f, 3.8f));
+            Vector3 topWorld = house.ToGlobal(new Vector3(4.2f, 0.35f, 0.5f));
+            Vector3 direction = (topWorld - startWorld).Normalized();
+            climb.GlobalPosition = startWorld;
+
+            for (int i = 0; i < 220; i++)
+            {
+                climb.Velocity = direction * 1.8f - Vector3.Up * 0.2f;
+                climb.MoveAndSlide();
+            }
+
+            float height = house.ToLocal(climb.GlobalPosition).Y;
+            bool reached = height > 2.3f;
+            ok &= reached;
+            GD.Print($"[houseclimb] чердак: поднялся на {height:F2} м — {(reached ? "ок" : "НЕ ПОДНЯЛСЯ")}");
+            climb.QueueFree();
+        }
+
         GD.Print(ok ? "[housecheck] OK" : "[housecheck] FAIL");
         GetTree().Quit(ok ? 0 : 1);
     }
@@ -1651,7 +1676,11 @@ public partial class Main : Node3D
 
         var doors = PlayerHouse.Build(this, spot, -_road.Headings[index] + Mathf.Pi * 0.5f);
         foreach (var (position, door) in doors)
-            _interactions.Add(new InteractionPoint(position, InteractionKind.Door, 2.6f, Door: door));
+        {
+            // Подсказка ищется от центра полотна, а не от петли: у петли радиус мал.
+            Vector3 center = position + door.GlobalBasis.X.Normalized() * (door.Width * 0.5f);
+            _interactions.Add(new InteractionPoint(center, InteractionKind.Door, 3.2f, Door: door));
+        }
 
         GD.Print($"[house] дом игрока: {doors.Count} дверей, {spot}");
     }
