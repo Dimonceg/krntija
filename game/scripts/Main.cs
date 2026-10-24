@@ -183,7 +183,9 @@ public partial class Main : Node3D
         {
             Sfx.PlayUi();
             GD.Print($"[sound] драйвер: {AudioServer.GetDriverName()}");
-            GD.Print($"[sound] устройство: {AudioServer.GetOutputDeviceList()}");
+            GD.Print($"[sound] текущее устройство: {AudioServer.OutputDevice}");
+            foreach (string device in AudioServer.GetOutputDeviceList())
+                GD.Print($"[sound] доступно: {device}");
             GD.Print($"[sound] шин: {AudioServer.GetBusCount()}, мастер: {AudioServer.GetBusVolumeDb(0):F1} дБ, "
                      + $"mute={AudioServer.IsBusMute(0)}");
             GD.Print($"[sound] частота микса: {AudioServer.GetMixRate()} Гц");
