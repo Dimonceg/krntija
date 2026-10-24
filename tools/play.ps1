@@ -32,14 +32,14 @@ try {
     $importCache = Join-Path $KrntijaRoot 'game\.godot\imported'
     if ($RebuildAssets -or -not (Test-Path $importCache)) {
         Write-Host 'Импорт ассетов…' -ForegroundColor DarkGray
-        & $GodotExe --headless --path game --import | Out-Null
+        & $GodotConsoleExe --headless --path game --import | Out-Null
     }
 
     if ($gameArgs.Count -gt 0) {
-        & $GodotExe --path game -- @gameArgs
+        & $GodotConsoleExe --path game -- @gameArgs
     }
     else {
-        & $GodotExe --path game
+        & $GodotConsoleExe --path game
     }
 }
 finally {
