@@ -15,20 +15,18 @@ from gen_cars import Mesh, SPECS, build_glb, DEFAULT_PAINT
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT_DIR = os.path.join(ROOT, "game", "assets", "models", "cars")
 
-# all heights are relative to the chassis origin (y = 0)
+# All heights are relative to the chassis origin (y = 0).
 WHEEL_Z = 1.45
 WHEEL_Y = -0.235
 ARCH_R = 0.42
-SILL = -0.20
-BELT = 0.30
-HOOD = 0.26
-ROOF = 0.92
+SILL = -0.36
+BELT = 0.34
+ROOF = 0.84
 
 
 # ---------------------------------------------------------------- 2D helpers
 
 def polygon_triangles(points):
-    """Ear clipping for a simple polygon given as [(z, y), ...]."""
     indices = list(range(len(points)))
     triangles = []
 
@@ -47,14 +45,10 @@ def polygon_triangles(points):
         clipped = False
 
         for i in range(len(indices)):
-            i0 = indices[i - 1]
-            i1 = indices[i]
-            i2 = indices[(i + 1) % len(indices)]
-
+            i0, i1, i2 = indices[i - 1], indices[i], indices[(i + 1) % len(indices)]
             a, b, c = points[i0], points[i1], points[i2]
             if cross(a, b, c) <= 1e-9:
                 continue
-
             if any(inside(points[j], a, b, c) for j in indices if j not in (i0, i1, i2)):
                 continue
 
@@ -72,10 +66,20 @@ def polygon_triangles(points):
     return triangles
 
 
-def arch_points(center_z, start_angle, end_angle, steps=7):
+def ensure_ccw(points):
+    n = len(points)
+    area = sum(points[i][0] * points[(i + 1) % n][1] - points[(i + 1) % n][0] * points[i][1]
+               for i in range(n))
+    return points if area > 0 else list(reversed(points))
+
+
+def arch_points(center_z, steps=8):
+    """Wheel arch from sill level over the top and back down to sill level."""
+    drop = max(-1.0, min(1.0, (SILL - WHEEL_Y) / ARCH_R))
+    start = math.degrees(math.asin(drop))
     result = []
     for i in range(steps + 1):
-        angle = math.radians(start_angle + (end_angle - start_angle) * i / steps)
+        angle = math.radians(start + (180 - 2 * start) * i / steps)
         result.append((center_z + ARCH_R * math.cos(angle), WHEEL_Y + ARCH_R * math.sin(angle)))
     return result
 
@@ -85,41 +89,39 @@ def body_profile(spec):
     front = -length / 2
     rear = length / 2
 
-    points = [
-        (front + 0.02, -0.10),
-        (front + 0.12, 0.10),
-        (front + 0.48, HOOD),
-        (-0.90, HOOD),
+    return [
+        (front + 0.02, -0.12),
+        (front + 0.02, 0.11),
+        (front + 0.10, 0.15),
+        (-0.90, 0.16),
         (-0.90, BELT),
-        (1.05, BELT),
-        (1.45, 0.18),
-        (rear - 0.06, 0.06),
-        (rear - 0.03, SILL + 0.02),
+        (1.30, BELT),
+        (1.86, 0.24),
+        (rear - 0.02, 0.10),
+        (rear - 0.02, -0.08),
+        (rear - 0.04, SILL),
+    ] + arch_points(WHEEL_Z) + [
+        (-WHEEL_Z + ARCH_R * 0.95, SILL),
+    ] + arch_points(-WHEEL_Z) + [
+        (front + 0.04, SILL),
     ]
-
-    points += arch_points(WHEEL_Z, 0, 180)
-    points.append((-WHEEL_Z + ARCH_R, SILL))
-    points += arch_points(-WHEEL_Z, 0, 180)
-    points.append((front + 0.06, SILL))
-    return points
 
 
 def width_at(z, width, length):
     t = min(1.0, abs(z) / (length / 2))
-    return width * (0.97 - 0.08 * t * t)
+    return width * (0.98 - 0.07 * t * t)
 
 
-def ensure_ccw(points):
-    n = len(points)
-    area = sum(points[i][0] * points[(i + 1) % n][1] - points[(i + 1) % n][0] * points[i][1]
-               for i in range(n))
-    return points if area > 0 else list(reversed(points))
+def side_factor(y):
+    """Almost flat sides: only a hint of roundness, so the car reads angular."""
+    t = (y - 0.02) / 0.46
+    return 1.0 - 0.04 * min(1.0, t * t)
 
 
 def extrude(mesh, profile, width, length):
     profile = ensure_ccw(profile)
-    left = [(width_at(z, width, length) / 2, y, z) for (z, y) in profile]
-    right = [(-width_at(z, width, length) / 2, y, z) for (z, y) in profile]
+    left = [(width_at(z, width, length) / 2 * side_factor(y), y, z) for (z, y) in profile]
+    right = [(-width_at(z, width, length) / 2 * side_factor(y), y, z) for (z, y) in profile]
 
     for a, b, c in polygon_triangles(profile):
         mesh.triangle(right[a], right[b], right[c])
@@ -131,18 +133,15 @@ def extrude(mesh, profile, width, length):
         mesh.quad(left[i], left[j], right[j], right[i])
 
 
-def cabin_profile(spec):
-    return [(-0.90, BELT), (-0.48, ROOF), (0.88, ROOF), (1.28, BELT)]
-
-
 def build_cabin(paint, glass, spec):
     length = spec["length"]
-    width = spec["width"] * 0.84
-    profile = ensure_ccw(cabin_profile(spec))
+    width = spec["width"] * 0.88
+
+    profile = ensure_ccw([(-0.90, BELT), (-0.42, ROOF), (0.86, ROOF), (1.30, BELT)])
 
     def half_at(z, y):
-        taper = 0.90 if y >= ROOF - 1e-6 else 1.0
-        return width_at(z, width, length) / 2 * taper
+        taper = 0.96 if y > BELT + 0.01 else 1.0
+        return width_at(z, width, length) / 2 * taper * side_factor(y)
 
     left = [(half_at(z, y), y, z) for (z, y) in profile]
     right = [(-half_at(z, y), y, z) for (z, y) in profile]
@@ -158,11 +157,10 @@ def build_cabin(paint, glass, spec):
     # Roof.
     paint.quad(left[1], right[1], right[2], left[2])
 
-    # B-pillar: a thin strip that follows the roof taper, so it never pokes out.
+    # B-pillar, kept inside the tapered roof line.
     for side in (-1, 1):
-        z = 0.10
-        x = side * (half_at(z, BELT) - 0.006)
-        paint.box((x, (BELT + ROOF) / 2, z), (0.012, ROOF - BELT - 0.06, 0.06))
+        x = side * (half_at(0.10, BELT) - 0.005)
+        paint.box((x, (BELT + ROOF) / 2, 0.10), (0.012, ROOF - BELT - 0.05, 0.05))
 
 
 def build_body(spec):
@@ -175,39 +173,39 @@ def build_body(spec):
     paint = Mesh(center=(0, 0.3, 0))
     glass = Mesh(center=(0, 0.6, 0))
     trim = Mesh(center=(0, 0.0, 0))
-    lamp = Mesh(center=(0, 0.2, front))
-    tail = Mesh(center=(0, 0.2, rear))
+    lamp = Mesh(center=(0, 0.1, front))
+    tail = Mesh(center=(0, 0.1, rear))
 
     extrude(paint, body_profile(spec), width, length)
     build_cabin(paint, glass, spec)
 
-    # Bumpers, chrome strips, grille, plate.
-    trim.box((0, -0.07, front + 0.10), (width * 0.92, 0.11, 0.09))
-    trim.box((0, -0.07, rear - 0.10), (width * 0.92, 0.11, 0.09))
-    trim.box((0, 0.01, front + 0.015), (width * 0.86, 0.035, 0.02))
-    trim.box((0, 0.01, rear - 0.015), (width * 0.86, 0.035, 0.02))
-    trim.box((0, 0.05, front + 0.03), (width * 0.50, 0.10, 0.03))
-    trim.box((0, -0.15, front + 0.06), (0.34, 0.09, 0.02))
+    # Bumpers.
+    trim.box((0, -0.09, front + 0.10), (width * 0.94, 0.10, 0.10))
+    trim.box((0, -0.09, rear - 0.10), (width * 0.94, 0.10, 0.10))
+
+    # Grille and plate.
+    trim.box((0, 0.03, front + 0.045), (width * 0.34, 0.10, 0.03))
+    trim.box((0, -0.18, front + 0.08), (0.34, 0.09, 0.02))
 
     for k in range(-2, 3):
-        trim.box((k * 0.13, 0.05, front + 0.012), (0.018, 0.09, 0.012))
+        trim.box((k * 0.09, 0.03, front + 0.032), (0.016, 0.09, 0.012))
 
     # Lights.
     for side in (-1, 1):
-        lamp.box((side * half * 0.56, 0.04, front + 0.02), (0.30, 0.12, 0.04))
-        lamp.box((side * half * 0.84, -0.07, front + 0.02), (0.12, 0.08, 0.04))
-        tail.box((side * half * 0.60, 0.04, rear - 0.02), (0.28, 0.13, 0.04))
+        lamp.box((side * half * 0.56, 0.04, front + 0.04), (0.28, 0.11, 0.05))
+        lamp.box((side * half * 0.80, -0.03, front + 0.04), (0.11, 0.07, 0.05))
+        tail.box((side * half * 0.58, 0.03, rear - 0.04), (0.26, 0.12, 0.05))
 
     # Door seams, handles, mirrors, side moulding.
     for side in (-1, 1):
         x = side * (half * 0.995)
-        for z in (-0.44, 0.42, 1.00):
-            trim.box((x, 0.02, z), (0.012, 0.28, 0.015))
+        for z in (-0.36, 0.44, 1.06):
+            trim.box((x, 0.05, z), (0.012, 0.26, 0.014))
 
-        trim.box((side * (half + 0.012), 0.16, -0.12), (0.02, 0.03, 0.13))
-        trim.box((side * (half + 0.012), 0.16, 0.70), (0.02, 0.03, 0.13))
-        trim.box((side * (half + 0.10), 0.30, -0.78), (0.12, 0.07, 0.03))
-        trim.box((side * (half + 0.004), 0.02, 0.30), (0.015, 0.04, 1.30))
+        trim.box((side * (half + 0.012), 0.13, -0.06), (0.02, 0.03, 0.13))
+        trim.box((side * (half + 0.012), 0.13, 0.74), (0.02, 0.03, 0.13))
+        trim.box((side * (half + 0.09), 0.29, -0.80), (0.11, 0.06, 0.03))
+        trim.box((side * (half + 0.004), 0.06, 0.32), (0.014, 0.035, 1.34))
 
     return {"paint": paint, "glass": glass, "trim": trim, "lamp": lamp, "tail": tail}
 

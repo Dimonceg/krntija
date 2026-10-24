@@ -166,7 +166,20 @@ public partial class Main : Node3D
                 _camera.ProcessMode = ProcessModeEnum.Disabled;
                 _hud.Visible = false;
                 Transform3D basis = _car.GlobalTransform;
-                Vector3 eye = basis * new Vector3(-4.4f, 1.15f, -0.7f);
+                string view = "side";
+                foreach (string arg in OS.GetCmdlineUserArgs())
+                {
+                    if (arg.StartsWith("--view=", StringComparison.Ordinal))
+                        view = arg["--view=".Length..];
+                }
+
+                Vector3 eye = view switch
+                {
+                    "front" => basis * new Vector3(0.4f, 1.15f, -6.0f),
+                    "rear" => basis * new Vector3(0.4f, 1.35f, 6.0f),
+                    "quarter" => basis * new Vector3(-3.4f, 1.35f, -4.0f),
+                    _ => basis * new Vector3(-4.4f, 1.15f, -0.7f),
+                };
                 _camera.LookAtFromPosition(eye, _car.GlobalPosition + new Vector3(0, 0.7f, 0));
             }
 
