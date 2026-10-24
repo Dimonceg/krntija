@@ -28,7 +28,7 @@ public partial class Car : RigidBody3D
 
     private readonly Node3D[] _wheels = new Node3D[4];
     private readonly Node3D[] _wheelVisuals = new Node3D[4];
-    private bool _zastavaBody;
+    private bool _modelBody;
 
     public GameSession Session { get; private set; } = null!;
     public bool Autopilot { get; set; }
@@ -104,24 +104,29 @@ public partial class Car : RigidBody3D
 
     private void BuildBody()
     {
-        // Match the Blender asset's 2.449 m wheelbase and 1.30 m track.
-        // Legacy bodies keep their original wheel layout.
-        _zastavaBody = (ModelOverride ?? Session.Vehicle.Spec.Id) == "zastava_101";
-        if (_zastavaBody)
+        // Геометрия колёс берётся из спеки: у каждой машины своя база и колея.
+        var spec = Session.Vehicle.Spec;
+        _modelBody = spec.WheelbaseM > 0 && spec.TrackM > 0;
+
+        if (_modelBody)
         {
-            WheelRadius = (float)CarCatalog.Zastava101.WheelRadiusM;
+            WheelRadius = (float)spec.WheelRadiusM;
+
+            float halfTrack = (float)(spec.TrackM / 2);
+            float halfBase = (float)(spec.WheelbaseM / 2);
             Anchors = new[]
             {
-                new Vector3(-0.65f, 0, -1.2245f), new Vector3(0.65f, 0, -1.2245f),
-                new Vector3(-0.65f, 0, 1.2245f), new Vector3(0.65f, 0, 1.2245f),
+                new Vector3(-halfTrack, 0, -halfBase), new Vector3(halfTrack, 0, -halfBase),
+                new Vector3(-halfTrack, 0, halfBase), new Vector3(halfTrack, 0, halfBase),
             };
         }
 
         AddChild(new CollisionShape3D
         {
-            Shape = new BoxShape3D { Size = _zastavaBody
-                ? new Vector3(1.48f, 0.60f, 3.70f) : new Vector3(1.6f, 0.52f, 4.1f) },
-            Position = new Vector3(0, _zastavaBody ? -0.10f : 0.12f, 0),
+            Shape = new BoxShape3D { Size = _modelBody
+                ? new Vector3((float)spec.BodyWidthM * 0.94f, 0.60f, (float)spec.BodyLengthM * 0.97f)
+                : new Vector3(1.6f, 0.52f, 4.1f) },
+            Position = new Vector3(0, _modelBody ? -0.10f : 0.12f, 0),
         });
 
         // Если в assets/models/cars лежит модель — берём её, иначе собираем заглушку.
@@ -208,7 +213,7 @@ public partial class Car : RigidBody3D
             AddChild(wheel);
             var visual = new Node3D { Name = "RollingMesh" };
             wheel.AddChild(visual);
-            var imported = _zastavaBody ? ModelLibrary.CarWheel("zastava_101") : null;
+            var imported = _modelBody ? ModelLibrary.CarWheel(Session.Vehicle.Spec.Id) : null;
             if (imported is not null)
             {
                 visual.AddChild(imported);
@@ -245,10 +250,19 @@ public partial class Car : RigidBody3D
 
     private void AddHeadlights()
     {
-        _headlightLeft = CreateHeadlight(_zastavaBody
-            ? new Vector3(-0.535f, 0.06f, -1.94f) : new Vector3(-0.52f, 0.42f, -2.02f));
-        _headlightRight = CreateHeadlight(_zastavaBody
-            ? new Vector3(0.535f, 0.06f, -1.94f) : new Vector3(0.52f, 0.42f, -2.02f));
+        if (_modelBody)
+        {
+            var spec = Session.Vehicle.Spec;
+            float x = (float)(spec.BodyWidthM * 0.34);
+            float z = -(float)(spec.BodyLengthM / 2) - 0.06f;
+
+            _headlightLeft = CreateHeadlight(new Vector3(-x, 0.06f, z));
+            _headlightRight = CreateHeadlight(new Vector3(x, 0.06f, z));
+            return;
+        }
+
+        _headlightLeft = CreateHeadlight(new Vector3(-0.52f, 0.42f, -2.02f));
+        _headlightRight = CreateHeadlight(new Vector3(0.52f, 0.42f, -2.02f));
     }
 
     private SpotLight3D CreateHeadlight(Vector3 position)
