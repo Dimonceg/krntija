@@ -45,6 +45,7 @@ public partial class Main : Node3D
         Pump,
         Shop,
         Gate,
+        Sleep,
     }
 
     private sealed record InteractionPoint(Vector3 Position, InteractionKind Kind, float Radius, CheckpointGate? Gate = null);
@@ -337,6 +338,8 @@ public partial class Main : Node3D
         return best;
     }
 
+    private readonly HashSet<int> _visitedPoi = new();
+
     public override void _Process(double delta)
     {
         if (_hud is null || _car is null) return;
@@ -344,6 +347,7 @@ public partial class Main : Node3D
         _hud.Prompt = BuildPrompt();
         UpdateSky();
         ApplyWeather();
+        RewardNewPlaces();
 
         if (_objectiveDone || _objectivePosition is null) return;
 
@@ -493,6 +497,7 @@ public partial class Main : Node3D
     {
         InteractionKind.Shop => "[E] зайти в лавку",
         InteractionKind.Gate => point.Gate is { IsOpen: true } ? "[E] шлагбаум открыт" : "[E] заплатить 15 € за проезд",
+        InteractionKind.Sleep => "[E] переночевать (15 €)",
         _ => "[E] заправить",
     };
 
@@ -546,6 +551,10 @@ public partial class Main : Node3D
                 PayForGate(point.Gate);
                 break;
 
+            case InteractionKind.Sleep:
+                TrySleep();
+                break;
+
             default:
                 RefuelAtPump();
                 break;
@@ -571,6 +580,45 @@ public partial class Main : Node3D
         {
             _hud.Toast("Нет 15 € на проезд");
         }
+    }
+
+    /// <summary>За первое посещение каждого места — деньги: есть смысл ехать дальше.</summary>
+    private void RewardNewPlaces()
+    {
+        if (_road is null) return;
+
+        for (int i = 0; i < _road.Points.Count; i++)
+        {
+            if (_visitedPoi.Contains(i)) continue;
+
+            var point = _road.Points[i];
+            if (_car.GlobalPosition.DistanceTo(point.Position) > 25f) continue;
+
+            _visitedPoi.Add(i);
+            _car.Session.Wallet.Earn(40);
+            _hud.Toast($"{point.Segment.Title}: +40 €");
+        }
+    }
+
+    private void TrySleep()
+    {
+        var session = _car.Session;
+
+        if (!session.Wallet.TrySpend(15))
+        {
+            _hud.Toast("Ночлег стоит 15 €");
+            return;
+        }
+
+        session.Survival.Sleep(8);
+
+        double now = session.Clock.TotalMinutes;
+        double dayStart = Math.Floor(now / GameClock.MinutesPerDay) * GameClock.MinutesPerDay;
+        double morning = dayStart + 7 * 60;
+        if (morning <= now) morning += GameClock.MinutesPerDay;
+        session.Clock.SetTotalMinutes(morning);
+
+        _hud.Toast("Выспались. Утро, силы восстановлены");
     }
 
     private void ExitCar()
@@ -1256,6 +1304,42 @@ public partial class Main : Node3D
         sign.Rotation = new Vector3(0, 0.3f, 0);
 
         AddBusStop(village, new Vector3(3.5f, 0, 7.5f));
+        AddMotel(village, new Vector3(-6f, 0, 9.5f));
+    }
+
+    /// <summary>Мотель у села: переночевать за 15 €, проснуться утром.</summary>
+    private void AddMotel(Node3D parent, Vector3 position)
+    {
+        var motel = new Node3D { Position = position, Rotation = new Vector3(0, 0.18f, 0) };
+        parent.AddChild(motel);
+
+        var wall = new Color(0.72f, 0.66f, 0.56f);
+        var roof = new Color(0.44f, 0.30f, 0.22f);
+        var window = new Color(0.15f, 0.18f, 0.21f);
+
+        Box(motel, new Vector3(7f, 3f, 5f), new Vector3(0, 1.5f, 0), wall);
+        GableRoof(motel, 3f, 7f, 5f, 1.4f, roof);
+
+        for (int i = -1; i <= 1; i++)
+            Box(motel, new Vector3(0.9f, 0.9f, 0.12f), new Vector3(i * 2f, 1.9f, 2.52f), window);
+
+        Box(motel, new Vector3(1.1f, 2f, 0.14f), new Vector3(0, 1f, 2.53f), new Color(0.30f, 0.22f, 0.16f));
+
+        var sign = Box(motel, new Vector3(2.8f, 0.62f, 0.1f), new Vector3(0, 3.35f, 2.45f),
+            new Color(0.86f, 0.83f, 0.70f));
+        sign.Rotation = new Vector3(0, 0, 0);
+
+        motel.AddChild(new Label3D
+        {
+            Text = "МОТЕЛЬ",
+            FontSize = 56,
+            PixelSize = 0.0045f,
+            Position = new Vector3(0, 3.35f, 2.52f),
+            Modulate = new Color(0.16f, 0.15f, 0.14f),
+        });
+
+        _interactions.Add(new InteractionPoint(
+            motel.ToGlobal(new Vector3(0, 0, 3.4f)), InteractionKind.Sleep, 4.5f));
     }
 
     /// <summary>Автобусная остановка: бетонный навес, лавка и табличка.</summary>
