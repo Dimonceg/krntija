@@ -46,7 +46,7 @@ public static class BalanceProbe
         GD.Print($"износ двигателя   {(1 - vehicle.Parts[PartSlot.Engine].Condition) * 100,8:F1} %");
         GD.Print($"износ шины        {(1 - vehicle.Parts[PartSlot.WheelFrontLeft].Condition) * 100,8:F1} %");
         GD.Print($"износ тормозов    {(1 - vehicle.Parts[PartSlot.BrakesFront].Condition) * 100,8:F1} %");
-        GD.Print($"топливо стоило бы {fuelUsed * 1.35,8:F0} €");
+        GD.Print($"топливо стоило бы {Krntija.Core.Economy.Money.Format(fuelUsed * 1.35)}");
         GD.Print("────────────────────────────────────────────────");
     }
 
