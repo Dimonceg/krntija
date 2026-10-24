@@ -13,9 +13,9 @@ public partial class Player : CharacterBody3D
     private const float MouseSensitivity = 0.0035f;
     private const float JumpSpeed = 5.2f;
     private const float StepHeight = 0.34f;
+    private const float BodyRadius = 0.34f;
 
     private bool _jumpRequested;
-    private float _stepCooldown;
 
     public float Yaw { get; set; }
 
@@ -36,7 +36,7 @@ public partial class Player : CharacterBody3D
     {
         AddChild(new CollisionShape3D
         {
-            Shape = new CapsuleShape3D { Radius = 0.34f, Height = 1.78f },
+            Shape = new CapsuleShape3D { Radius = BodyRadius, Height = 1.78f },
             Position = new Vector3(0, 0.89f, 0),
         });
 
@@ -101,32 +101,9 @@ public partial class Player : CharacterBody3D
 
         _jumpRequested = false;
 
-        // Шаг вверх: капсула не умеет переступать пороги, поэтому поднимаем её
-        // сама. Только на земле, только при движении и не чаще раза в 0.25 с —
-        // иначе шаг превращается в рывки вверх при упоре в мебель.
         Vector3 horizontal = new(velocity.X, 0, velocity.Z);
-        _stepCooldown = Mathf.Max(0f, _stepCooldown - dt);
-
-        if (IsOnFloor() && _stepCooldown <= 0f && horizontal.Length() > 0.8f && velocity.Y < 0.5f)
-        {
-            Vector3 dir = horizontal.Normalized();
-            if (TestMove(GlobalTransform, dir * 0.3f))
-            {
-                var raised = new Transform3D(GlobalBasis, GlobalPosition + Vector3.Up * StepHeight);
-                bool freeAtStep = !TestMove(raised, dir * 0.3f);
-
-                // Препятствие должно быть низким: на высоте пояса путь обязан быть
-                // свободен, иначе это стена или шкаф, а не ступенька.
-                var belt = new Transform3D(GlobalBasis, GlobalPosition + Vector3.Up * (StepHeight + 0.35f));
-                bool freeAtBelt = !TestMove(belt, dir * 0.3f);
-
-                if (freeAtStep && freeAtBelt)
-                {
-                    GlobalPosition += Vector3.Up * (StepHeight * 0.75f);
-                    _stepCooldown = 0.3f;
-                }
-            }
-        }
+        if (IsOnFloor() && horizontal.Length() > 0.8f && velocity.Y <= 0)
+            TryStepUp(horizontal * dt);
 
         Velocity = velocity;
         MoveAndSlide();
@@ -153,5 +130,31 @@ public partial class Player : CharacterBody3D
     {
         GlobalPosition = position;
         Velocity = Vector3.Zero;
+    }
+
+    private void TryStepUp(Vector3 motion)
+    {
+        using var obstruction = new KinematicCollision3D();
+        if (!TestMove(GlobalTransform, motion, obstruction, SafeMargin)) return;
+        float floorNormal = Mathf.Cos(FloorMaxAngle);
+        // A walkable slope is already handled by MoveAndSlide. It is not a stair.
+        if (obstruction.GetNormal().Dot(Vector3.Up) >= floorNormal) return;
+
+        var lift = Vector3.Up * StepHeight;
+        if (TestMove(GlobalTransform, lift, safeMargin: SafeMargin)) return;
+        var raised = new Transform3D(GlobalBasis, GlobalPosition + lift);
+        if (TestMove(raised, motion, safeMargin: SafeMargin)) return;
+
+        // Probe just beyond the rounded toe: immediately above a stair edge a
+        // capsule sweep reports the corner normal, not the flat tread. The initial
+        // sweep still requires an obstruction in THIS frame; we do not advance X/Z.
+        var destination = new Transform3D(GlobalBasis,
+            raised.Origin + motion.Normalized() * (BodyRadius + motion.Length()));
+        using var support = new KinematicCollision3D();
+        if (!TestMove(destination, Vector3.Down * (StepHeight + .02f), support, SafeMargin)) return;
+        if (support.GetNormal().Dot(Vector3.Up) < floorNormal) return;
+        float rise = StepHeight + support.GetTravel().Y;
+        if (rise > .005f && rise <= StepHeight)
+            GlobalPosition += Vector3.Up * rise;
     }
 }
