@@ -9,6 +9,7 @@ namespace Krntija.Game;
 public partial class Door : Node3D
 {
     private Node3D _hinge = null!;
+    private CollisionShape3D _shape = null!;
     private float _target;
 
     public bool IsOpen { get; private set; }
@@ -60,13 +61,15 @@ public partial class Door : Node3D
         };
         _hinge.AddChild(handle);
 
-        // Коллизия едет вместе с петлёй.
+        // Коллизия едет вместе с петлёй, но у открытой двери отключается:
+        // иначе полотно, ушедшее в сторону, всё равно считается стеной.
         var body = new StaticBody3D { Name = "DoorBody" };
-        body.AddChild(new CollisionShape3D
+        _shape = new CollisionShape3D
         {
             Shape = new BoxShape3D { Size = new Vector3(Width, Height, 0.1f) },
             Position = new Vector3(Width / 2, IsGarage ? -Height / 2 : Height / 2, 0),
-        });
+        };
+        body.AddChild(_shape);
         _hinge.AddChild(body);
     }
 
@@ -82,5 +85,8 @@ public partial class Door : Node3D
 
         if (IsGarage) _hinge.Rotation = new Vector3(next, 0, 0);
         else _hinge.Rotation = new Vector3(0, next, 0);
+
+        // Открытая дверь не должна быть стеной.
+        if (_shape is not null && _shape.Disabled != IsOpen) _shape.Disabled = IsOpen;
     }
 }

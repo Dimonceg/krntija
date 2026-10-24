@@ -44,7 +44,7 @@ public static class PlayerHouse
         Slab(root, new Vector3(Width, 0.2f, Depth), new Vector3(0, -0.1f, 0), Floor);
         // Перекрытие чердака с проёмом над лестницей (x 3.2…5.5, z 0.6…3.6).
         Slab(root, new Vector3(8.7f, 0.2f, Depth), new Vector3(-1.15f, WallHeight, 0), Floor, solid: false);
-        Slab(root, new Vector3(2.3f, 0.2f, 4.6f), new Vector3(4.35f, WallHeight, -1.7f), Floor, solid: false);
+        Slab(root, new Vector3(2.3f, 0.2f, 4.3f), new Vector3(4.35f, WallHeight, -1.85f), Floor, solid: false);
         Slab(root, new Vector3(2.3f, 0.2f, 0.4f), new Vector3(4.35f, WallHeight, 3.8f), Floor, solid: false);
 
         // --- внешние стены с проёмами ---
@@ -86,15 +86,15 @@ public static class PlayerHouse
         // --- крыша и чердак ---
         BuildRoof(root);
 
-        // Лестница на чердак: пандус 38° с коллизией, ступени поверх — только для вида.
-        // Верх пандуса должен попадать в проём перекрытия (z ≈ 0.55).
-        var stairs = Slab(root, new Vector3(1.9f, 0.2f, 4.34f), new Vector3(4.2f, 1.35f, 2.24f), Floor);
-        stairs.Rotation = new Vector3(0.67f, 0, 0);
+        // Лестница на чердак: широкий пандус (35°) с коллизией, отодвинут от стены.
+        // Ступени поверх — только для вида, иначе капсула упирается в подступенок.
+        var stairs = Slab(root, new Vector3(2.6f, 0.2f, 4.5f), new Vector3(3.6f, 1.35f, 2.2f), Floor);
+        stairs.Rotation = new Vector3(0.62f, 0, 0);
 
         for (int i = 0; i < 12; i++)
         {
             float y = 0.11f + i * 0.225f;
-            Slab(root, new Vector3(1.9f, 0.22f, 0.28f), new Vector3(4.2f, y, 3.4f - i * 0.26f), Floor, solid: false);
+            Slab(root, new Vector3(2.6f, 0.22f, 0.28f), new Vector3(3.6f, y, 3.4f - i * 0.26f), Floor, solid: false);
         }
 
         // --- мебель ---
@@ -111,6 +111,12 @@ public static class PlayerHouse
         Slab(root, new Vector3(3.4f, 0.18f, 1.8f), new Vector3(-1.25f, -0.09f, -Depth / 2 - 0.7f), new Color(0.55f, 0.52f, 0.46f));
         Slab(root, new Vector3(3.4f, 0.12f, 0.5f), new Vector3(-1.25f, -0.18f, -Depth / 2 - 1.75f), new Color(0.55f, 0.52f, 0.46f), solid: false);
         Slab(root, new Vector3(1.5f, 0.06f, 6.5f), new Vector3(-1.25f, -0.14f, -Depth / 2 - 4.6f), new Color(0.62f, 0.58f, 0.5f), solid: false);
+
+        // Заднее крыльцо и съезд к нему: порог 12 см капсула не берёт.
+        Slab(root, new Vector3(3.0f, 0.18f, 1.6f), new Vector3(-4.05f, -0.09f, Depth / 2 + 0.7f), new Color(0.55f, 0.52f, 0.46f));
+        var backRamp = Slab(root, new Vector3(3.0f, 0.14f, 1.8f), new Vector3(-4.05f, -0.12f, Depth / 2 + 2.2f),
+            new Color(0.55f, 0.52f, 0.46f));
+        backRamp.Rotation = new Vector3(0.1f, 0, 0);
 
         // --- двери ---
         // Уличные открываются НАРУЖУ: полотно не должно стоять в проёме.
