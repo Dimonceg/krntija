@@ -131,6 +131,9 @@ public static class TerrainBuilder
     private static readonly Color WheatColor = new(0.70f, 0.61f, 0.33f);
     private static readonly Color PlowedColor = new(0.40f, 0.31f, 0.23f);
 
+    /// <summary>Цвет земли: гравий у асфальта, трава, крупные пятна полей (мировые координаты).</summary>
+    public static Color GroundColor(float lateral, Vector3 world) => TerrainColor(lateral, world);
+
     /// <summary>Цвет земли: гравий у асфальта, трава, крупные пятна полей.</summary>
     private static Color TerrainColor(float lateral, Vector3 world)
     {

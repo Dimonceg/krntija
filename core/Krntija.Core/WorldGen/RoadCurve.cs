@@ -82,6 +82,35 @@ public sealed class RoadCurve
         return (point.X + rightX * lateral, point.Y, point.Z + rightZ * lateral);
     }
 
+    /// <summary>
+    /// Обратная к <see cref="Offset"/>: по точке мира (x, z) найти станцию
+    /// поперечного сечения дороги, через которое она проходит, и смещение от оси.
+    /// Нужна сцене: земля у дороги берёт высоту именно этого сечения, иначе на
+    /// уклоне и повороте край полотна уходит под землю.
+    /// </summary>
+    public (double S, double Lateral) Project(double x, double z)
+    {
+        // Ось дороги C(s) = (Lateral(s), −s), касательная T = (L′, −1).
+        // Точка лежит на нормали к сечению s, когда (P − C(s))·T = 0. Ньютон по s.
+        double s = -z;
+        for (int i = 0; i < 8; i++)
+        {
+            double dx = x - Lateral(s);
+            double dz = z + s;
+            double slope = LateralSlope(s);
+            double f = dx * slope - dz;
+            double df = -slope * slope + dx * LateralCurvature(s) - 1;
+            double step = f / df;
+            s -= step;
+            if (Math.Abs(step) < 1e-4) break;
+        }
+
+        // Смещение — проекция на «вправо» (cos h, sin h) = (1, L′)/√(1 + L′²).
+        double l = LateralSlope(s);
+        double lateral = ((x - Lateral(s)) + (z + s) * l) / Math.Sqrt(1 + l * l);
+        return (s, lateral);
+    }
+
     /// <summary>Радиус поворота в метрах на станции s (для проверок).</summary>
     public double TurnRadius(double s)
     {

@@ -187,6 +187,12 @@ public partial class Main
     /// <summary>Поставить машину на старт дороги: новую игру всегда начинаем там.</summary>
     private void PlaceCarAtStart()
     {
+        if (_streamer is not null)
+        {
+            PlaceCarOnChunkRoad(StartStation);
+            return;
+        }
+
         // Не на самом краю полотна, иначе половина машины висит в воздухе.
         Vector3 start = _road is { Centerline.Count: > 4 } ? _road.Centerline[4] : new Vector3(0, 0.6f, 0);
         _car.GlobalPosition = start + Vector3.Up * 0.62f;

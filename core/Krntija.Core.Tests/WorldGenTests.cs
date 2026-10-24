@@ -102,6 +102,23 @@ public class WorldGenTests
         Assert.True(maxLateral - minLateral > 200, $"дорога гуляет вбок всего на {maxLateral - minLateral:F0} м");
     }
 
+    [Theory]
+    [InlineData(0.0)]
+    [InlineData(3.6)]
+    [InlineData(-18.0)]
+    [InlineData(60.0)]
+    public void ProjectInvertsOffset(double lateral)
+    {
+        var curve = WorldGenerator.Curve(Seed);
+        for (double s = 100; s < 20_000; s += 137)
+        {
+            var (x, _, z) = curve.Offset(s, lateral);
+            var (ps, pl) = curve.Project(x, z);
+            Assert.True(Math.Abs(ps - s) < 0.05, $"станция {s}: получили {ps:F3}");
+            Assert.True(Math.Abs(pl - lateral) < 0.05, $"смещение {lateral} на {s}: получили {pl:F3}");
+        }
+    }
+
     [Fact]
     public void RoadShapeDependsOnSeed()
     {

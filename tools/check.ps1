@@ -16,7 +16,8 @@ $ErrorActionPreference = 'Continue'
 # (см. HANDOFF.md). Такой код — не 0 и не 1; прогон повторяем один раз.
 function Invoke-GodotCheck([string]$flag) {
     for ($attempt = 1; $attempt -le 2; $attempt++) {
-        $output = & $GodotConsoleExe --headless --path game -- $flag 2>&1 | Out-String
+        $flags = $flag -split ' '
+        $output = & $GodotConsoleExe --headless --path game -- @flags 2>&1 | Out-String
         $code = $LASTEXITCODE
         if ($code -eq 0 -or $code -eq 1) { break }
         Write-Host "    Godot упал при выходе (код $code), повтор…" -ForegroundColor DarkYellow
@@ -73,6 +74,9 @@ try {
             '--selftest-cars' = 'Выбор машины и новая игра'
             '--check-house'   = 'Дом: двери, лестница, чердак'
             '--check-props'   = 'Модели мест: габариты и центровка'
+            '--smoke --world=chunks' = 'Мир кусками: машина едет сама'
+            '--chunk-bench'   = 'Мир кусками: постройка куска в бюджете кадра'
+            '--chunk-run'     = 'Мир кусками: 10 км без дыр, утечек и с переносом начала'
         }
 
         foreach ($flag in $checks.Keys) {

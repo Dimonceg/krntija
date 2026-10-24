@@ -78,6 +78,11 @@ public partial class Main
         _sun.RotationDegrees = new Vector3(-48, -35, 0);
         AddChild(_sun);
 
+        if (UseChunkWorld)
+        {
+            BuildChunkWorld();
+            return;
+        }
 
         BuildRoad();
     }

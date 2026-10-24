@@ -124,7 +124,9 @@ public static class StaticBatcher
         while (stack.Count > 0)
         {
             var node = stack.Pop();
-            if (node.GetScript().VariantType != Variant.Type.Nil || node.IsInGroup(SkipGroup)) continue;
+            // Узел со скриптом — это наш C#-класс. Не через GetScript(): тот создаёт Variant
+            // на каждый узел, и их финализаторы роняли Godot при выходе.
+            if (node.GetType().Assembly == typeof(StaticBatcher).Assembly || node.IsInGroup(SkipGroup)) continue;
             if (node is Node3D { Visible: false }) continue;
 
             if (node is MeshInstance3D { Mesh: not null } mesh && mesh.Skeleton.IsEmpty)

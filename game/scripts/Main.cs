@@ -49,7 +49,7 @@ public partial class Main : Node3D
         if (HasArg("--balance"))
         {
             BalanceProbe.Run();
-            GetTree().Quit(0);
+            QuitSoon(0);
             return;
         }
 
@@ -64,7 +64,7 @@ public partial class Main : Node3D
         if (HasArg("--check-props"))
         {
             RunPropCheck();
-            GetTree().Quit(0);
+            QuitSoon(0);
             return;
         }
 
@@ -146,16 +146,22 @@ public partial class Main : Node3D
         if (HasArg("--check-sound"))
         {
             PrintSoundDiagnostics();
-            GetTree().Quit(0);
+            QuitSoon(0);
             return;
         }
 
         _car.Autopilot = DrivesItself;
 
+        if (_chunkBench)
+        {
+            RunChunkBench();
+            return;
+        }
+
         if (HasArg("--check-scene"))
         {
             RunSceneReport();
-            GetTree().Quit(0);
+            QuitSoon(0);
             return;
         }
 
@@ -190,7 +196,7 @@ public partial class Main : Node3D
         }
 
         // В автоматических прогонах меню не показываем: тесты должны ехать сразу.
-        bool automated = _smoke || _selfTest || _shot || _perf || _checkHouse;
+        bool automated = _smoke || _selfTest || _shot || _perf || _checkHouse || _chunkRun;
         if (!automated)
         {
             _menu.ShowMainMenu(HasSave());
@@ -218,6 +224,14 @@ public partial class Main : Node3D
     public override void _Process(double delta)
     {
         if (_hud is null || _car is null) return;
+
+        // Мир кусками: сначала подгрузка и сдвиг начала, потом всё остальное.
+        _streamer?.Focus(_onFoot && _player is not null ? _player.GlobalPosition : _car.GlobalPosition);
+        if (_chunkRun)
+        {
+            ChunkRunStep();
+            return;
+        }
 
         // Перегруз: полный карман замедляет пешехода, багажник на скорость не влияет.
         if (_player is not null)
@@ -315,7 +329,7 @@ public partial class Main : Node3D
 
         _car.GripScale = (float)weather.GripFactor;
 
-        if (_road?.RoadMaterial is { } material)
+        if ((_road?.RoadMaterial ?? _streamer?.RoadMaterial) is { } material)
         {
             material.Roughness = Mathf.Lerp(0.95f, 0.55f, wet);
             material.Metallic = Mathf.Lerp(0f, 0.08f, wet);

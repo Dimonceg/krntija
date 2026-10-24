@@ -52,9 +52,10 @@ float noise(vec2 p) {
     {
         Shader = new Shader { Code = @"shader_type spatial;
 render_mode cull_disabled;
+global uniform vec3 world_origin;
 varying vec3 ground;
 " + NoiseCode + @"
-void vertex() { ground=(MODEL_MATRIX*vec4(VERTEX,1.0)).xyz; }
+void vertex() { ground=(MODEL_MATRIX*vec4(VERTEX,1.0)).xyz+world_origin; }
 void fragment() {
     vec2 p=ground.xz;
     float broad=noise(p*.045);
@@ -131,29 +132,6 @@ void fragment() {
     public static void Grass(List<Vector3> road, List<float> headings, Node3D parent)
     {
         if (road.Count < 12) return;
-        var tool = new SurfaceTool(); tool.Begin(Mesh.PrimitiveType.Triangles);
-        for (int blade = 0; blade < 5; blade++)
-        {
-            float angle = blade * 2.4f;
-            var right = new Vector3(Mathf.Cos(angle), 0, Mathf.Sin(angle));
-            var foot = right * .11f;
-            var tip = foot + Vector3.Up * (.30f + blade * .045f) + right * .12f;
-            var normal = right.Cross(Vector3.Up);
-            foreach (var p in new[] { foot - right * .035f, foot + right * .035f, tip })
-            {
-                tool.SetNormal(normal); tool.SetColor(p.Y > .1f ? new Color(.56f,.59f,.28f) : new Color(.23f,.30f,.10f));
-                tool.AddVertex(p);
-            }
-        }
-        var mesh = tool.Commit();
-        var material = new ShaderMaterial { Shader = new Shader { Code = @"shader_type spatial;
-render_mode cull_disabled;
-void vertex() {
-    vec3 p=(MODEL_MATRIX*vec4(VERTEX,1.0)).xyz;
-    VERTEX.x+=sin(TIME*1.6+p.x*.6+p.z*.25)*.06*VERTEX.y;
-}
-void fragment() { ALBEDO=COLOR.rgb; ROUGHNESS=1.0; }
-" } };
         var rng = new Pcg32(9117, sequence: 13);
         Vector3 home = road[10] - new Vector3(Mathf.Cos(headings[10]), 0, Mathf.Sin(headings[10])) * 15;
         int count = 0;
@@ -177,22 +155,68 @@ void fragment() { ALBEDO=COLOR.rgb; ROUGHNESS=1.0; }
                 positions.Add(new Transform3D(new Basis(Vector3.Up, (float)rng.Range(0,Mathf.Tau)).Scaled(scale),p));
             }
             if (positions.Count == 0) continue;
-            var mm = new MultiMesh { TransformFormat = MultiMesh.TransformFormatEnum.Transform3D,
-                UseColors = true, Mesh = mesh, InstanceCount = positions.Count };
-            Aabb bounds = default;
-            for (int i = 0; i < positions.Count; i++)
-            {
-                mm.SetInstanceTransform(i, positions[i]);
-                float tint = (float)rng.Range(.8, 1.12);
-                mm.SetInstanceColor(i, new Color(tint, tint, tint * .9f));
-                var box = (positions[i] * mesh.GetAabb()).Grow(.12f);
-                bounds = i == 0 ? box : bounds.Merge(box);
-            }
-            parent.AddChild(new MultiMeshInstance3D { Name = $"RoadGrass_{start}", Multimesh = mm,
-                MaterialOverride = material, CustomAabb = bounds, VisibilityRangeEnd = 95,
-                CastShadow = GeometryInstance3D.ShadowCastingSetting.Off });
+            AddGrassBatch(parent, $"RoadGrass_{start}", positions, rng);
             count += positions.Count;
         }
         GD.Print($"[landscape] grass: {count} clumps in spatial batches");
+    }
+
+    private static ArrayMesh? _grassMesh;
+    private static ShaderMaterial? _grassMaterial;
+
+    /// <summary>Пучок травы: пять травинок, общий меш для всех пучков.</summary>
+    public static ArrayMesh GrassMesh()
+    {
+        if (_grassMesh is not null) return _grassMesh;
+        var tool = new SurfaceTool(); tool.Begin(Mesh.PrimitiveType.Triangles);
+        for (int blade = 0; blade < 5; blade++)
+        {
+            float angle = blade * 2.4f;
+            var right = new Vector3(Mathf.Cos(angle), 0, Mathf.Sin(angle));
+            var foot = right * .11f;
+            var tip = foot + Vector3.Up * (.30f + blade * .045f) + right * .12f;
+            var normal = right.Cross(Vector3.Up);
+            foreach (var p in new[] { foot - right * .035f, foot + right * .035f, tip })
+            {
+                tool.SetNormal(normal); tool.SetColor(p.Y > .1f ? new Color(.56f,.59f,.28f) : new Color(.23f,.30f,.10f));
+                tool.AddVertex(p);
+            }
+        }
+        _grassMesh = tool.Commit();
+        return _grassMesh;
+    }
+
+    public static ShaderMaterial GrassMaterial()
+    {
+        return _grassMaterial ??= new ShaderMaterial { Shader = new Shader { Code = @"shader_type spatial;
+render_mode cull_disabled;
+global uniform vec3 world_origin;
+void vertex() {
+    vec3 p=(MODEL_MATRIX*vec4(VERTEX,1.0)).xyz+world_origin;
+    VERTEX.x+=sin(TIME*1.6+p.x*.6+p.z*.25)*.06*VERTEX.y;
+}
+void fragment() { ALBEDO=COLOR.rgb; ROUGHNESS=1.0; }
+" } };
+    }
+
+    /// <summary>Один MultiMesh травы с оттенками; rng даёт разброс цвета.</summary>
+    public static void AddGrassBatch(Node3D parent, string name, List<Transform3D> positions, Pcg32 rng)
+    {
+        var mesh = GrassMesh();
+        var material = GrassMaterial();
+        var mm = new MultiMesh { TransformFormat = MultiMesh.TransformFormatEnum.Transform3D,
+            UseColors = true, Mesh = mesh, InstanceCount = positions.Count };
+        Aabb bounds = default;
+        for (int i = 0; i < positions.Count; i++)
+        {
+            mm.SetInstanceTransform(i, positions[i]);
+            float tint = (float)rng.Range(.8, 1.12);
+            mm.SetInstanceColor(i, new Color(tint, tint, tint * .9f));
+            var box = (positions[i] * mesh.GetAabb()).Grow(.12f);
+            bounds = i == 0 ? box : bounds.Merge(box);
+        }
+        parent.AddChild(new MultiMeshInstance3D { Name = name, Multimesh = mm,
+            MaterialOverride = material, CustomAabb = bounds, VisibilityRangeEnd = 95,
+            CastShadow = GeometryInstance3D.ShadowCastingSetting.Off });
     }
 }
