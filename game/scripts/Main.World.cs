@@ -161,7 +161,7 @@ public partial class Main
                 break;
             case RoadFeature.Ruins: if (model is null) AddRuins(position, heading); break;
             case RoadFeature.Farm: if (model is null) AddFarm(position, heading); break;
-            case RoadFeature.Checkpoint: AddCheckpoint(position, heading, roadPoint, model is null); break;
+            case RoadFeature.Checkpoint: AddCheckpoint(position, heading, roadPoint, poiIndex, model is null); break;
         }
 
         if (title.Length > 0) AddFeatureSign(roadPoint, heading, title);
@@ -183,8 +183,7 @@ public partial class Main
             switch (use.Kind)
             {
                 case "loot":
-                    AddLoot(use.Position, use.ItemId ?? "cassette", use.Count);
-                    loot++;
+                    AddLoot(WorldState.Loot("map", loot++), use.Position, use.ItemId ?? "cassette", use.Count);
                     break;
                 case "sell":
                     _interactions.Add(new InteractionPoint(use.Position, InteractionKind.SellAll, 5f));
@@ -201,7 +200,8 @@ public partial class Main
                     break;
                 case "exit":
                     _interactions.Add(new InteractionPoint(use.Position, InteractionKind.RepairExit, 3.5f,
-                        LootId: use.ItemId));
+                        LootId: use.ItemId,
+                        StateId: int.TryParse(use.ItemId, out int exit) ? WorldState.Exit(exit) : null));
                     break;
             }
         }

@@ -80,10 +80,8 @@ public partial class Main
     /// <summary>Сброс состояния мира при новой игре в той же сцене.</summary>
     private void ResetWorldState()
     {
-        _visitedPoi.Clear();
-
-        foreach (var point in _interactions)
-            point.Gate?.Close();
+        // Новая сессия — пустой WorldState: лут возвращается, шлагбаумы закрываются.
+        SyncWorldState();
 
         // События хранят сработавшие точки и ссылки на старую машину:
         // проще собрать их заново, чем чинить флаги и удалённые узлы.
@@ -142,6 +140,7 @@ public partial class Main
         var data = SaveSerializer.LoadFile(path);
         var session = GameSession.FromSave(data);
         Respawn(session);
+        SyncWorldState();
 
         _objectiveDone = data.ObjectiveDone;
 

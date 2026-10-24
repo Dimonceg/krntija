@@ -224,7 +224,7 @@ public partial class Main
         }
     }
 
-    private void AddCheckpoint(Vector3 position, float heading, Vector3 roadPoint, bool buildBooth = true)
+    private void AddCheckpoint(Vector3 position, float heading, Vector3 roadPoint, int poiIndex, bool buildBooth = true)
     {
         if (buildBooth)
         {
@@ -241,7 +241,7 @@ public partial class Main
         AddChild(gate);
 
         _interactions.Add(new InteractionPoint(
-            roadPoint + new Vector3(0, 1.2f, 0), InteractionKind.Gate, 9f, gate));
+            roadPoint + new Vector3(0, 1.2f, 0), InteractionKind.Gate, 9f, gate, StateId: WorldState.Gate(poiIndex)));
     }
 
     /// <summary>Заправка: навес, колонка и магазинчик у дороги.</summary>

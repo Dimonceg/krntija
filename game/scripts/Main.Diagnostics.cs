@@ -383,12 +383,24 @@ public partial class Main
             Check(used && session.Survival.Thirst > thirstBefore && session.Inventory.Count(ItemIds.Water) < waterBefore,
                 "предмет из сумки используется");
 
+            // Мир помнит подобранное: A поднят до сейва, B — после.
+            var loot = _interactions.Where(p => p.Kind == InteractionKind.Loot && p.StateId is not null).Take(2).ToList();
+            string? lootBefore = loot.ElementAtOrDefault(0)?.StateId;
+            string? lootAfter = loot.ElementAtOrDefault(1)?.StateId;
+            if (loot.Count > 0) PickUpLoot(loot[0]);
+
             double moneyAtSave = session.Wallet.Money;
             SaveGame();
 
+            if (loot.Count > 1) PickUpLoot(loot[1]);
             session.Vehicle.Fuel.SetLiters(30);
             engine.SetCondition(0.9);
             LoadGame();
+
+            bool LootLies(string? id) => _interactions.Any(p => p.StateId == id && p.Kind == InteractionKind.Loot);
+            Check(lootBefore is not null && !LootLies(lootBefore) && _car.Session.WorldState.IsDone(lootBefore),
+                "подобранный до сейва лут не вернулся после загрузки");
+            Check(lootAfter is not null && LootLies(lootAfter), "лут, поднятый после сейва, вернулся при загрузке");
 
             Check(Math.Abs(_car.Session.Vehicle.Fuel.Liters - 5 - poured) < 0.05, "топливо восстановлено из сейва");
             Check(Math.Abs(_car.Session.Vehicle.Get(PartSlot.Engine)!.Condition - 0.60) < 0.01, "износ восстановлен");
@@ -417,8 +429,10 @@ public partial class Main
             if (gatePoint?.Gate is not null)
             {
                 double before = _car.Session.Wallet.Money;
-                PayForGate(gatePoint.Gate);
+                PayForGate(gatePoint);
                 Check(gatePoint.Gate.IsOpen && _car.Session.Wallet.Money < before, "шлагбаум за деньги");
+                Check(gatePoint.StateId is not null && _car.Session.WorldState.IsDone(gatePoint.StateId),
+                    "оплаченный шлагбаум записан в состояние мира");
             }
 
             GD.Print("[selftest] пройден");
@@ -580,13 +594,15 @@ public partial class Main
             ok &= match;
         }
 
-        // Вторая часть: новая игра не должна копить события, награды и шлагбаумы.
+        // Вторая часть: новая игра не должна копить события, награды, шлагбаумы и подобранный лут.
         var gatePoint = _interactions.FirstOrDefault(p => p.Gate is not null);
         gatePoint?.Gate?.Open();
+        var lootPoint = _interactions.FirstOrDefault(p => p.Kind == InteractionKind.Loot && p.StateId is not null);
+        if (lootPoint is not null) PickUpLoot(lootPoint);
 
         for (int i = 0; i < 2; i++)
         {
-            _visitedPoi.Add(999);
+            _car.Session.WorldState.MarkDone(WorldState.Place(999));
             _menu.ShowCarSelect();
             _menu.PressCar(0);
         }
@@ -599,14 +615,18 @@ public partial class Main
         }
 
         bool singleEvents = eventNodes == 1;
-        bool visitedCleared = _visitedPoi.Count == 0;
+        int worldDone = _car.Session.WorldState.Done.Count;
+        bool visitedCleared = worldDone == 0;
         bool gateClosed = gatePoint?.Gate is { IsOpen: false };
+        bool lootBack = lootPoint is not null
+                        && _interactions.Any(p => p.Kind == InteractionKind.Loot && p.StateId == lootPoint.StateId);
 
         GD.Print($"[carselftest] события: {eventNodes} (ждём 1) — {(singleEvents ? "ок" : "FAIL")}, "
-                 + $"награды сброшены: {_visitedPoi.Count} — {(visitedCleared ? "ок" : "FAIL")}, "
-                 + $"шлагбаум закрыт — {(gateClosed ? "ок" : "FAIL")}");
+                 + $"состояние мира сброшено: {worldDone} — {(visitedCleared ? "ок" : "FAIL")}, "
+                 + $"шлагбаум закрыт — {(gateClosed ? "ок" : "FAIL")}, "
+                 + $"лут вернулся — {(lootBack ? "ок" : "FAIL")}");
 
-        ok &= singleEvents && visitedCleared && gateClosed;
+        ok &= singleEvents && visitedCleared && gateClosed && lootBack;
 
         GD.Print(ok ? "[carselftest] OK" : "[carselftest] FAIL");
         GetTree().Quit(ok ? 0 : 1);

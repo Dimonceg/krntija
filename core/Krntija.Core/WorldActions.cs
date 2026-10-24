@@ -39,6 +39,16 @@ public static class WorldActions
 
     public static bool TryPayToll(Wallet wallet) => wallet.TrySpend(GateToll);
 
+    /// <summary>Первое посещение места — награда. Повторно (и после загрузки) не платим.</summary>
+    public static bool TryRewardPlace(GameSession session, int poiIndex)
+    {
+        if (!session.WorldState.MarkDone(WorldState.Place(poiIndex)))
+            return false;
+
+        session.Wallet.Earn(PlaceReward);
+        return true;
+    }
+
     /// <summary>Мотель: 15 €, восемь часов сна и подъём в 7 утра.</summary>
     public static bool TrySleepAtMotel(GameSession session)
     {

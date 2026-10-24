@@ -170,6 +170,7 @@ public partial class Main
 
         _hud.Toast($"Подобрано: {name} ×{count}");
         Sfx.PlayUi();
+        MarkWorld(point.StateId);
         _interactions.Remove(point);
         point.Node.QueueFree();
     }
@@ -181,18 +182,12 @@ public partial class Main
 
         int placed = 0;
         foreach (var (position, itemId, count) in LootSpawner.PlanLandmarks(_road.Points))
-        {
-            AddLoot(position, itemId, count);
-            placed++;
-        }
+            AddLoot(WorldState.Loot("poi", placed++), position, itemId, count);
 
         int inHouse = 0;
         if (GetNodeOrNull<Node3D>("PlayerHouse") is { } house)
             foreach (var (position, itemId, count) in LootSpawner.PlanHouse(house))
-            {
-                AddLoot(position, itemId, count);
-                inHouse++;
-            }
+                AddLoot(WorldState.Loot("house", inHouse++), position, itemId, count);
 
         // Лут у построек карты: у руин металлолом, у дома — кассеты, у сарая — запчасти.
         int inMap = 0;
@@ -208,19 +203,28 @@ public partial class Main
             };
 
             Vector3 spot = place.Position + new Vector3(0, 0.15f, 1.8f);
-            AddLoot(spot, itemId, 1 + place.Index % 2);
-            inMap++;
+            AddLoot(WorldState.Loot("place", inMap++), spot, itemId, 1 + place.Index % 2);
         }
 
         GD.Print($"[loot] предметов: {placed} у мест, {inHouse} в доме, {inMap} на карте");
     }
 
-    private void AddLoot(Vector3 position, string itemId, int count)
+    /// <summary>
+    /// Записать место лута и положить предмет. Мир строится до машины и сессии,
+    /// поэтому уже подобранное убирает <see cref="SyncWorldState"/>, а не этот метод.
+    /// </summary>
+    private void AddLoot(string stateId, Vector3 position, string itemId, int count)
     {
-        var item = LootItem.Create(itemId, count, position);
+        _lootSpawns.Add(new LootSpawn(stateId, position, itemId, count));
+        PlaceLoot(_lootSpawns[^1]);
+    }
+
+    private void PlaceLoot(LootSpawn spawn)
+    {
+        var item = LootItem.Create(spawn.ItemId, spawn.Count, spawn.Position);
         AddChild(item);
 
-        _interactions.Add(new InteractionPoint(position + Vector3.Up * 0.25f, InteractionKind.Loot, 2.2f,
-            LootId: itemId, Node: item));
+        _interactions.Add(new InteractionPoint(spawn.Position + Vector3.Up * 0.25f, InteractionKind.Loot, 2.2f,
+            LootId: spawn.ItemId, Node: item, StateId: spawn.StateId));
     }
 }

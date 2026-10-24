@@ -34,12 +34,12 @@ public partial class Main
         SleepHome,
     }
 
+    /// <param name="StateId">Id в <see cref="WorldState"/>, если действие меняет мир и сохраняется.</param>
     private sealed record InteractionPoint(Vector3 Position, InteractionKind Kind, float Radius,
-        CheckpointGate? Gate = null, Door? Door = null, string? LootId = null, Node3D? Node = null);
+        CheckpointGate? Gate = null, Door? Door = null, string? LootId = null, Node3D? Node = null,
+        string? StateId = null);
 
     private readonly List<InteractionPoint> _interactions = new();
-
-    private readonly HashSet<int> _visitedPoi = new();
 
     private string BuildPrompt()
     {
@@ -135,7 +135,7 @@ public partial class Main
                 break;
 
             case InteractionKind.Gate:
-                PayForGate(point.Gate);
+                PayForGate(point);
                 break;
 
             case InteractionKind.SellAll:
@@ -194,9 +194,9 @@ public partial class Main
         }
     }
 
-    private void PayForGate(CheckpointGate? gate)
+    private void PayForGate(InteractionPoint point)
     {
-        if (gate is null) return;
+        if (point.Gate is not { } gate) return;
 
         if (gate.IsOpen)
         {
@@ -207,6 +207,7 @@ public partial class Main
         if (WorldActions.TryPayToll(_car.Session.Wallet))
         {
             gate.Open();
+            MarkWorld(point.StateId);
             _hud.Toast($"Проезд оплачен: {WorldActions.GateToll:F0} €");
         }
         else
@@ -222,13 +223,10 @@ public partial class Main
 
         for (int i = 0; i < _road.Points.Count; i++)
         {
-            if (_visitedPoi.Contains(i)) continue;
-
             var point = _road.Points[i];
             if (_car.GlobalPosition.DistanceTo(point.Position) > 25f) continue;
 
-            _visitedPoi.Add(i);
-            _car.Session.Wallet.Earn(WorldActions.PlaceReward);
+            if (!WorldActions.TryRewardPlace(_car.Session, i)) continue;
             _hud.Toast($"{point.Segment.Title}: +{WorldActions.PlaceReward:F0} €");
         }
     }
@@ -414,6 +412,7 @@ public partial class Main
 
             if (!gate.Barrier.IsOpen) gate.Barrier.Toggle();
             gate.Wall.QueueFree();
+            MarkWorld(point.StateId);
             _hud.Toast("Выезд открыт: дальше новый край");
             Sfx.PlayUi();
         }
@@ -426,6 +425,7 @@ public partial class Main
 
         _collapseNode.QueueFree();
         _collapseNode = null;
+        MarkWorld(WorldState.Collapse(0));
         _collapseBody = null;
         _hud.Toast("Завал разобран, дорога свободна");
         Sfx.PlayUi();
