@@ -2131,7 +2131,18 @@ public partial class Main : Node3D
 
         if (worst is null)
         {
-            _hud.Toast("Всё в порядке, чинить нечего");
+            // Чинить нечего — ставим улучшение, если оно есть в кармане.
+            foreach (string id in Core.Items.UpgradeCatalog.All.Keys)
+            {
+                if (session.Upgrades.Contains(id) || session.Inventory.Count(id) < 1) continue;
+
+                session.Inventory.Remove(id, 1);
+                _hud.Toast(session.ApplyUpgrade(id) ?? "Установлено");
+                Sfx.PlayDoor(_car.GlobalPosition);
+                return;
+            }
+
+            _hud.Toast("Чинить нечего, улучшений нет");
             return;
         }
 
@@ -2161,7 +2172,8 @@ public partial class Main : Node3D
         session.Clock.Advance(8 * 3600.0);
         session.Survival.Fatigue = 1.0;
         session.Survival.Health = Mathf.Min(1.0, session.Survival.Health + 0.2);
-        _hud.Toast("Выспался дома: 8 часов");
+        SaveGame();
+        _hud.Toast("Выспался дома: 8 часов, игра сохранена");
     }
 
     /// <summary>События карты: завал на первой ветке и волки у сарая с собакой.</summary>
