@@ -68,6 +68,15 @@ public static class PlaceBuilder
             built.Loot.Add(new Loot(WorldState.Loot(loot.Id), loot.ItemId, loot.Count, point));
         }
 
+        // Дорожные угрозы из плана: яма, корова, попутчик.
+        foreach (var hazard in place.Hazards)
+        {
+            var hazardOffset = new Vector3((float)hazard.OffsetX, 0, (float)hazard.OffsetZ);
+            Vector3 spot = OnGround(curve, root, chunkRoot, hazardOffset, local);
+            var node = HazardNode.Create(hazard.Kind, hazard.Amount, chunkRoot.ToLocal(spot));
+            chunkRoot.AddChild(node);
+        }
+
         // Дом собран из сотен ящиков — сливаем, как статику старого мира. Модели GLB
         // не сливаются (текстуры), а их обход стоит до 8 мс: посреди поездки это рывок.
         if (place.Kind == PlaceKind.House) StaticBatcher.Merge(root, cellSize: 64f);

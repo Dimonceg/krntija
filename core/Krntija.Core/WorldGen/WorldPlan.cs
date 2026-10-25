@@ -43,6 +43,25 @@ public sealed record Footprint(double HalfWidth, double HalfDepth)
     public double Radius => Math.Sqrt(HalfWidth * HalfWidth + HalfDepth * HalfDepth);
 }
 
+/// <summary>Дорожная угроза: яма, корова на полотне, попутчик у обочины.</summary>
+public enum HazardKind
+{
+    Pothole,
+    Cow,
+    Hitchhiker,
+}
+
+/// <summary>
+/// Угроза у места: срабатывает по приближению. Смещения — в осях места,
+/// как у лута и точек взаимодействия.
+/// </summary>
+public sealed record HazardPlan(
+    string Id,
+    HazardKind Kind,
+    double OffsetX,
+    double OffsetZ,
+    double Amount);
+
 /// <summary>Одно место в куске: где стоит, какого размера и что внутри.</summary>
 public sealed record PlacePlan(
     string Id,
@@ -54,7 +73,8 @@ public sealed record PlacePlan(
     bool OnRoad,
     Footprint Footprint,
     IReadOnlyList<LootPlan> Loot,
-    IReadOnlyList<UsePlan> Uses);
+    IReadOnlyList<UsePlan> Uses,
+    IReadOnlyList<HazardPlan> Hazards);
 
 /// <summary>Кусок мира: 256 м дороги и всё, что на них стоит.</summary>
 public sealed record ChunkPlan(
