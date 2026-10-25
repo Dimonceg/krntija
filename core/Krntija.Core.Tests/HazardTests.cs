@@ -1,3 +1,4 @@
+using Krntija.Core.World;
 using Krntija.Core.WorldGen;
 using Xunit;
 
@@ -57,5 +58,20 @@ public class HazardTests
         for (int chunk = fromChunk; chunk < toChunk; chunk++)
             total += WorldGenerator.Plan(Seed, chunk).Places.Sum(place => place.Hazards.Count);
         return total;
+    }
+
+    [Fact]
+    public void Hitchhiker_PaysOnceEvenAfterLoad()
+    {
+        var session = GameSession.NewGame();
+        double start = session.Wallet.Money;
+        string id = WorldState.Use("hitchhiker", "c12/p1/h0");
+
+        Assert.True(WorldActions.TryPickUpHitchhiker(session, id, 20));
+        Assert.False(WorldActions.TryPickUpHitchhiker(session, id, 20));
+        Assert.Equal(start + 20, session.Wallet.Money, precision: 6);
+
+        var loaded = GameSession.FromSave(SaveSerializer.FromJson(SaveSerializer.ToJson(session.ToSave())));
+        Assert.False(WorldActions.TryPickUpHitchhiker(loaded, id, 20));
     }
 }
