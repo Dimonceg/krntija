@@ -73,8 +73,9 @@ public static class PlaceBuilder
         foreach (var hazard in place.Hazards)
         {
             var hazardOffset = new Vector3((float)hazard.OffsetX, 0, (float)hazard.OffsetZ);
+            // OnGround уже даёт координаты корня куска: второй ToLocal сдвигал угрозу на позицию куска.
             Vector3 spot = OnGround(root, chunkRoot, hazardOffset, local, ground);
-            var node = HazardNode.Create(hazard.Kind, hazard.Amount, chunkRoot.ToLocal(spot));
+            var node = HazardNode.Create(hazard.Kind, hazard.Amount, spot);
             chunkRoot.AddChild(node);
         }
 
