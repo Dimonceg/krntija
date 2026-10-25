@@ -113,6 +113,11 @@ public partial class Main
         "chest" => (InteractionKind.Chest, 3f),
         "workbench" => (InteractionKind.Workbench, 3f),
         "sleep_home" => (InteractionKind.SleepHome, 3f),
+        // Содержимое старого мира, перенесённое в план: жители, собака, завал, выезд.
+        "talk" => (InteractionKind.Talk, 3f),
+        "dog" => (InteractionKind.Pet, 3f),
+        "exit" => (InteractionKind.RepairExit, 3.5f),
+        "collapse" => (InteractionKind.ClearCollapse, 4f),
         _ => null,
     };
 
