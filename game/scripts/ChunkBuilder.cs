@@ -33,7 +33,9 @@ public sealed class ChunkBuilder
     /// <summary>Столбцы дальней земли с горами: первый совпадает с краем ближней.</summary>
     private static readonly float[] FarOffsets = { 150f, 175f, 220f, 290f, 380f, 500f, 650f, 850f, 1100f };
 
-    private static readonly FastNoiseLite MountainNoise = new()
+    private static FastNoiseLite? _mountainNoise;
+
+    private static FastNoiseLite MountainNoise => _mountainNoise ??= new FastNoiseLite
     {
         Seed = 4201, Frequency = .0032f, FractalOctaves = 4, FractalType = FastNoiseLite.FractalTypeEnum.Fbm,
     };
@@ -41,6 +43,15 @@ public sealed class ChunkBuilder
     private static StandardMaterial3D? _farMaterial;
     private static ShaderMaterial? _groundMaterial;
     private static StandardMaterial3D? _postMaterial;
+
+    /// <summary>Отпустить общие ресурсы перед выходом (<see cref="StaticCaches"/>).</summary>
+    internal static void ReleaseCaches()
+    {
+        StaticCaches.Dispose(ref _mountainNoise);
+        StaticCaches.Dispose(ref _farMaterial);
+        StaticCaches.Dispose(ref _groundMaterial);
+        StaticCaches.Dispose(ref _postMaterial);
+    }
 
     private readonly RoadCurve _curve;
     private readonly ulong _seed;

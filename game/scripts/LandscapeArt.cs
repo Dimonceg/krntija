@@ -164,6 +164,14 @@ void fragment() {
     private static ArrayMesh? _grassMesh;
     private static ShaderMaterial? _grassMaterial;
 
+    /// <summary>Отпустить общие ресурсы перед выходом (<see cref="StaticCaches"/>).</summary>
+    internal static void ReleaseCaches()
+    {
+        StaticCaches.Dispose(ref _asphalt);
+        StaticCaches.Dispose(ref _grassMesh);
+        StaticCaches.Dispose(ref _grassMaterial);
+    }
+
     /// <summary>Пучок травы: пять травинок, общий меш для всех пучков.</summary>
     public static ArrayMesh GrassMesh()
     {
