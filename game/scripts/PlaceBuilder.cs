@@ -120,6 +120,7 @@ public static class PlaceBuilder
     private static readonly string[] ModelIds =
     {
         "gasstation", "village", "ruins", "farm", "checkpoint", "well", "shed", "barn", "abandoned",
+        "resident", "dog", "wolf", "rockslide", "roadblock", "wooden_crate",
     };
 
     private static string[] Variants(string id) => new[] { id + "_a", id + "_b", id + "_c", id };
@@ -239,13 +240,17 @@ public static class PlaceBuilder
         switch (kind)
         {
             case "talk":
-                Prop(root, offset + new Vector3(0, 1.0f, 0), new Vector3(0.55f, 1.6f, 0.4f), ClothColor);
-                Prop(root, offset + new Vector3(0, 1.95f, 0), new Vector3(0.32f, 0.34f, 0.32f),
-                    new Color(0.84f, 0.7f, 0.56f));
+                if (Model(root, "resident", offset, 0.6f) is null)
+                {
+                    Prop(root, offset + new Vector3(0, 1.0f, 0), new Vector3(0.55f, 1.6f, 0.4f), ClothColor);
+                    Prop(root, offset + new Vector3(0, 1.95f, 0), new Vector3(0.32f, 0.34f, 0.32f),
+                        new Color(0.84f, 0.7f, 0.56f));
+                }
                 break;
 
             case "dog":
-                Prop(root, offset + new Vector3(0, 0.55f, 0), new Vector3(0.35f, 0.4f, 0.9f), FurColor);
+                if (Model(root, "dog", offset, -0.9f) is null)
+                    Prop(root, offset + new Vector3(0, 0.55f, 0), new Vector3(0.35f, 0.4f, 0.9f), FurColor);
                 break;
 
             case "wolves":
@@ -254,27 +259,35 @@ public static class PlaceBuilder
                 for (int i = 0; i < 3; i++)
                 {
                     var spread = new Vector3((i - 1) * 1.8f, 0, Math.Abs(i - 1) * 1.2f);
-                    Prop(pack, offset + spread + new Vector3(0, 0.5f, 0), new Vector3(0.32f, 0.36f, 0.8f), FurColor);
+                    if (Model(pack, "wolf", offset + spread, 0.7f * (i - 1)) is null)
+                        Prop(pack, offset + spread + new Vector3(0, 0.5f, 0), new Vector3(0.32f, 0.36f, 0.8f), FurColor);
                 }
                 break;
 
             case "collapse":
-                for (int i = 0; i < 4; i++)
+                if (Model(root, "rockslide", offset, 0, solid: true) is null)
                 {
-                    var spread = new Vector3((i - 1.5f) * 1.1f, 0.5f, (i % 2) * 1.2f);
-                    Prop(root, offset + spread, new Vector3(1.2f, 1.0f, 1.0f), RockColor, solid: true);
+                    for (int i = 0; i < 4; i++)
+                    {
+                        var spread = new Vector3((i - 1.5f) * 1.1f, 0.5f, (i % 2) * 1.2f);
+                        Prop(root, offset + spread, new Vector3(1.2f, 1.0f, 1.0f), RockColor, solid: true);
+                    }
                 }
                 break;
 
             case "exit":
-                Prop(root, offset + new Vector3(-3, 1.2f, 0), new Vector3(0.3f, 2.4f, 0.3f), WoodColor, solid: true);
-                Prop(root, offset + new Vector3(3, 1.2f, 0), new Vector3(0.3f, 2.4f, 0.3f), WoodColor, solid: true);
-                Prop(root, offset + new Vector3(0, 1.1f, 0), new Vector3(6.4f, 0.25f, 0.25f),
-                    new Color(0.75f, 0.2f, 0.15f));
+                if (Model(root, "roadblock", offset, 0, solid: true) is null)
+                {
+                    Prop(root, offset + new Vector3(-3, 1.2f, 0), new Vector3(0.3f, 2.4f, 0.3f), WoodColor, solid: true);
+                    Prop(root, offset + new Vector3(3, 1.2f, 0), new Vector3(0.3f, 2.4f, 0.3f), WoodColor, solid: true);
+                    Prop(root, offset + new Vector3(0, 1.1f, 0), new Vector3(6.4f, 0.25f, 0.25f),
+                        new Color(0.75f, 0.2f, 0.15f));
+                }
                 break;
 
             case "crate":
-                Prop(root, offset + new Vector3(0, 0.35f, 0), new Vector3(0.9f, 0.7f, 0.7f), WoodColor, solid: true);
+                if (Model(root, "wooden_crate", offset, 0.3f, solid: true) is null)
+                    Prop(root, offset + new Vector3(0, 0.35f, 0), new Vector3(0.9f, 0.7f, 0.7f), WoodColor, solid: true);
                 break;
         }
 
@@ -282,6 +295,15 @@ public static class PlaceBuilder
         root.QueueFree();
         return null;
     }
+
+    /// <summary>
+    /// Модель точки из assets/models/props (арт-модель: начало у земли, перед — −Z).
+    /// Null — модели нет, ставим коробку-заглушку.
+    /// </summary>
+    private static Node3D? Model(Node3D parent, string id, Vector3 position, float yaw, bool solid = false) =>
+        PropFactory.PickVariant(Variants(id), (int)(position.X * 31 + position.Z * 17)) is { } variant
+            ? PropFactory.Spawn(variant, position, -yaw, solid, parent)
+            : null;
 
     /// <summary>Коробка-заглушка: цвет по смыслу, коллизия по желанию.</summary>
     private static MeshInstance3D Prop(Node3D root, Vector3 position, Vector3 size, Color color, bool solid = false)
