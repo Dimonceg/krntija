@@ -174,7 +174,7 @@ public partial class Main
                 break;
 
             case InteractionKind.ClearCollapse:
-                ClearCollapse();
+                ClearCollapse(point);
                 break;
 
             case InteractionKind.Chest:
@@ -397,6 +397,26 @@ public partial class Main
     /// <summary>Починка выезда: плата и изолента. Открывает шлагбаум и убирает стену.</summary>
     private void TryRepairExit(InteractionPoint point)
     {
+        // Мир кусками: заграждение выезда — узел точки, id — из плана.
+        if (point.Chunk >= 0)
+        {
+            var session = _car.Session;
+            switch (WorldActions.TryRepairExit(session.Wallet, session.Inventory))
+            {
+                case ActionResult.NotEnoughMoney:
+                    _hud.Toast($"Нужно {Krntija.Core.Economy.Money.Format(WorldActions.ExitRepairPrice)}");
+                    return;
+                case ActionResult.NoDuctTape:
+                    _hud.Toast("Нужна изолента");
+                    return;
+            }
+
+            RemoveChunkProp(point);
+            _hud.Toast("Выезд открыт");
+            Sfx.PlayUi();
+            return;
+        }
+
         if (int.TryParse(point.LootId, out int index) && index >= 0 && index < _exitGates.Count)
         {
             var gate = _exitGates[index];
@@ -426,8 +446,16 @@ public partial class Main
     }
 
     /// <summary>Разобрать завал на ветке: убирает камни и освобождает дорогу.</summary>
-    private void ClearCollapse()
+    private void ClearCollapse(InteractionPoint point)
     {
+        if (point.Chunk >= 0)
+        {
+            RemoveChunkProp(point);
+            _hud.Toast("Завал разобран, дорога свободна");
+            Sfx.PlayUi();
+            return;
+        }
+
         if (_collapseNode is null || !IsInstanceValid(_collapseNode)) return;
 
         _collapseNode.QueueFree();
@@ -436,6 +464,14 @@ public partial class Main
         _collapseBody = null;
         _hud.Toast("Завал разобран, дорога свободна");
         Sfx.PlayUi();
+    }
+
+    /// <summary>Действие в куске сделано: убрать предмет, записать в мир, снять точку.</summary>
+    private void RemoveChunkProp(InteractionPoint point)
+    {
+        point.Node?.QueueFree();
+        MarkWorld(point.StateId);
+        _interactions.Remove(point);
     }
 
     /// <summary>Сундук дома: рюкзак с третьей колонкой — складом.</summary>

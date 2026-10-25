@@ -809,6 +809,20 @@ public partial class Main
         PickUpLoot(loot);
         Check(world.IsDone("gate:c2/p0/u0") && world.IsDone(lootId), $"оплата и подбор записаны: {lootId}");
 
+        // Закрытый выезд у блокпоста: починка убирает заграждение и пишется в мир.
+        var exit = _interactions.FirstOrDefault(point => point.Kind == InteractionKind.RepairExit && point.Chunk == 2);
+        Check(exit is { Node: not null, StateId: not null }, $"выезд у блокпоста: {exit?.StateId}");
+        string? exitId = exit?.StateId;
+        if (exit is not null)
+        {
+            _car.Session.Wallet.Earn(WorldActions.ExitRepairPrice);
+            _car.Session.Inventory.TryAdd(Krntija.Core.Items.ItemIds.DuctTape);
+            var barrier = exit.Node!;
+            Use(exit);
+            Check(world.IsDone(exitId!) && barrier.IsQueuedForDeletion() && !_interactions.Contains(exit),
+                  "выезд починен: заграждение убрано, точка снята");
+        }
+
         // Уехать далеко (стартовые куски выгружаются) и вернуться: куски строятся заново.
         _streamer!.BuildAround(StartStation + 3000);
         Check(_housePosition is null && !_streamer.IsLoaded(0), "дальние куски выгружены, дом снят");
@@ -818,6 +832,8 @@ public partial class Main
         var rebuiltGate = _interactions.FirstOrDefault(point => point.Kind == InteractionKind.Gate);
         Check(rebuiltGate?.Gate is { IsOpen: true }, "шлагбаум после возврата открыт");
         Check(_interactions.All(point => point.StateId != lootId), "поднятый лут не вернулся");
+        Check(exitId is not null && _interactions.All(point => point.StateId != exitId)
+              && _streamer.IsLoaded(2), "починенный выезд после возврата открыт");
         Check(_interactions.Any(point => point.Kind == InteractionKind.Loot && point.Chunk == 1),
               "остальной лут у заправки на месте");
         Check(_housePosition is not null && StaleChunkRefs() == 0, "дом снова на месте, ссылки чистые");
@@ -943,7 +959,9 @@ public partial class Main
         bool singleEvents = eventNodes == expectedEvents;
         int worldDone = _car.Session.WorldState.Done.Count;
         bool visitedCleared = worldDone == 0;
-        bool gateClosed = gatePoint?.Gate is { IsOpen: false };
+        // Мир кусками при новой игре строится заново: шлагбаум — уже другой узел, ищем по id.
+        var gateNow = _interactions.FirstOrDefault(p => p.Gate is not null && p.StateId == gatePoint?.StateId);
+        bool gateClosed = gateNow?.Gate is { IsOpen: false } && !gateNow.Gate.IsQueuedForDeletion();
         bool lootBack = lootPoint is not null
                         && _interactions.Any(p => p.Kind == InteractionKind.Loot && p.StateId == lootPoint.StateId);
 
