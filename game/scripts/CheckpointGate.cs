@@ -10,6 +10,9 @@ public partial class CheckpointGate : Node3D
 
     public bool IsOpen { get; private set; }
 
+    /// <summary>Цена проезда для этого шлагбаума: зависит от тира места.</summary>
+    public double Toll { get; set; } = Krntija.Core.WorldActions.GateToll;
+
     public static CheckpointGate Create(Vector3 position, float heading)
     {
         var gate = new CheckpointGate { Position = position, Rotation = new Vector3(0, -heading, 0) };
