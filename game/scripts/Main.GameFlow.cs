@@ -118,9 +118,14 @@ public partial class Main
         var path = ProjectSettings.GlobalizePath(SavePath);
         var data = _car.Session.ToSave();
         data.ObjectiveDone = _objectiveDone;
-        data.CarX = _car.GlobalPosition.X;
+        data.World = WorldKind;
+        data.WorldSeed = _streamer?.Seed ?? 0;
+
+        // Позиция — в координатах мира: начало сцены к загрузке будет другим.
+        var (x, z) = WorldOrigin.ToWorld(_car.GlobalPosition);
+        data.CarX = x;
         data.CarY = _car.GlobalPosition.Y;
-        data.CarZ = _car.GlobalPosition.Z;
+        data.CarZ = z;
         data.CarYaw = _car.Rotation.Y;
 
         SaveSerializer.SaveFile(path, data);
@@ -138,18 +143,33 @@ public partial class Main
         }
 
         var data = SaveSerializer.LoadFile(path);
+        // Сейв из другого мира: машина и вещи остаются, место и состояние мира — нет.
+        bool samePlace = SaveWorld.Prepare(data, WorldKind, _streamer?.Seed ?? 0);
         var session = GameSession.FromSave(data);
         Respawn(session);
-        SyncWorldState();
 
         _objectiveDone = data.ObjectiveDone;
 
-        _car.GlobalPosition = new Vector3((float)data.CarX, (float)data.CarY, (float)data.CarZ);
-        _car.Rotation = new Vector3(0, (float)data.CarYaw, 0);
-        _car.LinearVelocity = Vector3.Zero;
-        _car.AngularVelocity = Vector3.Zero;
+        if (!samePlace)
+        {
+            PlaceCarAtStart();
+        }
+        else if (_streamer is not null)
+        {
+            // Куски строятся заново уже с новой сессией: поднятое не появится.
+            PlaceCarFromChunkSave(data);
+        }
+        else
+        {
+            _car.GlobalPosition = new Vector3((float)data.CarX, (float)data.CarY, (float)data.CarZ);
+            _car.Rotation = new Vector3(0, (float)data.CarYaw, 0);
+            _car.LinearVelocity = Vector3.Zero;
+            _car.AngularVelocity = Vector3.Zero;
+        }
 
-        _hud.Toast("Загружено");
+        SyncWorldState();
+        _hud.Toast(samePlace ? "Загружено" : "Загружено: сейв из другого мира, машина на старте");
+        GD.Print($"[load] мир {data.World}, сид {data.WorldSeed}, место {(samePlace ? "из сейва" : "старт")}");
     }
 
     private void Respawn(GameSession session)
@@ -171,6 +191,8 @@ public partial class Main
 
         _camera.Target = _car;
         _hud.Car = _car;
+        if (_streamer is not null) SteerAlongChunkRoad();
+        else _car.Path = _road?.Centerline;
 
         // События держат ссылку на машину: без Rebind ямы и коровы
         // продолжали бы толкать удалённый объект после загрузки сейва.

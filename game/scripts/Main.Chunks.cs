@@ -22,7 +22,10 @@ public partial class Main
     private ChunkStreamer? _streamer;
     private readonly List<ChunkPlace> _chunkPlaces = new();
 
-    private bool UseChunkWorld => HasArg("--world=chunks") || _chunkBench || _chunkRun || _checkChunkPlaces;
+    /// <summary>Мир кусками — по умолчанию; старый мир на 2,5 км — до конца фазы 3.</summary>
+    private bool UseChunkWorld => !HasArg("--world=legacy");
+
+    private string WorldKind => _streamer is null ? SaveWorld.Legacy : SaveWorld.Chunks;
 
     private void BuildChunkWorld()
     {
@@ -41,14 +44,38 @@ public partial class Main
         _streamer.ResetStats();
     }
 
+    /// <summary>Поставить машину на дорогу; если вокруг станции куски не построены — перенестись.</summary>
     private void PlaceCarOnChunkRoad(double s)
     {
+        if (!_streamer!.IsLoaded((int)(s / WorldGenerator.ChunkLength)))
+        {
+            var (x, _, z) = _streamer.Curve.Point(s);
+            _streamer.Relocate(x, z);
+        }
+
         _car.GlobalPosition = _streamer!.RoadPoint(s) + Vector3.Up * 0.62f;
         _car.Rotation = new Vector3(0, -_streamer.RoadHeading(s), 0);
         _car.LinearVelocity = Vector3.Zero;
         _car.AngularVelocity = Vector3.Zero;
+        SteerAlongChunkRoad();
+    }
+
+    /// <summary>Автопилот (проверки) едет по кривой: нужно и после пересборки машины.</summary>
+    private void SteerAlongChunkRoad()
+    {
         _car.Path = null;
-        _car.PathTarget = position => _streamer.AheadOf(position, 18);
+        _car.PathTarget = position => _streamer!.AheadOf(position, 18);
+    }
+
+    /// <summary>Машина из сейва в мире кусками: перенестись к ней и поставить её туда же.</summary>
+    private void PlaceCarFromChunkSave(SaveData data)
+    {
+        _streamer!.Relocate(data.CarX, data.CarZ);
+        _car.GlobalPosition = WorldOrigin.ToScene(data.CarX, data.CarY, data.CarZ);
+        _car.Rotation = new Vector3(0, (float)data.CarYaw, 0);
+        _car.LinearVelocity = Vector3.Zero;
+        _car.AngularVelocity = Vector3.Zero;
+        SteerAlongChunkRoad();
     }
 
     // ------------------------------------------------------------ места из плана
@@ -65,7 +92,12 @@ public partial class Main
         foreach (var place in builder.Places)
         {
             _chunkPlaces.Add(new ChunkPlace(place.Plan, root.ToGlobal(place.Local), index));
-            if (place.Plan.Kind == PlaceKind.House) _housePosition = root.ToGlobal(place.Local);
+            if (place.Plan.Kind == PlaceKind.House)
+            {
+                _housePosition = root.ToGlobal(place.Local);
+                _houseNode = root.FindChild("PlayerHouse", true, false) as Node3D;
+                if (_houseNode is not null) _houseGroundY = _houseNode.GlobalPosition.Y;
+            }
 
             foreach (var use in place.Uses)
             {
@@ -94,7 +126,10 @@ public partial class Main
 
         foreach (var place in _chunkPlaces)
             if (place.Chunk == index && place.Plan.Kind == PlaceKind.House)
+            {
                 _housePosition = null;
+                _houseNode = null;
+            }
         _chunkPlaces.RemoveAll(place => place.Chunk == index);
 
         ClearHover(); // наведённый предмет мог лежать в этом куске

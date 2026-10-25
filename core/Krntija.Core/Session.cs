@@ -218,11 +218,20 @@ public sealed class GameSession
 
 public sealed class SaveData
 {
-    /// <summary>2 — добавлен WorldDone. Старые сейвы читаются: поле пустое.</summary>
-    public const int CurrentVersion = 2;
+    /// <summary>
+    /// 2 — добавлен WorldDone. 3 — мир (World, WorldSeed), позиция машины в
+    /// координатах мира, а не сцены (ADR 0002). Старые сейвы читаются, их
+    /// согласует с текущим миром <see cref="SaveWorld.Prepare"/>.
+    /// </summary>
+    public const int CurrentVersion = 3;
 
     public int Version { get; set; } = CurrentVersion;
     public long SavedAtUnix { get; set; }
+
+    /// <summary>В каком мире сделан сейв: <see cref="SaveWorld.Chunks"/> или <see cref="SaveWorld.Legacy"/>.</summary>
+    public string World { get; set; } = SaveWorld.Legacy;
+
+    public ulong WorldSeed { get; set; }
     public string SpecId { get; set; } = CarCatalog.Zastava101.Id;
     public double Money { get; set; } = 120;
     public bool ObjectiveDone { get; set; }

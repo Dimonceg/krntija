@@ -131,14 +131,17 @@ Godot). На 2026-10-25 всё зелёное.
 2026-10-25 осталось ≈1 падение на 40 прогонов, причина не найдена; `check.ps1`
 повторяет прогон, если код возврата не 0 и не 1.
 
-Мир кусками (ADR 0002, фазы 2а–2б) включается флагом `--world=chunks`:
+Мир кусками (ADR 0002) — мир по умолчанию; старый мир на 2,5 км — `--world=legacy`
+до конца фазы 3. Проверки сохраняют в `user://check_save.json`, сейв игрока
+(`user://save.json`) не трогают.
 
 ```powershell
-godot --path game -- --world=chunks                 # играть в бесконечном мире
+godot --path game                                   # играть в бесконечном мире
+godot --path game -- --world=legacy                 # старый мир
 godot --headless --path game -- --chunk-bench       # время шагов постройки куска
 godot --path game -- --chunk-run                    # 10 км: дыры, утечки, сдвиг начала
 godot --headless --path game -- --chunk-places      # места из плана, лут и шлагбаум после выгрузки
-godot --path game -- --world=chunks --shot-day --at=700
+godot --path game -- --shot-day --at=700
 ```
 
 ## Модели машин

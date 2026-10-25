@@ -112,6 +112,26 @@ public partial class ChunkStreamer : Node3D
             while (!chunk.Done) Step(chunk);
     }
 
+    /// <summary>
+    /// Перенестись в точку мира (загрузка сейва, новая игра далеко от старта):
+    /// выгрузить все куски, поставить начало координат в эту точку и построить
+    /// куски вокруг неё сразу. Подписчики <see cref="OriginShifted"/> двигают своё.
+    /// </summary>
+    public void Relocate(double x, double z)
+    {
+        foreach (var (index, chunk) in _chunks)
+        {
+            if (chunk.Done) ChunkUnloading?.Invoke(index);
+            chunk.Root?.QueueFree();
+        }
+
+        _chunks.Clear();
+
+        Vector3 scene = WorldOrigin.ToScene(x, 0, z);
+        Shift(new Vector3(scene.X, 0, scene.Z));
+        BuildAround(Curve.Project(x, z).S);
+    }
+
     /// <summary>Каждый кадр: сдвиг начала, нужные куски, постройка в пределах бюджета.</summary>
     public void Focus(Vector3 scene)
     {
