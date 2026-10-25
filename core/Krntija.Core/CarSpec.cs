@@ -56,11 +56,11 @@ public static class CarCatalog
         WheelRadiusM: 0.30,
         FinalDrive: 3.94,
         GearRatios: new[] { 3.45, 1.94, 1.29, 0.97, 0.76 },
-        // Blender-модели пока нет: процедурный кузов живёт на старой раскладке
-        // колёс (±1.45 м, R 0.36). Значения заполним, когда арт-модель отдаст
-        // golf_2.glb и golf_2_wheel.glb — по образцу Zastava101 выше.
-        WheelbaseM: 0,
-        TrackM: 0);
+        // Геометрия Blender-модели: docs/GOLF_MODEL.md.
+        WheelbaseM: 2.475,
+        TrackM: 1.42,
+        BodyLengthM: 3.90,
+        BodyWidthM: 1.665);
 
     public static readonly CarSpec Vaz2106 = new(
         Id: "vaz_2106",
