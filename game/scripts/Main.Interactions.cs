@@ -75,7 +75,7 @@ public partial class Main
         InteractionKind.Workbench => $"[E] верстак: починить деталь ({Krntija.Core.Economy.Money.Format(WorldActions.WorkbenchPrice)} + изолента)",
         InteractionKind.SleepHome => "[E] поспать дома",
         InteractionKind.Crate => "[E] открыть ящик",
-        InteractionKind.Gate => point.Gate is { IsOpen: true } ? "[E] шлагбаум открыт" : $"[E] заплатить {Krntija.Core.Economy.Money.Format(WorldActions.GateToll)} за проезд",
+        InteractionKind.Gate => point.Gate is { IsOpen: true } ? "[E] шлагбаум открыт" : $"[E] заплатить {Krntija.Core.Economy.Money.Format(point.Gate?.Toll ?? WorldActions.GateToll)} за проезд",
         InteractionKind.Sleep => $"[E] переночевать ({Krntija.Core.Economy.Money.Format(WorldActions.MotelPrice)})",
         InteractionKind.Door => point.Door is { IsOpen: true } ? "[E] закрыть дверь" : "[E] открыть дверь",
         InteractionKind.Loot => point.LootId is not null
@@ -211,15 +211,17 @@ public partial class Main
             return;
         }
 
-        if (WorldActions.TryPayToll(_car.Session.Wallet))
+        double toll = point.Gate?.Toll ?? WorldActions.GateToll;
+
+        if (_car.Session.Wallet.TrySpend(toll))
         {
             gate.Open();
             MarkWorld(point.StateId);
-            _hud.Toast($"Проезд оплачен: {Krntija.Core.Economy.Money.Format(WorldActions.GateToll)}");
+            _hud.Toast($"Проезд оплачен: {Krntija.Core.Economy.Money.Format(point.Gate?.Toll ?? WorldActions.GateToll)}");
         }
         else
         {
-            _hud.Toast($"Нет {Krntija.Core.Economy.Money.Format(WorldActions.GateToll)} на проезд");
+            _hud.Toast($"Нет {Krntija.Core.Economy.Money.Format(point.Gate?.Toll ?? WorldActions.GateToll)} на проезд");
         }
     }
 

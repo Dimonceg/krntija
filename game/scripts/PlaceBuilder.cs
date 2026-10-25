@@ -303,6 +303,7 @@ public static class PlaceBuilder
         root.Rotation = new Vector3(0, -heading, 0);
 
         var gate = CheckpointGate.Create(Vector3.Zero, 0);
+        gate.Toll = ThreatRules.TollPrice(WorldGenerator.Tier(place.S));
         root.AddChild(gate);
 
         var (bx, _, bz) = curve.Offset(place.S, -(RoadMeshBuilder.Width * 0.5 + 6));
