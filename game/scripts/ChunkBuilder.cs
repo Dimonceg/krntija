@@ -19,7 +19,7 @@ namespace Krntija.Game;
 public sealed class ChunkBuilder
 {
     /// <summary>Шаги постройки: стример делает по нескольку за кадр в пределах бюджета.</summary>
-    public const int StepCount = 7;
+    public const int StepCount = 9;
 
     private const double RowStep = 4.0;
     private const float WallOffset = 145f;
@@ -68,6 +68,15 @@ public sealed class ChunkBuilder
 
     public ChunkPlan Plan => _plan;
 
+    private PlacePads? _pads;
+
+    /// <summary>Площадки мест этого куска и соседей. Считаются при первом шаге, не в конструкторе:
+    /// конструктор зовёт стример вне бюджета кадра.</summary>
+    private PlacePads Pads => _pads ??= new PlacePads(_curve, _seed, _plan.Index);
+
+    /// <summary>Высота земли этого куска: рельеф с площадками мест.</summary>
+    private (float Height, float Lateral) GroundAt(double x, double z) => Ground(_curve, x, z, pads: Pads);
+
     /// <summary>Построенные места: точки взаимодействия и лут для регистрации в <see cref="Main"/>.</summary>
     public IReadOnlyList<PlaceBuilder.Built> Places => _places;
 
@@ -82,13 +91,16 @@ public sealed class ChunkBuilder
     {
         switch (step)
         {
-            case 0: BuildRoad(root, roadMaterial); BuildWalls(root); break;
-            case 1: BuildNearGround(root); break;
-            case 2: BuildNearCollision(root); break;
-            case 3: BuildPlaces(root); break;
-            case 4: BuildFarGround(root); break;
-            case 5: BuildVegetation(root); break;
-            case 6: BuildGrass(root); BuildKilometerPosts(root); break;
+            // Площадки мест считаются в лёгком шаге дороги, а не в тяжёлом шаге земли.
+            case 0: BuildRoad(root, roadMaterial); BuildWalls(root); _ = Pads; break;
+            case 1: BuildNearGround(root, half: 0); break;
+            case 2: BuildNearGround(root, half: 1); break;
+            case 3: BuildNearCollision(root, half: 0); break;
+            case 4: BuildNearCollision(root, half: 1); break;
+            case 5: BuildPlaces(root); break;
+            case 6: BuildFarGround(root); break;
+            case 7: BuildVegetation(root); break;
+            case 8: BuildGrass(root); BuildKilometerPosts(root); break;
         }
     }
 
@@ -98,7 +110,9 @@ public sealed class ChunkBuilder
     /// Высота земли в точке мира. У дороги — по точному сечению полотна
     /// (<see cref="RoadCurve.Project"/>), дальше — холмы и горы.
     /// </summary>
-    public static (float Height, float Lateral) Ground(RoadCurve curve, double x, double z, bool far = false)
+    /// <param name="pads">Площадки мест: под ними земля ровная. Null — рельеф как есть.</param>
+    public static (float Height, float Lateral) Ground(RoadCurve curve, double x, double z, bool far = false,
+        PlacePads? pads = null)
     {
         var world = new Vector3((float)x, 0, (float)z);
         double s, lateral;
@@ -129,6 +143,8 @@ public sealed class ChunkBuilder
         // иначе прорастала бы сквозь полотно. У края — невысокий бортик.
         const float roadHalf = RoadMeshBuilder.Width * 0.5f;
         height -= 0.15f * (1 - Mathf.SmoothStep(roadHalf + 0.3f, roadHalf + 2.5f, distance));
+
+        if (pads is not null && !far) height = pads.Apply(x, z, height, distance);
 
         if (distance > 140f)
         {
@@ -226,23 +242,33 @@ public sealed class ChunkBuilder
 
     // ------------------------------------------------------------ земля
 
-    private void BuildNearGround(Node3D root)
+    /// <summary>
+    /// Ближняя земля — двумя шагами по половине строк: со столбцами у площадок мест
+    /// целый кусок не укладывается в бюджет кадра. Средняя строка общая, считается
+    /// той же функцией в обеих половинах — шва нет.
+    /// </summary>
+    private void BuildNearGround(Node3D root, int half)
     {
-        int rows = (int)Math.Round((_plan.EndS - _plan.StartS) / RowStep) + 1;
-        int columns = NearOffsets.Length;
+        int allRows = (int)Math.Round((_plan.EndS - _plan.StartS) / RowStep) + 1;
+        int middle = allRows / 2;
+        int firstRow = half == 0 ? 0 : middle;
+        int rows = half == 0 ? middle + 1 : allRows - middle;
+
+        float[] offsets = Pads.Columns(NearOffsets, _plan.StartS, _plan.EndS);
+        int columns = offsets.Length;
         var vertices = new Vector3[rows * columns];
         var laterals = new float[rows * columns];
         var colors = new Color[rows * columns];
 
         for (int r = 0; r < rows; r++)
         {
-            double s = _plan.StartS + r * RowStep;
+            double s = _plan.StartS + (firstRow + r) * RowStep;
             double axis = _curve.Lateral(s);
             for (int c = 0; c < columns; c++)
             {
-                double x = axis + NearOffsets[c];
+                double x = axis + offsets[c];
                 double z = -s;
-                var (height, lateral) = Ground(_curve, x, z);
+                var (height, lateral) = GroundAt(x, z);
                 int i = r * columns + c;
                 vertices[i] = Local(x, height, z);
                 laterals[i] = lateral;
@@ -250,10 +276,13 @@ public sealed class ChunkBuilder
             }
         }
 
+        // Шов с соседним куском — только у крайних строк куска, не у средней.
+        SealSeams(vertices, rows, offsets, NearOffsets, first: half == 0, last: half == 1);
+
         var (mesh, _) = Grid(vertices, rows, columns, colors, laterals);
         root.AddChild(new MeshInstance3D
         {
-            Name = "LandscapeGround",
+            Name = $"LandscapeGround{half}",
             Mesh = mesh,
             MaterialOverride = _groundMaterial ??= LandscapeArt.GroundMaterial(),
         });
@@ -263,24 +292,32 @@ public sealed class ChunkBuilder
     /// Коллизия земли — отдельным шагом и реже меша (строки 8 м, 21 столбец): форма из
     /// тысяч треугольников строится дольше бюджета кадра. У дороги земля ровная, там
     /// совпадение точное; на холмах расхождение с картинкой — сантиметры.
+    /// Двумя шагами по половине строк, как и меш: со столбцами у площадок мест иначе
+    /// шаг выходил за бюджет кадра.
     /// </summary>
-    private void BuildNearCollision(Node3D root)
+    private void BuildNearCollision(Node3D root, int half)
     {
-        int rows = (int)Math.Round((_plan.EndS - _plan.StartS) / (RowStep * 2)) + 1;
-        int columns = CollisionOffsets.Length;
+        int allRows = (int)Math.Round((_plan.EndS - _plan.StartS) / (RowStep * 2)) + 1;
+        int middle = allRows / 2;
+        int firstRow = half == 0 ? 0 : middle;
+        int rows = half == 0 ? middle + 1 : allRows - middle;
+        float[] offsets = Pads.Columns(CollisionOffsets, _plan.StartS, _plan.EndS, blendColumns: false);
+        int columns = offsets.Length;
         var vertices = new Vector3[rows * columns];
 
         for (int r = 0; r < rows; r++)
         {
-            double s = _plan.StartS + r * RowStep * 2;
+            double s = _plan.StartS + (firstRow + r) * RowStep * 2;
             double axis = _curve.Lateral(s);
             for (int c = 0; c < columns; c++)
             {
-                double x = axis + CollisionOffsets[c];
-                var (height, _) = Ground(_curve, x, -s);
+                double x = axis + offsets[c];
+                var (height, _) = GroundAt(x, -s);
                 vertices[r * columns + c] = Local(x, height, -s);
             }
         }
+
+        SealSeams(vertices, rows, offsets, CollisionOffsets, first: half == 0, last: half == 1);
 
         var faces = new Vector3[(rows - 1) * (columns - 1) * 6];
         int k = 0;
@@ -291,7 +328,7 @@ public sealed class ChunkBuilder
             foreach (int index in new[] { a, d, b, b, d, e }) faces[k++] = vertices[index];
         }
 
-        var body = new StaticBody3D { Name = "LandscapeGroundCollision" };
+        var body = new StaticBody3D { Name = $"LandscapeGroundCollision{half}" };
         body.AddChild(new CollisionShape3D
         {
             // Двусторонняя коллизия: иначе, заехав в склон, машина проваливается.
@@ -453,7 +490,7 @@ public sealed class ChunkBuilder
             if (Mathf.Sin((float)x * .25f) * Mathf.Cos((float)z * .18f) < -.35f) continue;
             if (InClearing(x, z)) continue;
 
-            var (height, _) = Ground(_curve, x, z);
+            var (height, _) = GroundAt(x, z);
             var scale = new Vector3((float)rng.Range(.7, 1.5), (float)rng.Range(.55, 1.3), 1);
             positions.Add(new Transform3D(new Basis(Vector3.Up, (float)rng.Range(0, Mathf.Tau)).Scaled(scale),
                 Local(x, height - .035f, z)));
@@ -500,7 +537,7 @@ public sealed class ChunkBuilder
     private void BuildPlaces(Node3D root)
     {
         foreach (var place in _plan.Places)
-            _places.Add(PlaceBuilder.Build(_curve, place, root, Local));
+            _places.Add(PlaceBuilder.Build(_curve, place, root, Local, (x, z) => GroundAt(x, z).Height));
     }
 
     /// <summary>Точка внутри места: там не растут деревья и трава.</summary>
@@ -512,12 +549,46 @@ public sealed class ChunkBuilder
         return false;
     }
 
+    /// <summary>
+    /// Шов с соседним куском: у соседа на крайней строке только базовые столбцы.
+    /// Добавленные столбцы на крайних строках кладём на прямую между базовыми —
+    /// иначе между кусками была бы щель (Т-образный стык).
+    /// </summary>
+    private static void SealSeams(Vector3[] vertices, int rows, float[] offsets, float[] baseOffsets,
+        bool first = true, bool last = true)
+    {
+        int columns = offsets.Length;
+        if (columns == baseOffsets.Length) return;
+
+        foreach (int r in new[] { 0, rows - 1 })
+        {
+            if ((r == 0 && !first) || (r == rows - 1 && !last)) continue;
+
+            int left = -1;
+            for (int c = 0; c < columns; c++)
+            {
+                if (Array.IndexOf(baseOffsets, offsets[c]) < 0) continue;
+                if (left >= 0 && c - left > 1)
+                {
+                    Vector3 a = vertices[r * columns + left], b = vertices[r * columns + c];
+                    for (int m = left + 1; m < c; m++)
+                    {
+                        float t = (offsets[m] - offsets[left]) / (offsets[c] - offsets[left]);
+                        vertices[r * columns + m].Y = Mathf.Lerp(a.Y, b.Y, t);
+                    }
+                }
+
+                left = c;
+            }
+        }
+    }
+
     // ------------------------------------------------------------ помощники
 
     private Vector3 Spot(double s, double lateral, float sink)
     {
         var (x, _, z) = _curve.Offset(s, lateral);
-        var (height, _) = Ground(_curve, x, z);
+        var (height, _) = GroundAt(x, z);
         return Local(x, height + sink, z);
     }
 

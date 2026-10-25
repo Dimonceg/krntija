@@ -119,13 +119,7 @@ public partial class ChunkStreamer : Node3D
     /// </summary>
     public void Relocate(double x, double z)
     {
-        foreach (var (index, chunk) in _chunks)
-        {
-            if (chunk.Done) ChunkUnloading?.Invoke(index);
-            chunk.Root?.QueueFree();
-        }
-
-        _chunks.Clear();
+        foreach (int index in new List<int>(_chunks.Keys)) Unload(index);
 
         Vector3 scene = WorldOrigin.ToScene(x, 0, z);
         Shift(new Vector3(scene.X, 0, scene.Z));
@@ -176,14 +170,22 @@ public partial class ChunkStreamer : Node3D
             if (index < CurrentChunk - Behind - 1 || index > CurrentChunk + Ahead + 1)
                 stale.Add(index);
 
-        foreach (int index in stale)
-        {
-            if (_chunks[index].Done) ChunkUnloading?.Invoke(index);
-            _chunks[index].Root?.QueueFree();
-            _chunks.Remove(index);
-        }
+        foreach (int index in stale) Unload(index);
 
         if (stale.Count > 0) ChunksChanged?.Invoke();
+    }
+
+    private void Unload(int index)
+    {
+        var chunk = _chunks[index];
+        if (chunk.Done) ChunkUnloading?.Invoke(index);
+        _chunks.Remove(index);
+        if (chunk.Root is null) return;
+
+        // Сразу из дерева: узел в очереди на удаление до конца кадра участвует в
+        // физике, а после переноса начала новые куски встают на те же координаты сцены.
+        RemoveChild(chunk.Root);
+        chunk.Root.QueueFree();
     }
 
     private void Step(Chunk chunk)
