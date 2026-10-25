@@ -49,6 +49,9 @@ public class DecorTests
                 foreach (var loot in place.Loot)
                     Assert.True(Distance(loot.OffsetX, loot.OffsetZ, item) >= WorldGenerator.DecorUseClearance,
                         $"{place.Id}: {item.ModelId} на луте");
+                foreach (var hazard in place.Hazards)
+                    Assert.True(Distance(hazard.OffsetX, hazard.OffsetZ, item) >= WorldGenerator.DecorUseClearance,
+                        $"{place.Id}: {item.ModelId} на угрозе {hazard.Kind}");
 
                 var (x, z) = WorldGenerator.PlaceToWorld(place, curve, item.OffsetX, item.OffsetZ);
                 Assert.True(Math.Abs(curve.Project(x, z).Lateral) >= WorldGenerator.DecorRoadClearance,
