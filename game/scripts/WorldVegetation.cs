@@ -157,7 +157,8 @@ void fragment() {
         return count;
     }
 
-    private static Mesh? FindMesh(Node node)
+    /// <summary>Первый меш в модели: у GLB арт-модели он один.</summary>
+    internal static Mesh? FindMesh(Node node)
     {
         if (node is MeshInstance3D mesh) return mesh.Mesh;
         foreach (var child in node.GetChildren())

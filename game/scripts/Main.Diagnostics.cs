@@ -793,6 +793,19 @@ public partial class Main
 
         CheckPads("старт");
 
+        // Дворовый декор не на точках действий и не на луте. Позиции — из плана, как их
+        // ставит YardDecor: без видеокарты MultiMesh не хранит данные экземпляров.
+        var decor = _chunkPlaces
+            .SelectMany(place => WorldGenerator.Decor(_streamer!.Seed, place.Plan, _streamer.Curve)
+                .Select(item => WorldGenerator.PlaceToWorld(place.Plan, _streamer.Curve, item.OffsetX, item.OffsetZ)))
+            .Select(world => WorldOrigin.ToScene(world.X, 0, world.Z))
+            .ToList();
+        int decorNodes = _streamer!.FindChildren("Decor_*", "MultiMeshInstance3D", true, false).Count;
+        float closest = decor.Count == 0 || _interactions.Count == 0 ? float.MaxValue
+            : decor.Min(item => _interactions.Min(point => new Vector2(point.Position.X - item.X, point.Position.Z - item.Z).Length()));
+        Check(decor.Count > 0 && decorNodes > 0 && closest > 1.2f,
+              $"дворовый декор: {decor.Count} шт. в {decorNodes} пачках, ближе всех к точке {closest:F1} м");
+
         // Дорожные угрозы стоят у дороги, где их поставил план, а не со сдвигом на позицию куска.
         var hazards = _streamer!.FindChildren("Hazard_*", "", true, false).OfType<Node3D>().ToList();
         float worstHazard = hazards.Count == 0 ? 0 : hazards.Max(node =>

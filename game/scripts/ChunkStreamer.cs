@@ -80,6 +80,7 @@ public partial class ChunkStreamer : Node3D
         // Слияние статичной геометрии (StaticBatcher) кусков не касается: их выгружают.
         AddToGroup(StaticBatcher.SkipGroup);
         PlaceBuilder.Preload();
+        YardDecor.Preload();
     }
 
     // ------------------------------------------------------------ дорога в координатах сцены

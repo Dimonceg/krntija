@@ -475,6 +475,9 @@ public sealed class ChunkBuilder
         }
 
         WorldVegetation.AddBatches(root, "Vegetation", groups);
+
+        // Дворовый декор у мест — в этом же лёгком шаге (план — в ядре, свой поток ГПСЧ).
+        YardDecor.Build(root, _curve, _seed, _plan, (x, z) => GroundAt(x, z).Height, Local);
     }
 
     private void BuildGrass(Node3D root)
