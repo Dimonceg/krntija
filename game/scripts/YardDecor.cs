@@ -86,7 +86,7 @@ public static class YardDecor
         return count;
     }
 
-    /// <summary>Отпустить меши перед выходом (StaticCaches).</summary>
+    /// <summary>Отпустить меши перед выходом (<see cref="StaticCaches"/>).</summary>
     internal static void ReleaseCaches()
     {
         if (_meshes is null) return;
