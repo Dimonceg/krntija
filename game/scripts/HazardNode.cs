@@ -12,12 +12,19 @@ public partial class HazardNode : Node3D
     public HazardKind Kind { get; set; }
     public double Amount { get; set; }
 
+    /// <summary>Id в <see cref="Krntija.Core.World.WorldState"/> для того, что срабатывает один раз
+    /// за игру (попутчик). Null — срабатывает при каждом проезде (яма).</summary>
+    public string? StateId { get; set; }
+
     private bool _done;
     private float _timer;
 
-    public static HazardNode Create(HazardKind kind, double amount, Vector3 position)
+    public static HazardNode Create(HazardKind kind, double amount, Vector3 position, string? stateId = null)
     {
-        var node = new HazardNode { Name = $"Hazard_{kind}", Kind = kind, Amount = amount, Position = position };
+        var node = new HazardNode
+        {
+            Name = $"Hazard_{kind}", Kind = kind, Amount = amount, Position = position, StateId = stateId,
+        };
         node.Build();
         return node;
     }
@@ -65,8 +72,22 @@ public partial class HazardNode : Node3D
         _timer = 0.3f;
 
         if (GetTree().GetFirstNodeInGroup("car") is not Car car) return;
-        if (GlobalPosition.DistanceTo(car.GlobalPosition) > 7f) return;
 
+        // Попутчик, которого уже подвезли (в этой игре или до сейва), не стоит у дороги.
+        if (StateId is not null && car.Session.WorldState.IsDone(StateId))
+        {
+            _done = true;
+            Visible = false;
+            return;
+        }
+
+        if (GlobalPosition.DistanceTo(car.GlobalPosition) > 7f) return;
+        Trigger(car);
+    }
+
+    /// <summary>Сработать: яма тормозит, попутчик платит (один раз за игру — правило в ядре).</summary>
+    public void Trigger(Car car)
+    {
         _done = true;
 
         switch (Kind)
@@ -74,8 +95,9 @@ public partial class HazardNode : Node3D
             case HazardKind.Pothole:
                 car.LinearVelocity *= Mathf.Max(0.5f, 1f - (float)Amount * 10f);
                 break;
-            case HazardKind.Hitchhiker:
-                car.Session.Wallet.Earn(Amount);
+            case HazardKind.Hitchhiker when StateId is not null:
+                Krntija.Core.WorldActions.TryPickUpHitchhiker(car.Session, StateId, Amount);
+                Visible = false;
                 break;
         }
     }

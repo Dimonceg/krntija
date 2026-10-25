@@ -75,7 +75,9 @@ public static class PlaceBuilder
             var hazardOffset = new Vector3((float)hazard.OffsetX, 0, (float)hazard.OffsetZ);
             // OnGround уже даёт координаты корня куска: второй ToLocal сдвигал угрозу на позицию куска.
             Vector3 spot = OnGround(root, chunkRoot, hazardOffset, local, ground);
-            var node = HazardNode.Create(hazard.Kind, hazard.Amount, spot);
+            // Попутчик платит один раз за игру: его id — в WorldState.
+            string? stateId = hazard.Kind == HazardKind.Hitchhiker ? WorldState.Use("hitchhiker", hazard.Id) : null;
+            var node = HazardNode.Create(hazard.Kind, hazard.Amount, spot, stateId);
             chunkRoot.AddChild(node);
         }
 

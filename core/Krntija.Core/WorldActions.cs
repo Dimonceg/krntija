@@ -67,6 +67,18 @@ public static class WorldActions
     public static bool RewardsVisit(PlaceKind kind) => kind is PlaceKind.GasStation or PlaceKind.Village
         or PlaceKind.Checkpoint or PlaceKind.Ruins or PlaceKind.Farm;
 
+    /// <summary>
+    /// Попутчик платит один раз: id из плана (<c>hitchhiker:c12/p1/h0</c>) в
+    /// <see cref="WorldState"/>, иначе после возврата в кусок он платил бы снова.
+    /// </summary>
+    public static bool TryPickUpHitchhiker(GameSession session, string stateId, double fare)
+    {
+        if (!session.WorldState.MarkDone(stateId)) return false;
+
+        session.Wallet.Earn(fare);
+        return true;
+    }
+
     /// <summary>Мотель: плата, восемь часов сна и подъём в 7 утра.</summary>
     public static bool TrySleepAtMotel(GameSession session)
     {
