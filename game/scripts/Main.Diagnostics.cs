@@ -793,6 +793,15 @@ public partial class Main
 
         CheckPads("старт");
 
+        // Дорожные угрозы стоят у дороги, где их поставил план, а не со сдвигом на позицию куска.
+        var hazards = _streamer!.FindChildren("Hazard_*", "", true, false).OfType<Node3D>().ToList();
+        float worstHazard = hazards.Count == 0 ? 0 : hazards.Max(node =>
+        {
+            Vector3 position = node.GlobalPosition;
+            return position.DistanceTo(_streamer.RoadPoint(_streamer.StationAt(position)));
+        });
+        Check(worstHazard < 130f, $"угрозы у дороги: {hazards.Count} шт., дальше всех {worstHazard:F0} м");
+
         var gate = _interactions.FirstOrDefault(point => point.Kind == InteractionKind.Gate);
         Check(gate is { Gate.IsOpen: false, StateId: "gate:c2/p0/u0" }, $"шлагбаум закрыт, id {gate?.StateId}");
 
