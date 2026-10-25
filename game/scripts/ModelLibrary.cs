@@ -43,5 +43,9 @@ public static class ModelLibrary
     public static Node3D? Prop(string feature) => Instantiate($"res://assets/models/props/{feature}.glb");
 
     /// <summary>Сбросить кеш — пригодится при горячей перезагрузке ассетов.</summary>
-    public static void Clear() => Cache.Clear();
+    public static void Clear()
+    {
+        foreach (var scene in Cache.Values) scene?.Dispose();
+        Cache.Clear();
+    }
 }

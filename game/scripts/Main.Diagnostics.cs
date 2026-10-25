@@ -93,8 +93,7 @@ public partial class Main
         _quitting = true;
         GetTree().CreateTimer(0.1, processAlways: true).Timeout += () =>
         {
-            System.GC.Collect();
-            System.GC.WaitForPendingFinalizers();
+            StaticCaches.Release();
             GetTree().Quit(code);
         };
     }
@@ -654,7 +653,12 @@ public partial class Main
 
         for (int index = from; index < from + count; index++)
         {
-            var times = _streamer!.Bench(index);
+            // Два замера, минимум по шагу: проверки других моделей на той же машине
+            // только добавляют время, а не отнимают — минимум ближе к цене самой постройки.
+            var first = _streamer!.Bench(index);
+            var second = _streamer.Bench(index);
+            var times = new double[first.Length];
+            for (int step = 0; step < times.Length; step++) times[step] = System.Math.Min(first[step], second[step]);
             for (int step = 0; step < times.Length; step++)
             {
                 sums[step] += times[step];
