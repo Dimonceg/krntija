@@ -89,11 +89,13 @@ public static class PlaceBuilder
         {
             "exit" => WorldState.Use("exit", use.Id),
             "collapse" => WorldState.Use("collapse", use.Id),
+            "crate" => WorldState.Use("crate", use.Id),
             _ => null,
         };
 
+        // Убираются завал и заграждение; пустой ящик остаётся стоять.
         built.Uses.Add(new Use(use.Kind, point + Vector3.Up * 0.8f, stateId,
-            Prop: stateId is not null ? prop : null));
+            Prop: use.Kind is "exit" or "collapse" ? prop : null));
     }
 
     /// <summary>Точка в модели, к которой художник привязал действие: <c>PumpAnchor</c>, <c>SleepAnchor</c>.</summary>

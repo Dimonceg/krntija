@@ -164,6 +164,7 @@ public partial class Main
         "dog" => (InteractionKind.Pet, 3f),
         "exit" => (InteractionKind.RepairExit, 3.5f),
         "collapse" => (InteractionKind.ClearCollapse, 4f),
+        "crate" => (InteractionKind.Crate, 2.5f),
         _ => null,
     };
 

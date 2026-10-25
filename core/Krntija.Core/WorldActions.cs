@@ -153,6 +153,15 @@ public static class WorldActions
         return ActionResult.NothingToDo;
     }
 
+    /// <summary>Что лежит в ящике: детерминированно от его id, чтобы в коопе совпадало.</summary>
+    public static (string ItemId, int Count) CrateLoot(string crateStateId)
+    {
+        var rng = new Pcg32(WorldGen.Hash.MixString(0x5EED, crateStateId), sequence: 31);
+        var loot = LootRoll.Roll(LootTables.Roadside, rng);
+        var first = loot[0];
+        return (first.DefId, first.Count);
+    }
+
     /// <summary>Починка закрытого выезда: плата и моток изоленты.</summary>
     public static ActionResult TryRepairExit(Wallet wallet, Inventory bag) =>
         PayWithTape(wallet, bag, ExitRepairPrice);

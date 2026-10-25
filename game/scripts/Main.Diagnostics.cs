@@ -838,6 +838,29 @@ public partial class Main
               "остальной лут у заправки на месте");
         Check(_housePosition is not null && StaleChunkRefs() == 0, "дом снова на месте, ссылки чистые");
 
+        // Ящик в брошенном доме: ищем первый по плану, открываем, второй раз — пуст.
+        var abandoned = Enumerable.Range(3, 200)
+            .SelectMany(index => WorldGenerator.Plan(_streamer.Seed, index).Places)
+            .FirstOrDefault(place => place.Uses.Any(use => use.Kind == "crate"));
+        Check(abandoned is not null, $"брошенный дом с ящиком в плане: {abandoned?.Id}");
+        if (abandoned is not null)
+        {
+            PlaceCarOnChunkRoad(abandoned.S);
+            var crate = _interactions.FirstOrDefault(point => point.Kind == InteractionKind.Crate
+                                                              && point.StateId?.Contains(abandoned.Id + "/") == true);
+            Check(crate is not null, $"ящик зарегистрирован: {crate?.StateId}");
+            if (crate is not null)
+            {
+                int Carried() => _car.Session.Inventory.Items.Sum(item => item.Count);
+                int before = Carried();
+                Use(crate);
+                int opened = Carried();
+                Use(crate);
+                Check(world.IsDone(crate.StateId!) && opened > before && Carried() == opened,
+                      $"ящик открыт один раз: {before} → {opened} → {Carried()}");
+            }
+        }
+
         // Сейв далеко от старта (сейв v3): позиция в координатах мира, начало сцены сдвинуто.
         const double far = 6000;
         PlaceCarOnChunkRoad(far);
