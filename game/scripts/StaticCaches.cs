@@ -21,6 +21,7 @@ public static class StaticCaches
         LandscapeArt.ReleaseCaches();
         RoadMeshBuilder.ReleaseCaches();
         WorldVegetation.ReleaseCaches();
+        YardDecor.ReleaseCaches();
         ModelLibrary.Clear();
 
         // Финализаторы оставшихся обёрток — сейчас, пока движок жив.

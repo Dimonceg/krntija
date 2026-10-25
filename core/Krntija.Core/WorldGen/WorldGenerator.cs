@@ -8,7 +8,7 @@ namespace Krntija.Core.WorldGen;
 /// Чистые данные, без Godot. Один и тот же сид даёт один и тот же план
 /// в любом порядке вызовов и у любого игрока.
 /// </summary>
-public static class WorldGenerator
+public static partial class WorldGenerator
 {
     public const double ChunkLength = 256.0;
 
@@ -35,6 +35,7 @@ public static class WorldGenerator
         Place = 2,
         Kind = 3,
         Loot = 4,
+        Decor = 5,
     }
 
     /// <summary>Номер «места» для решений уровня куска (сколько мест в нём).</summary>

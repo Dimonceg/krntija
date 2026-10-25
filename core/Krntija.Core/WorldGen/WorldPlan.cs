@@ -76,6 +76,12 @@ public sealed record PlacePlan(
     IReadOnlyList<UsePlan> Uses,
     IReadOnlyList<HazardPlan> Hazards);
 
+/// <summary>
+/// Дворовый декор места: модель и где стоит в осях места (X — от дороги вправо,
+/// Z — против хода дороги; вход постройки на стороне −Z). Без игрового смысла.
+/// </summary>
+public sealed record DecorPlan(string ModelId, double OffsetX, double OffsetZ, double Yaw);
+
 /// <summary>Кусок мира: 256 м дороги и всё, что на них стоит.</summary>
 public sealed record ChunkPlan(
     int Index,
