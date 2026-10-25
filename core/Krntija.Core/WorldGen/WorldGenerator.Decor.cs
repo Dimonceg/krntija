@@ -10,7 +10,7 @@ public static partial class WorldGenerator
     /// <summary>Не ближе этого к оси дороги: декор не на полотне и не на обочине.</summary>
     public const double DecorRoadClearance = 7.0;
 
-    /// <summary>Не ближе этого к точке действия или луту: подход свободен.</summary>
+    /// <summary>Не ближе этого к точке действия, луту или угрозе: подход свободен.</summary>
     public const double DecorUseClearance = 1.6;
 
     /// <summary>Коридор перед входом (сторона −Z): полуширина и глубина.</summary>
@@ -95,6 +95,8 @@ public static partial class WorldGenerator
             if (Near(use.OffsetX, use.OffsetZ)) return false;
         foreach (var loot in place.Loot)
             if (Near(loot.OffsetX, loot.OffsetZ)) return false;
+        foreach (var hazard in place.Hazards)
+            if (Near(hazard.OffsetX, hazard.OffsetZ)) return false; // попутчик, корова, яма — не под бочкой
         foreach (var other in placed)
             if (Near(other.OffsetX, other.OffsetZ)) return false;
 
