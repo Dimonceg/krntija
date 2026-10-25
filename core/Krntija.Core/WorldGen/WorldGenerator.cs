@@ -113,7 +113,8 @@ public static class WorldGenerator
     /// <summary>Габарит по типу места: полуширина и полуглубина в осях постройки.</summary>
     public static Footprint FootprintFor(PlaceKind kind) => kind switch
     {
-        PlaceKind.House or PlaceKind.Abandoned => new Footprint(5.0, 4.0),
+        PlaceKind.House => new Footprint(4.0, 5.5),
+        PlaceKind.Abandoned => new Footprint(5.0, 4.0),
         PlaceKind.GasStation => new Footprint(9.0, 7.0),
         PlaceKind.Village => new Footprint(14.0, 11.0),
         PlaceKind.Checkpoint => new Footprint(5.0, 2.0),
@@ -252,10 +253,11 @@ public static class WorldGenerator
                 Add("gate", 0, 0, 0);
                 break;
             case PlaceKind.House:
+                // Двери, сундук и кровать дома игрока строит PlayerHouse: в плане их нет.
+                break;
             case PlaceKind.Abandoned:
-                Add("door", 0, 0, 3.2);
-                Add("chest", -3, 0, -2);
-                Add("bed", 3, 0, -2);
+                // В брошенном доме только ящик с лутом: сундук — это склад дома игрока.
+                Add("crate", -3, 0, -2);
                 break;
             case PlaceKind.Well:
                 Add("drink", 0, 0, 1.4);
