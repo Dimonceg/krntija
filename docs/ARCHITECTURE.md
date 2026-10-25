@@ -116,6 +116,10 @@ switch (WorldActions.TryRepairAtWorkbench(_car.Session, out var part))
 - Проверка (`--check-*`, `--selftest*`) выходит через `QuitSoon(код)`, а не
   `GetTree().Quit()`: так узлы из очереди удаления и финализаторы успевают
   отработать, пока движок жив.
+- Ресурс Godot в статическом поле (общий материал, меш, кеш моделей, шум) —
+  только с освобождением в `StaticCaches.Release()` (метод `ReleaseCaches` своего
+  класса). Иначе обёртку финализирует .NET после остановки движка — падение при
+  выходе. Выход из игры и проверок идёт через `StaticCaches.Release()`.
 - Не вызывать `GetScript()` в циклах по узлам. Узел «со скриптом» — это узел
   нашего C#-типа: `node.GetType().Assembly == typeof(Main).Assembly`.
 

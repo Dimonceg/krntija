@@ -155,6 +155,9 @@ public static class RoadMeshBuilder
     /// <summary>Заплатки и потёртости на асфальте: полотно не должно быть идеальным.</summary>
     private static StandardMaterial3D? _patchMaterial;
 
+    /// <summary>Отпустить общие ресурсы перед выходом (<see cref="StaticCaches"/>).</summary>
+    internal static void ReleaseCaches() => StaticCaches.Dispose(ref _patchMaterial);
+
     private static void AddPatches(List<Vector3> points, List<float> headings, Node3D parent,
         ulong seed = 4242, int count = 90)
     {

@@ -47,6 +47,12 @@ public partial class Main : Node3D
     private Vector3? _wolvesCenter;
     private float _wolfCooldown;
 
+    /// <summary>Игрок закрывает окно: отпустить общие ресурсы, пока движок жив.</summary>
+    public override void _Notification(int what)
+    {
+        if (what == NotificationWMCloseRequest) StaticCaches.Release();
+    }
+
     public override void _Ready()
     {
         if (HasArg("--balance"))
@@ -195,7 +201,11 @@ public partial class Main : Node3D
         _menu.ResumeRequested += ResumeGame;
         _menu.SaveRequested += SaveGame;
         _menu.MainMenuRequested += GoToMainMenu;
-        _menu.QuitRequested += () => GetTree().Quit(0);
+        _menu.QuitRequested += () =>
+        {
+            StaticCaches.Release();
+            GetTree().Quit(0);
+        };
         _menu.EscapePressed += OnEscape;
 
         // Проверка выбора машины: жмём кнопки и сверяем спеку. Без окна и мыши.

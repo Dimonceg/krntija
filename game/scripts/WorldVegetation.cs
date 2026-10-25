@@ -16,6 +16,15 @@ public static class WorldVegetation
     private static Mesh[]? _meshes;
     private static ShaderMaterial? _material;
 
+    /// <summary>Отпустить общие ресурсы перед выходом (<see cref="StaticCaches"/>).</summary>
+    internal static void ReleaseCaches()
+    {
+        if (_meshes is not null)
+            foreach (var mesh in _meshes) mesh?.Dispose();
+        _meshes = null;
+        StaticCaches.Dispose(ref _material);
+    }
+
     /// <summary>Модели деревьев и общий материал с покачиванием. Null — модели не найдены.</summary>
     public static bool TryLoadAssets(out Mesh[] meshes, out ShaderMaterial material)
     {
