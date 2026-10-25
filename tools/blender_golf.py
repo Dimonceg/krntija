@@ -142,11 +142,11 @@ for side in (-1,1):
 palette_mat=material('Golf colour palette',(.5,.5,.5),.1,.48)
 bs=palette_mat.node_tree.nodes['Principled BSDF'];vc=palette_mat.node_tree.nodes.new('ShaderNodeVertexColor');vc.layer_name='Color'
 palette_mat.node_tree.links.new(vc.outputs['Color'],bs.inputs['Base Color'])
+bpy.ops.object.select_all(action='DESELECT')
+bpy.ops.wm.save_as_mainfile(filepath=str(SOURCE/'golf_2.blend'))
 for shared in (rubber,glass,chrome):
  vertex=shared.node_tree.nodes.new('ShaderNodeVertexColor');vertex.layer_name='Color'
  shared.node_tree.links.new(vertex.outputs['Color'],shared.node_tree.nodes['Principled BSDF'].inputs['Base Color'])
-bpy.ops.object.select_all(action='DESELECT')
-bpy.ops.wm.save_as_mainfile(filepath=str(SOURCE/'golf_2.blend'))
 stats={}
 for name,coll in [('golf_2',body),('golf_2_wheel',wheel)]:
  bpy.ops.object.select_all(action='DESELECT')
