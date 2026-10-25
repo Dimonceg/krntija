@@ -35,6 +35,8 @@ public static class PlaceBuilder
     public static Built Build(RoadCurve curve, PlacePlan place, Node3D chunkRoot,
         Func<double, double, double, Vector3> local)
     {
+        CurrentPlaceTier = WorldGenerator.Tier(place.S);
+
         var (cx, cz) = PlaceGeometry.Center(place, curve);
         float cy = place.OnRoad ? (float)curve.Height(place.S) : ChunkBuilder.Ground(curve, cx, cz).Height;
         var built = new Built(place, local(cx, cy, cz), new List<Use>(), new List<Loot>());
@@ -217,6 +219,8 @@ public static class PlaceBuilder
 
     // ------------------------------------------------------------ точки-предметы
 
+    private static int CurrentPlaceTier = 1;
+
     private static readonly Color WoodColor = new(0.42f, 0.31f, 0.2f);
     private static readonly Color RockColor = new(0.5f, 0.48f, 0.46f);
     private static readonly Color ClothColor = new(0.35f, 0.3f, 0.42f);
@@ -244,10 +248,12 @@ public static class PlaceBuilder
                 break;
 
             case "wolves":
+                var pack = new WolfPack { Name = "WolfPack", Tier = CurrentPlaceTier };
+                root.AddChild(pack);
                 for (int i = 0; i < 3; i++)
                 {
                     var spread = new Vector3((i - 1) * 1.8f, 0, Math.Abs(i - 1) * 1.2f);
-                    Prop(root, offset + spread + new Vector3(0, 0.5f, 0), new Vector3(0.32f, 0.36f, 0.8f), FurColor);
+                    Prop(pack, offset + spread + new Vector3(0, 0.5f, 0), new Vector3(0.32f, 0.36f, 0.8f), FurColor);
                 }
                 break;
 

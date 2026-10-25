@@ -15,6 +15,10 @@ public static class ThreatRules
     /// <summary>Завал на руинах: появляется со второго тира, дальше — всегда.</summary>
     public static bool HasCollapse(int tier) => tier >= 2;
 
+    /// <summary>Урон одного укуса стаи: с тиром больнее, но есть предел.</summary>
+    public static double WolfDamage(int tier) =>
+        Math.Clamp(0.03 + 0.01 * Math.Clamp(tier, 0, WorldGenerator.MaxTier), 0.03, 0.12);
+
     /// <summary>Шанс, что место с лутом окажется с «сюрпризом» — растёт с тиром.</summary>
     public static double DangerChance(int tier) => Math.Clamp(0.1 + tier * 0.08, 0.1, 0.85);
 }

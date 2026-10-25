@@ -105,6 +105,7 @@ public partial class Car : RigidBody3D
         };
 
         car.BuildBody();
+        car.AddToGroup("car");
         return car;
     }
 
