@@ -19,7 +19,10 @@ namespace Krntija.Game;
 /// </summary>
 public partial class Main : Node3D
 {
-    private const string SavePath = "user://save.json";
+    /// <summary>Проверки сохраняются в свой файл: иначе check.ps1 затирал сейв игрока.</summary>
+    private string SavePath => _selfTest || _selfTestCars || _checkChunkPlaces
+        ? "user://check_save.json"
+        : "user://save.json";
 
     private Car _car = null!;
     private ChaseCamera _camera = null!;

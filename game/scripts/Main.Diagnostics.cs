@@ -9,6 +9,7 @@ using Krntija.Core.Parts;
 using Krntija.Core.Vehicle;
 using Krntija.Core.Workshop;
 using Krntija.Core.World;
+using Krntija.Core.WorldGen;
 
 namespace Krntija.Game;
 
@@ -778,6 +779,18 @@ public partial class Main
         Check(Count(InteractionKind.Pump) >= 1 && Count(InteractionKind.Shop) >= 1, "на заправке колонка и лавка");
         Check(_chunkPlaces.Count >= 6, $"мест в стартовых кусках: {_chunkPlaces.Count}");
 
+        // Начало мира закрыто: луч назад вдоль дороги и по полю упирается в стену.
+        foreach (double lateral in new[] { 0.0, -80.0, 120.0 })
+        {
+            Vector3 from = _streamer!.RoadPoint(6, lateral) + Vector3.Up * 1.5f;
+            Vector3 back = _streamer.RoadPoint(0, lateral) - _streamer.RoadPoint(6, lateral);
+            var query = PhysicsRayQueryParameters3D.Create(from, from + back.Normalized() * 15f);
+            query.Exclude = new Godot.Collections.Array<Rid> { _car.GetRid() };
+            var hit = GetWorld3D().DirectSpaceState.IntersectRay(query);
+            string? name = hit.Count > 0 ? PhysicsHit.Collider<Node>(hit)?.Name : null;
+            Check(name == "Boundary", $"за началом мира стена (вбок {lateral:F0} м): {name ?? "пусто"}");
+        }
+
         var gate = _interactions.FirstOrDefault(point => point.Kind == InteractionKind.Gate);
         Check(gate is { Gate.IsOpen: false, StateId: "gate:c2/p0/u0" }, $"шлагбаум закрыт, id {gate?.StateId}");
 
@@ -808,6 +821,26 @@ public partial class Main
         Check(_interactions.Any(point => point.Kind == InteractionKind.Loot && point.Chunk == 1),
               "остальной лут у заправки на месте");
         Check(_housePosition is not null && StaleChunkRefs() == 0, "дом снова на месте, ссылки чистые");
+
+        // Сейв далеко от старта (сейв v3): позиция в координатах мира, начало сцены сдвинуто.
+        const double far = 6000;
+        PlaceCarOnChunkRoad(far);
+        var farLoot = _interactions.FirstOrDefault(point => point.Kind == InteractionKind.Loot && point.Chunk >= 0);
+        string? farLootId = farLoot?.StateId;
+        if (farLoot is not null) PickUpLoot(farLoot);
+        Check(System.Math.Abs(WorldOrigin.Z) > far - 500, $"начало сцены перенесено: Z={WorldOrigin.Z:F0}");
+        SaveGame();
+
+        PlaceCarOnChunkRoad(StartStation);
+        Check(_streamer.IsLoaded(0) && !_streamer.IsLoaded((int)(far / WorldGenerator.ChunkLength)), "вернулись на старт");
+        LoadGame();
+
+        double station = _streamer.StationAt(_car.GlobalPosition);
+        Check(System.Math.Abs(station - far) < 5, $"после загрузки машина на {station:F0} м (ждём {far:F0})");
+        Check(_car.GlobalPosition.Length() < 50, $"машина у начала сцены: {_car.GlobalPosition.Length():F0} м");
+        Check(farLootId is not null && _car.Session.WorldState.IsDone(farLootId)
+              && _interactions.All(point => point.StateId != farLootId), $"поднятый вдали лут не вернулся: {farLootId}");
+        Check(StaleChunkRefs() == 0, "после загрузки ссылки чистые");
 
         GD.Print(_selfTestOk ? "[chunk-places] OK" : "[chunk-places] FAIL");
         QuitSoon(_selfTestOk ? 0 : 1);
@@ -905,14 +938,16 @@ public partial class Main
             if (child is RoadEvents events && !events.IsQueuedForDeletion()) eventNodes++;
         }
 
-        bool singleEvents = eventNodes == 1;
+        // Дорожные события пока есть только в старом мире (перенос — фаза 3).
+        int expectedEvents = _road is null ? 0 : 1;
+        bool singleEvents = eventNodes == expectedEvents;
         int worldDone = _car.Session.WorldState.Done.Count;
         bool visitedCleared = worldDone == 0;
         bool gateClosed = gatePoint?.Gate is { IsOpen: false };
         bool lootBack = lootPoint is not null
                         && _interactions.Any(p => p.Kind == InteractionKind.Loot && p.StateId == lootPoint.StateId);
 
-        GD.Print($"[carselftest] события: {eventNodes} (ждём 1) — {(singleEvents ? "ок" : "FAIL")}, "
+        GD.Print($"[carselftest] события: {eventNodes} (ждём {expectedEvents}) — {(singleEvents ? "ок" : "FAIL")}, "
                  + $"состояние мира сброшено: {worldDone} — {(visitedCleared ? "ок" : "FAIL")}, "
                  + $"шлагбаум закрыт — {(gateClosed ? "ок" : "FAIL")}, "
                  + $"лут вернулся — {(lootBack ? "ок" : "FAIL")}");
@@ -979,7 +1014,7 @@ public partial class Main
             AddChild(body);
 
             // Наружная стена смотрит вдоль локальной Z дома: знак задаёт сторону.
-            var houseNode = GetNodeOrNull<Node3D>("PlayerHouse")!;
+            var houseNode = _houseNode!;
             float localZ = houseNode.ToLocal(door.GlobalPosition).Z;
             Vector3 inward = door.GlobalBasis.Z.Normalized() * (localZ > 0 ? -1f : 1f);
             Vector3 start = door.GlobalPosition
@@ -1050,7 +1085,7 @@ public partial class Main
         }
 
         // Подъём на чердак: тело идёт от подножия вверх по пандусу.
-        if (GetNodeOrNull<Node3D>("PlayerHouse") is { } house)
+        if (_houseNode is { } house)
         {
             var climb = new CharacterBody3D { Name = "ClimbProbe" };
             climb.AddChild(new CollisionShape3D { Shape = capsule, Position = new Vector3(0, 0.89f, 0) });

@@ -23,6 +23,9 @@ public partial class Main
     private Vector3? _housePosition;
     private float _houseGroundY;
 
+    /// <summary>Узел дома игрока: в старом мире — ребёнок Main, в мире кусками — места c0/p0.</summary>
+    private Node3D? _houseNode;
+
     private void BuildWorld()
     {
         var skyMaterial = new ProceduralSkyMaterial
@@ -355,6 +358,7 @@ public partial class Main
 
         var doors = PlayerHouse.Build(this, spot, -_road.Headings[index] + Mathf.Pi * 0.5f);
         _housePosition = spot;
+        _houseNode = GetNodeOrNull<Node3D>("PlayerHouse");
         foreach (var (position, door) in doors)
         {
             // Подсказка ищется от центра полотна, а не от петли: у петли радиус мал.

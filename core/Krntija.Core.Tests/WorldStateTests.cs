@@ -83,4 +83,67 @@ public class WorldStateTests
         Assert.Equal(start + WorldActions.PlaceReward, session.Wallet.Money, precision: 6);
         Assert.True(session.WorldState.IsDone($"place:{station.Id}"));
     }
+
+    [Fact]
+    public void PlanIds_AreTellableFromLegacyIds()
+    {
+        Assert.True(SaveWorld.IsPlanId("loot:c12/p3/l1"));
+        Assert.True(SaveWorld.IsPlanId("gate:c2/p0/u0"));
+        Assert.True(SaveWorld.IsPlanId("place:c4/p1"));
+        Assert.False(SaveWorld.IsPlanId("loot:poi:3"));
+        Assert.False(SaveWorld.IsPlanId("gate:1"));
+        Assert.False(SaveWorld.IsPlanId("exit:0"));
+    }
+
+    [Fact]
+    public void V2Save_InChunkWorld_KeepsCarButNotPositionOrOldWorldIds()
+    {
+        const string json = """
+            { "version": 2, "money": 77, "carX": 120, "carZ": -900,
+              "worldDone": ["loot:poi:3", "gate:1", "poi:2"] }
+            """;
+        var data = SaveSerializer.FromJson(json);
+
+        bool keepPosition = SaveWorld.Prepare(data, SaveWorld.Chunks, 20261025);
+        var session = GameSession.FromSave(data);
+
+        Assert.False(keepPosition);
+        Assert.Empty(session.WorldState.Done);
+        Assert.Equal(77, session.Wallet.Money);
+    }
+
+    [Fact]
+    public void V3ChunkSave_SameSeed_KeepsPositionAndWorld()
+    {
+        var session = GameSession.NewGame();
+        session.WorldState.MarkDone(WorldState.Loot("c1/p0/l0"));
+        var save = session.ToSave();
+        save.World = SaveWorld.Chunks;
+        save.WorldSeed = 20261025;
+        save.CarX = 1234.5;
+        save.CarZ = -98765.25;
+
+        var data = SaveSerializer.FromJson(SaveSerializer.ToJson(save));
+        Assert.True(SaveWorld.Prepare(data, SaveWorld.Chunks, 20261025));
+        Assert.Equal(-98765.25, data.CarZ);
+        Assert.Contains("loot:c1/p0/l0", data.WorldDone);
+
+        // Тот же сейв в мире с другим сидом: места другие, состояние не переносится.
+        var other = SaveSerializer.FromJson(SaveSerializer.ToJson(save));
+        Assert.False(SaveWorld.Prepare(other, SaveWorld.Chunks, 7));
+        Assert.Empty(other.WorldDone);
+    }
+
+    [Fact]
+    public void ChunkSave_InLegacyWorld_DropsPlanIds()
+    {
+        var data = new SaveData
+        {
+            World = SaveWorld.Chunks, WorldSeed = 1,
+            WorldDone = new List<string> { "loot:c1/p0/l0", "gate:1" },
+        };
+
+        Assert.False(SaveWorld.Prepare(data, SaveWorld.Legacy, 0));
+        Assert.Equal(new[] { "gate:1" }, data.WorldDone);
+    }
 }
