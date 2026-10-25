@@ -263,13 +263,14 @@ public static class PlaceBuilder
                 break;
 
             case "wolves":
-                var pack = new WolfPack { Name = "WolfPack", Tier = CurrentPlaceTier };
+                // Стая стоит там, где её поставили: узел смещён к волкам, а не к центру места.
+                var pack = new WolfPack { Name = "WolfPack", Tier = CurrentPlaceTier, Position = offset };
                 root.AddChild(pack);
                 for (int i = 0; i < 3; i++)
                 {
                     var spread = new Vector3((i - 1) * 1.8f, 0, Math.Abs(i - 1) * 1.2f);
-                    if (Model(pack, "wolf", offset + spread, 0.7f * (i - 1)) is null)
-                        Prop(pack, offset + spread + new Vector3(0, 0.5f, 0), new Vector3(0.32f, 0.36f, 0.8f), FurColor);
+                    if (Model(pack, "wolf", spread, 0.7f * (i - 1)) is null)
+                        Prop(pack, spread + new Vector3(0, 0.5f, 0), new Vector3(0.32f, 0.36f, 0.8f), FurColor);
                 }
                 break;
 

@@ -4,8 +4,9 @@ using Krntija.Core.WorldGen;
 namespace Krntija.Game;
 
 /// <summary>
-/// Стая волков у места: пока машина рядом, кусает с паузой. Урон и пауза —
-/// из ядра (<see cref="ThreatRules"/>). Живёт в куске и выгружается вместе с ним.
+/// Стая волков у места. Кусает только пешехода: в машине ты защищён.
+/// Расстояние считается от самой стаи (узел стоит там, где волки), урон и
+/// пауза — из ядра (<see cref="ThreatRules"/>). Живёт в куске.
 /// </summary>
 public partial class WolfPack : Node3D
 {
@@ -21,8 +22,11 @@ public partial class WolfPack : Node3D
         _cooldown -= (float)delta;
         if (_cooldown > 0f) return;
 
+        // Пешеход — единственная цель: сидя в машине, игрок в безопасности.
+        if (GetTree().GetFirstNodeInGroup("player") is not Node3D player) return;
+        if (GlobalPosition.DistanceTo(player.GlobalPosition) > BiteRadius) return;
+
         if (GetTree().GetFirstNodeInGroup("car") is not Car car) return;
-        if (GlobalPosition.DistanceTo(car.GlobalPosition) > BiteRadius) return;
 
         var survival = car.Session.Survival;
         if (survival.Health <= 0f) return;
