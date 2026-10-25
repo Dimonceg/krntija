@@ -20,8 +20,9 @@ public static class PlaceBuilder
 {
     /// <summary>Точка взаимодействия места. <paramref name="Kind"/> — вид из <see cref="UsePlan.Kind"/>
     /// или служебный: <c>workbench</c>, <c>sleep_home</c>.</summary>
+    /// <param name="Prop">Что убрать, когда действие сделано: завал, заграждение выезда.</param>
     public sealed record Use(string Kind, Vector3 Local, string? StateId = null,
-        CheckpointGate? Gate = null, Door? Door = null);
+        CheckpointGate? Gate = null, Door? Door = null, Node3D? Prop = null);
 
     public sealed record Loot(string StateId, string ItemId, int Count, Vector3 Local);
 
@@ -53,29 +54,10 @@ public static class PlaceBuilder
             _ => BuildModel(place, root),
         };
 
-        // Точки из плана; дом и блокпост раскладывают свои сами.
+        // Точки из плана; дом и шлагбаум блокпоста раскладываются сами.
         if (!ownLayout)
-        {
             foreach (var use in place.Uses)
-            {
-                if (use.Kind is "door" or "chest" or "bed") continue; // у брошенного дома пока нет интерьера (фаза 3)
-                var offset = new Vector3((float)use.OffsetX, (float)use.OffsetY, (float)use.OffsetZ);
-                var anchor = root.FindChild(AnchorName(use.Kind), true, false) as Node3D;
-                Vector3 point = anchor is not null ? chunkRoot.ToLocal(anchor.GlobalPosition) : OnGround(curve, root, chunkRoot, offset, local);
-
-                BuildUseProp(use.Kind, root, offset);
-
-                // Состояние в мире помнит только то, что игрок может изменить.
-                string? stateId = use.Kind switch
-                {
-                    "exit" => WorldState.Use("exit", use.Id),
-                    "collapse" => WorldState.Use("collapse", use.Id),
-                    _ => null,
-                };
-
-                built.Uses.Add(new Use(use.Kind, point + Vector3.Up * 0.8f, stateId));
-            }
-        }
+                AddPlanUse(curve, use, root, chunkRoot, built, local);
 
         foreach (var loot in place.Loot)
         {
@@ -88,6 +70,32 @@ public static class PlaceBuilder
         // не сливаются (текстуры), а их обход стоит до 8 мс: посреди поездки это рывок.
         if (place.Kind == PlaceKind.House) StaticBatcher.Merge(root, cellSize: 64f);
         return built;
+    }
+
+    /// <summary>Точка плана: предмет-заглушка, якорь из модели или точка на земле, id состояния.</summary>
+    private static void AddPlanUse(RoadCurve curve, UsePlan use, Node3D root, Node3D chunkRoot, Built built,
+        Func<double, double, double, Vector3> local)
+    {
+        var offset = new Vector3((float)use.OffsetX, (float)use.OffsetY, (float)use.OffsetZ);
+        var anchor = root.FindChild(AnchorName(use.Kind), true, false) as Node3D;
+        Vector3 point = anchor is not null
+            ? chunkRoot.ToLocal(anchor.GlobalPosition)
+            : OnGround(curve, root, chunkRoot, offset, local);
+
+        Node3D? prop = BuildUseProp(use.Kind, root, offset);
+
+        // Состояние в мире помнит только то, что игрок может изменить.
+        string? stateId = use.Kind switch
+        {
+            "exit" => WorldState.Use("exit", use.Id),
+            "collapse" => WorldState.Use("collapse", use.Id),
+            "crate" => WorldState.Use("crate", use.Id),
+            _ => null,
+        };
+
+        // Убираются завал и заграждение; пустой ящик остаётся стоять.
+        built.Uses.Add(new Use(use.Kind, point + Vector3.Up * 0.8f, stateId,
+            Prop: use.Kind is "exit" or "collapse" ? prop : null));
     }
 
     /// <summary>Точка в модели, к которой художник привязал действие: <c>PumpAnchor</c>, <c>SleepAnchor</c>.</summary>
@@ -106,7 +114,10 @@ public static class PlaceBuilder
 
     // ------------------------------------------------------------ постройки
 
-    private static readonly string[] ModelIds = { "gasstation", "village", "ruins", "farm", "checkpoint" };
+    private static readonly string[] ModelIds =
+    {
+        "gasstation", "village", "ruins", "farm", "checkpoint", "well", "shed", "barn", "abandoned",
+    };
 
     private static string[] Variants(string id) => new[] { id + "_a", id + "_b", id + "_c", id };
 
@@ -137,6 +148,10 @@ public static class PlaceBuilder
             PlaceKind.Village => "village",
             PlaceKind.Ruins => "ruins",
             PlaceKind.Farm => "farm",
+            PlaceKind.Well => "well",
+            PlaceKind.Shed => "shed",
+            PlaceKind.Barn => "barn",
+            PlaceKind.Abandoned => "abandoned",
             _ => null,
         };
 
@@ -207,9 +222,15 @@ public static class PlaceBuilder
     private static readonly Color ClothColor = new(0.35f, 0.3f, 0.42f);
     private static readonly Color FurColor = new(0.32f, 0.3f, 0.28f);
 
-    /// <summary>Простая геометрия для точек плана: жители, собака, волки, завал, выезд, ящик.</summary>
-    private static void BuildUseProp(string kind, Node3D root, Vector3 offset)
+    /// <summary>
+    /// Простая геометрия для точек плана: жители, собака, волки, завал, выезд, ящик.
+    /// Всё под одним узлом — его убирают целиком (разобранный завал, открытый выезд).
+    /// </summary>
+    private static Node3D? BuildUseProp(string kind, Node3D placeRoot, Vector3 offset)
     {
+        var root = new Node3D { Name = $"Use_{kind}" };
+        placeRoot.AddChild(root);
+
         switch (kind)
         {
             case "talk":
@@ -249,6 +270,10 @@ public static class PlaceBuilder
                 Prop(root, offset + new Vector3(0, 0.35f, 0), new Vector3(0.9f, 0.7f, 0.7f), WoodColor, solid: true);
                 break;
         }
+
+        if (root.GetChildCount() > 0) return root;
+        root.QueueFree();
+        return null;
     }
 
     /// <summary>Коробка-заглушка: цвет по смыслу, коллизия по желанию.</summary>
@@ -271,7 +296,8 @@ public static class PlaceBuilder
     }
 
     /// <summary>Блокпост: шлагбаум поперёк дороги, будка на обочине.</summary>
-    private static bool BuildCheckpoint(RoadCurve curve, PlacePlan place, Node3D root, Node3D chunkRoot,        Built built, Func<double, double, double, Vector3> local)
+    private static bool BuildCheckpoint(RoadCurve curve, PlacePlan place, Node3D root, Node3D chunkRoot,
+        Built built, Func<double, double, double, Vector3> local)
     {
         float heading = (float)curve.Heading(place.S);
         root.Rotation = new Vector3(0, -heading, 0);
@@ -289,8 +315,12 @@ public static class PlaceBuilder
             BuildStub(PlaceKind.Checkpoint, booth);
 
         foreach (var use in place.Uses)
+        {
             if (use.Kind == "gate")
                 built.Uses.Add(new Use("gate", built.Local + Vector3.Up * 1.2f, WorldState.Use("gate", use.Id), Gate: gate));
+            else
+                AddPlanUse(curve, use, root, chunkRoot, built, local); // закрытый выезд сбоку
+        }
 
         return true;
     }

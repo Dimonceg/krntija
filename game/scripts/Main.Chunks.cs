@@ -44,12 +44,16 @@ public partial class Main
         _streamer.ResetStats();
     }
 
-    /// <summary>Поставить машину на дорогу; если вокруг станции куски не построены — перенестись.</summary>
-    private void PlaceCarOnChunkRoad(double s)
+    /// <summary>
+    /// Поставить машину на дорогу; если вокруг станции куски не построены — перенестись.
+    /// <paramref name="rebuild"/>: собрать куски заново по плану (новая игра, загрузка):
+    /// убранное в старой сессии (завал, заграждение) вернуть можно только так.
+    /// </summary>
+    private void PlaceCarOnChunkRoad(double s, bool rebuild = false)
     {
-        if (!_streamer!.IsLoaded((int)(s / WorldGenerator.ChunkLength)))
+        if (rebuild || !_streamer!.IsLoaded((int)(s / WorldGenerator.ChunkLength)))
         {
-            var (x, _, z) = _streamer.Curve.Point(s);
+            var (x, _, z) = _streamer!.Curve.Point(s);
             _streamer.Relocate(x, z);
         }
 
@@ -103,8 +107,15 @@ public partial class Main
             {
                 if (UseKind(use.Kind) is not { } mapped) continue;
 
+                // Разобранный завал и открытый выезд: убрать сразу, точку не ставить.
+                if (use.Prop is { } prop && use.StateId is { } done && world?.IsDone(done) == true)
+                {
+                    prop.QueueFree();
+                    continue;
+                }
+
                 _interactions.Add(new InteractionPoint(root.ToGlobal(use.Local), mapped.Kind, mapped.Radius,
-                    Gate: use.Gate, Door: use.Door, StateId: use.StateId, Chunk: index));
+                    Gate: use.Gate, Door: use.Door, Node: use.Prop, StateId: use.StateId, Chunk: index));
 
                 if (use.Gate is { } gate && use.StateId is { } id && world?.IsDone(id) == true) gate.Open();
             }
@@ -153,6 +164,7 @@ public partial class Main
         "dog" => (InteractionKind.Pet, 3f),
         "exit" => (InteractionKind.RepairExit, 3.5f),
         "collapse" => (InteractionKind.ClearCollapse, 4f),
+        "crate" => (InteractionKind.Crate, 2.5f),
         _ => null,
     };
 

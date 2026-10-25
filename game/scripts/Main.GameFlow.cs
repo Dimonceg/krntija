@@ -65,7 +65,7 @@ public partial class Main
     private void StartNewGame(CarSpec spec)
     {
         Respawn(GameSession.NewGame(car: spec));
-        PlaceCarAtStart();
+        PlaceCarAtStart(rebuild: true);
         EngageParkingBrake();
         ResetWorldState();
 
@@ -152,7 +152,7 @@ public partial class Main
 
         if (!samePlace)
         {
-            PlaceCarAtStart();
+            PlaceCarAtStart(rebuild: true);
         }
         else if (_streamer is not null)
         {
@@ -207,11 +207,12 @@ public partial class Main
     }
 
     /// <summary>Поставить машину на старт дороги: новую игру всегда начинаем там.</summary>
-    private void PlaceCarAtStart()
+    /// <param name="rebuild">Мир кусками: собрать куски заново по плану и состоянию новой сессии.</param>
+    private void PlaceCarAtStart(bool rebuild = false)
     {
         if (_streamer is not null)
         {
-            PlaceCarOnChunkRoad(StartStation);
+            PlaceCarOnChunkRoad(StartStation, rebuild);
             return;
         }
 
