@@ -102,7 +102,7 @@ public static class WorldGenerator
 
         string id = PlaceId(chunkIndex, placeIndex);
         var loot = BuildLoot(worldSeed, chunkIndex, placeIndex, kind, Tier(s));
-        var uses = BuildUses(id, kind);
+        var uses = BuildUses(id, kind, Tier(s));
 
         return new PlacePlan(id, kind, s, lateral, yaw, variantSeed, onRoad,
             FootprintFor(kind), loot, uses);
@@ -113,7 +113,8 @@ public static class WorldGenerator
     /// <summary>Габарит по типу места: полуширина и полуглубина в осях постройки.</summary>
     public static Footprint FootprintFor(PlaceKind kind) => kind switch
     {
-        PlaceKind.House or PlaceKind.Abandoned => new Footprint(5.0, 4.0),
+        PlaceKind.House => new Footprint(4.0, 5.5),
+        PlaceKind.Abandoned => new Footprint(5.0, 4.0),
         PlaceKind.GasStation => new Footprint(9.0, 7.0),
         PlaceKind.Village => new Footprint(14.0, 11.0),
         PlaceKind.Checkpoint => new Footprint(5.0, 2.0),
@@ -231,7 +232,7 @@ public static class WorldGenerator
 
     // ------------------------------------------------------------ взаимодействия
 
-    private static List<UsePlan> BuildUses(string placeId, PlaceKind kind)
+    private static List<UsePlan> BuildUses(string placeId, PlaceKind kind, int tier)
     {
         var uses = new List<UsePlan>();
 
@@ -247,15 +248,27 @@ public static class WorldGenerator
             case PlaceKind.Village:
                 Add("sell", 0, 0, 8);
                 Add("sleep", -6, 0, -4);
+                Add("talk", 2.5, 0, 1.5);
+                Add("talk", -2.0, 0, -3.0);
                 break;
             case PlaceKind.Checkpoint:
                 Add("gate", 0, 0, 0);
+                // Закрытый боковой выезд: открывается за деньги, как в старом мире.
+                Add("exit", 6, 0, 0);
+                break;
+            case PlaceKind.Barn:
+                Add("dog", 2.5, 0, 2.5);
+                if (ThreatRules.WolvesAt(tier) > 0) Add("wolves", -2.5, 0, 3.5);
+                break;
+            case PlaceKind.Ruins:
+                if (ThreatRules.HasCollapse(tier)) Add("collapse", 0, 0, 1.5);
                 break;
             case PlaceKind.House:
+                // Двери, сундук и кровать дома игрока строит PlayerHouse: в плане их нет.
+                break;
             case PlaceKind.Abandoned:
-                Add("door", 0, 0, 3.2);
-                Add("chest", -3, 0, -2);
-                Add("bed", 3, 0, -2);
+                // В брошенном доме только ящик с лутом: сундук — это склад дома игрока.
+                Add("crate", -3, 0, -2);
                 break;
             case PlaceKind.Well:
                 Add("drink", 0, 0, 1.4);

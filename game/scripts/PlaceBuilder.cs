@@ -62,7 +62,18 @@ public static class PlaceBuilder
                 var offset = new Vector3((float)use.OffsetX, (float)use.OffsetY, (float)use.OffsetZ);
                 var anchor = root.FindChild(AnchorName(use.Kind), true, false) as Node3D;
                 Vector3 point = anchor is not null ? chunkRoot.ToLocal(anchor.GlobalPosition) : OnGround(curve, root, chunkRoot, offset, local);
-                built.Uses.Add(new Use(use.Kind, point + Vector3.Up * 0.8f));
+
+                BuildUseProp(use.Kind, root, offset);
+
+                // Состояние в мире помнит только то, что игрок может изменить.
+                string? stateId = use.Kind switch
+                {
+                    "exit" => WorldState.Use("exit", use.Id),
+                    "collapse" => WorldState.Use("collapse", use.Id),
+                    _ => null,
+                };
+
+                built.Uses.Add(new Use(use.Kind, point + Vector3.Up * 0.8f, stateId));
             }
         }
 
@@ -189,9 +200,78 @@ public static class PlaceBuilder
         return true;
     }
 
+    // ------------------------------------------------------------ точки-предметы
+
+    private static readonly Color WoodColor = new(0.42f, 0.31f, 0.2f);
+    private static readonly Color RockColor = new(0.5f, 0.48f, 0.46f);
+    private static readonly Color ClothColor = new(0.35f, 0.3f, 0.42f);
+    private static readonly Color FurColor = new(0.32f, 0.3f, 0.28f);
+
+    /// <summary>Простая геометрия для точек плана: жители, собака, волки, завал, выезд, ящик.</summary>
+    private static void BuildUseProp(string kind, Node3D root, Vector3 offset)
+    {
+        switch (kind)
+        {
+            case "talk":
+                Prop(root, offset + new Vector3(0, 1.0f, 0), new Vector3(0.55f, 1.6f, 0.4f), ClothColor);
+                Prop(root, offset + new Vector3(0, 1.95f, 0), new Vector3(0.32f, 0.34f, 0.32f),
+                    new Color(0.84f, 0.7f, 0.56f));
+                break;
+
+            case "dog":
+                Prop(root, offset + new Vector3(0, 0.55f, 0), new Vector3(0.35f, 0.4f, 0.9f), FurColor);
+                break;
+
+            case "wolves":
+                for (int i = 0; i < 3; i++)
+                {
+                    var spread = new Vector3((i - 1) * 1.8f, 0, Math.Abs(i - 1) * 1.2f);
+                    Prop(root, offset + spread + new Vector3(0, 0.5f, 0), new Vector3(0.32f, 0.36f, 0.8f), FurColor);
+                }
+                break;
+
+            case "collapse":
+                for (int i = 0; i < 4; i++)
+                {
+                    var spread = new Vector3((i - 1.5f) * 1.1f, 0.5f, (i % 2) * 1.2f);
+                    Prop(root, offset + spread, new Vector3(1.2f, 1.0f, 1.0f), RockColor, solid: true);
+                }
+                break;
+
+            case "exit":
+                Prop(root, offset + new Vector3(-3, 1.2f, 0), new Vector3(0.3f, 2.4f, 0.3f), WoodColor, solid: true);
+                Prop(root, offset + new Vector3(3, 1.2f, 0), new Vector3(0.3f, 2.4f, 0.3f), WoodColor, solid: true);
+                Prop(root, offset + new Vector3(0, 1.1f, 0), new Vector3(6.4f, 0.25f, 0.25f),
+                    new Color(0.75f, 0.2f, 0.15f));
+                break;
+
+            case "crate":
+                Prop(root, offset + new Vector3(0, 0.35f, 0), new Vector3(0.9f, 0.7f, 0.7f), WoodColor, solid: true);
+                break;
+        }
+    }
+
+    /// <summary>Коробка-заглушка: цвет по смыслу, коллизия по желанию.</summary>
+    private static MeshInstance3D Prop(Node3D root, Vector3 position, Vector3 size, Color color, bool solid = false)
+    {
+        var mesh = new MeshInstance3D
+        {
+            Mesh = new BoxMesh { Size = size },
+            Position = position,
+            MaterialOverride = new StandardMaterial3D { AlbedoColor = color, Roughness = 0.95f },
+        };
+        root.AddChild(mesh);
+
+        if (!solid) return mesh;
+
+        var body = new StaticBody3D { Name = "PropBody", Position = position };
+        body.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = size } });
+        root.AddChild(body);
+        return mesh;
+    }
+
     /// <summary>Блокпост: шлагбаум поперёк дороги, будка на обочине.</summary>
-    private static bool BuildCheckpoint(RoadCurve curve, PlacePlan place, Node3D root, Node3D chunkRoot,
-        Built built, Func<double, double, double, Vector3> local)
+    private static bool BuildCheckpoint(RoadCurve curve, PlacePlan place, Node3D root, Node3D chunkRoot,        Built built, Func<double, double, double, Vector3> local)
     {
         float heading = (float)curve.Heading(place.S);
         root.Rotation = new Vector3(0, -heading, 0);

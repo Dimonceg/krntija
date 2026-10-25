@@ -229,6 +229,8 @@ def tree(kind):
  else:shrub(0,0)
 
 def gasstation():
+ anchor('PumpAnchor',(1.25,0,0))
+ anchor('ShopAnchor',(0,0,-6.4))
  # Interaction anchors intentionally match Main: pump (0,0,0), shop (0,0,-6.4).
  box('forecourt',(0,-.12,-2),(15,.3,19),'concrete')
  collision('forecourt',(0,-.12,-2),(15,.3,19))
@@ -292,6 +294,7 @@ def village():
  box('motel sign',(-7,2.55,10.49),(3.4,.42,.10),'teal')
  text('motel lettering','MOTEL',(-7,2.55,10.55),.30)
  anchor('SleepAnchor',(-7,0,11.5))
+ anchor('SellAnchor',(0,0,2.6))
  for x,z,l in [(-3.8,4.5,3.0),(.8,4.5,3),(-11,12,7.5)]:fence(x,z,l)
  fence(4.2,-4,8.5,'z')
  for x,z in [(-4.0,3),(3.3,2),(-12,5),(-10,11)]:shrub(x,z,1.1)
