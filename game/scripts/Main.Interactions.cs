@@ -32,6 +32,7 @@ public partial class Main
         Chest,
         Workbench,
         SleepHome,
+        Crate,
     }
 
     /// <param name="StateId">Id в <see cref="WorldState"/>, если действие меняет мир и сохраняется.</param>
@@ -73,6 +74,7 @@ public partial class Main
         InteractionKind.Chest => "[E] открыть сундук",
         InteractionKind.Workbench => $"[E] верстак: починить деталь ({Krntija.Core.Economy.Money.Format(WorldActions.WorkbenchPrice)} + изолента)",
         InteractionKind.SleepHome => "[E] поспать дома",
+        InteractionKind.Crate => "[E] открыть ящик",
         InteractionKind.Gate => point.Gate is { IsOpen: true } ? "[E] шлагбаум открыт" : $"[E] заплатить {Krntija.Core.Economy.Money.Format(WorldActions.GateToll)} за проезд",
         InteractionKind.Sleep => $"[E] переночевать ({Krntija.Core.Economy.Money.Format(WorldActions.MotelPrice)})",
         InteractionKind.Door => point.Door is { IsOpen: true } ? "[E] закрыть дверь" : "[E] открыть дверь",
@@ -187,6 +189,10 @@ public partial class Main
 
             case InteractionKind.SleepHome:
                 SleepAtHome();
+                break;
+
+            case InteractionKind.Crate:
+                OpenCrate(point);
                 break;
 
             default:
@@ -435,6 +441,29 @@ public partial class Main
         MarkWorld(WorldState.Collapse(0));
         _collapseBody = null;
         _hud.Toast("Завал разобран, дорога свободна");
+        Sfx.PlayUi();
+    }
+
+    /// <summary>Ящик: детерминированный лут по id, открывается один раз.</summary>
+    private void OpenCrate(InteractionPoint point)
+    {
+        if (point.StateId is null) return;
+
+        if (_car.Session.WorldState.IsDone(point.StateId))
+        {
+            _hud.Toast("Ящик уже пуст");
+            return;
+        }
+
+        var (itemId, count) = WorldActions.CrateLoot(point.StateId);
+        if (!_car.Session.Inventory.TryAdd(itemId, count))
+        {
+            _hud.Toast("В кармане нет места");
+            return;
+        }
+
+        MarkWorld(point.StateId);
+        _hud.Toast($"В ящике: {Core.Items.ItemCatalog.Get(itemId).Name} ×{count}");
         Sfx.PlayUi();
     }
 

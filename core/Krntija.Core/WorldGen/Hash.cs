@@ -18,6 +18,19 @@ public static class Hash
 
     public static ulong Mix(ulong seed, int index) => Mix(Mix(seed) ^ (ulong)(uint)index);
 
+    /// <summary>Хеш строки (FNV-1a): детерминированный id → сид.</summary>
+    public static ulong MixString(ulong seed, string value)
+    {
+        ulong hash = seed ^ 1469598103934665603UL;
+        foreach (char c in value)
+        {
+            hash ^= c;
+            hash *= 1099511628211UL;
+        }
+
+        return Mix(hash);
+    }
+
     public static ulong Mix(ulong seed, int first, int second) =>
         Mix(Mix(seed, first) ^ ((ulong)(uint)second << 32));
 }
