@@ -662,7 +662,7 @@ public partial class Main
             }
         }
 
-        string[] names = { "дорога+стены", "земля", "земля: физика", "места", "горы", "деревья", "трава+столбы" };
+        string[] names = { "дорога+стены", "земля 1/2", "земля 2/2", "физика 1/2", "физика 2/2", "места", "горы", "деревья", "трава+столбы" };
         double worst = 0;
         for (int step = 0; step < sums.Length; step++)
         {
@@ -791,6 +791,8 @@ public partial class Main
             Check(name == "Boundary", $"за началом мира стена (вбок {lateral:F0} м): {name ?? "пусто"}");
         }
 
+        CheckPads("старт");
+
         var gate = _interactions.FirstOrDefault(point => point.Kind == InteractionKind.Gate);
         Check(gate is { Gate.IsOpen: false, StateId: "gate:c2/p0/u0" }, $"шлагбаум закрыт, id {gate?.StateId}");
 
@@ -861,6 +863,10 @@ public partial class Main
             }
         }
 
+        // Самый крутой рельеф под селом на первых 300 кусках (4,4 м до площадок).
+        PlaceCarOnChunkRoad(58 * WorldGenerator.ChunkLength + 30);
+        CheckPads("село c58");
+
         // Сейв далеко от старта (сейв v3): позиция в координатах мира, начало сцены сдвинуто.
         const double far = 6000;
         PlaceCarOnChunkRoad(far);
@@ -883,6 +889,51 @@ public partial class Main
 
         GD.Print(_selfTestOk ? "[chunk-places] OK" : "[chunk-places] FAIL");
         QuitSoon(_selfTestOk ? 0 : 1);
+    }
+
+    /// <summary>Площадки мест построенных кусков: земля под габаритом ровная.</summary>
+    private void CheckPads(string where)
+    {
+        // Площадки мест: земля под габаритом ровная (луч до коллизии земли, сквозь постройки).
+        float worstPad = 0;
+        string worstPlace = "";
+        foreach (var place in _chunkPlaces)
+        {
+            if (place.Plan.OnRoad) continue;
+            var footprint = place.Plan.Footprint;
+            var basis = new Basis(Vector3.Up, -(float)place.Plan.Yaw);
+            for (float u = -0.8f; u <= 0.81f; u += 0.4f)
+            for (float v = -0.8f; v <= 0.81f; v += 0.4f)
+            {
+                Vector3 at = place.Position + basis * new Vector3(u * (float)footprint.HalfWidth, 0, v * (float)footprint.HalfDepth);
+                float deviation = Mathf.Abs(LandscapeY(at) - place.Position.Y);
+                if (deviation <= worstPad) continue;
+                worstPad = deviation;
+                worstPlace = $"{place.Plan.Id} {place.Plan.Kind}";
+            }
+        }
+
+        Check(worstPad < 0.25f, $"площадки мест ровные ({where}): худшее отклонение {worstPad:F2} м ({worstPlace})");
+    }
+
+    /// <summary>Высота коллизии земли под точкой: постройки и машину пропускаем.</summary>
+    private float LandscapeY(Vector3 at)
+    {
+        var exclude = new Godot.Collections.Array<Rid> { _car.GetRid() };
+        for (int attempt = 0; attempt < 8; attempt++)
+        {
+            var query = PhysicsRayQueryParameters3D.Create(at + Vector3.Up * 60f, at + Vector3.Down * 60f);
+            query.Exclude = exclude;
+            var hit = GetWorld3D().DirectSpaceState.IntersectRay(query);
+            if (hit.Count == 0) return float.NaN;
+            if (PhysicsHit.Collider<Node>(hit) is { Name: var name } && name.ToString().StartsWith("LandscapeGroundCollision"))
+            {
+                return PhysicsHit.Position(hit).Y;
+            }
+            exclude.Add(PhysicsHit.Collider<CollisionObject3D>(hit)!.GetRid());
+        }
+
+        return float.NaN;
     }
 
     /// <summary>Точки, лут и места, чей кусок уже выгружен: их забыли снять.</summary>

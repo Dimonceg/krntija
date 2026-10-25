@@ -32,11 +32,12 @@ public static class PlaceBuilder
     public static float ClearRadius(PlacePlan place) => (float)place.Footprint.Radius + 4f;
 
     /// <param name="local">Мировые (x, y, z) → координаты корня куска.</param>
+    /// <param name="ground">Высота земли куска в точке мира (x, z): с ровными площадками мест.</param>
     public static Built Build(RoadCurve curve, PlacePlan place, Node3D chunkRoot,
-        Func<double, double, double, Vector3> local)
+        Func<double, double, double, Vector3> local, Func<double, double, float> ground)
     {
         var (cx, cz) = PlaceGeometry.Center(place, curve);
-        float cy = place.OnRoad ? (float)curve.Height(place.S) : ChunkBuilder.Ground(curve, cx, cz).Height;
+        float cy = place.OnRoad ? (float)curve.Height(place.S) : ground(cx, cz);
         var built = new Built(place, local(cx, cy, cz), new List<Use>(), new List<Loot>());
 
         var root = new Node3D
@@ -50,19 +51,19 @@ public static class PlaceBuilder
         bool ownLayout = place.Kind switch
         {
             PlaceKind.House => BuildHouse(root, built),
-            PlaceKind.Checkpoint => BuildCheckpoint(curve, place, root, chunkRoot, built, local),
+            PlaceKind.Checkpoint => BuildCheckpoint(curve, place, root, chunkRoot, built, local, ground),
             _ => BuildModel(place, root),
         };
 
         // Точки из плана; дом и шлагбаум блокпоста раскладываются сами.
         if (!ownLayout)
             foreach (var use in place.Uses)
-                AddPlanUse(curve, use, root, chunkRoot, built, local);
+                AddPlanUse(curve, use, root, chunkRoot, built, local, ground);
 
         foreach (var loot in place.Loot)
         {
             var offset = new Vector3((float)loot.OffsetX, 0, (float)loot.OffsetZ);
-            Vector3 point = OnGround(curve, root, chunkRoot, offset, local) + Vector3.Up * (float)loot.OffsetY;
+            Vector3 point = OnGround(root, chunkRoot, offset, local, ground) + Vector3.Up * (float)loot.OffsetY;
             built.Loot.Add(new Loot(WorldState.Loot(loot.Id), loot.ItemId, loot.Count, point));
         }
 
@@ -74,13 +75,13 @@ public static class PlaceBuilder
 
     /// <summary>Точка плана: предмет-заглушка, якорь из модели или точка на земле, id состояния.</summary>
     private static void AddPlanUse(RoadCurve curve, UsePlan use, Node3D root, Node3D chunkRoot, Built built,
-        Func<double, double, double, Vector3> local)
+        Func<double, double, double, Vector3> local, Func<double, double, float> ground)
     {
         var offset = new Vector3((float)use.OffsetX, (float)use.OffsetY, (float)use.OffsetZ);
         var anchor = root.FindChild(AnchorName(use.Kind), true, false) as Node3D;
         Vector3 point = anchor is not null
             ? chunkRoot.ToLocal(anchor.GlobalPosition)
-            : OnGround(curve, root, chunkRoot, offset, local);
+            : OnGround(root, chunkRoot, offset, local, ground);
 
         Node3D? prop = BuildUseProp(use.Kind, root, offset);
 
@@ -102,14 +103,14 @@ public static class PlaceBuilder
     private static string AnchorName(string kind) => char.ToUpperInvariant(kind[0]) + kind[1..] + "Anchor";
 
     /// <summary>Смещение от центра места (в его повороте) → точка на земле в координатах куска.</summary>
-    private static Vector3 OnGround(RoadCurve curve, Node3D placeRoot, Node3D chunkRoot, Vector3 offset,
-        Func<double, double, double, Vector3> local)
+    private static Vector3 OnGround(Node3D placeRoot, Node3D chunkRoot, Vector3 offset,
+        Func<double, double, double, Vector3> local, Func<double, double, float> ground)
     {
         Vector3 inChunk = placeRoot.Position + placeRoot.Basis * offset;
         Vector3 origin = local(0, 0, 0);
         double x = inChunk.X - origin.X;
         double z = inChunk.Z - origin.Z;
-        return local(x, ChunkBuilder.Ground(curve, x, z).Height, z);
+        return local(x, ground(x, z), z);
     }
 
     // ------------------------------------------------------------ постройки
@@ -297,7 +298,7 @@ public static class PlaceBuilder
 
     /// <summary>Блокпост: шлагбаум поперёк дороги, будка на обочине.</summary>
     private static bool BuildCheckpoint(RoadCurve curve, PlacePlan place, Node3D root, Node3D chunkRoot,
-        Built built, Func<double, double, double, Vector3> local)
+        Built built, Func<double, double, double, Vector3> local, Func<double, double, float> ground)
     {
         float heading = (float)curve.Heading(place.S);
         root.Rotation = new Vector3(0, -heading, 0);
@@ -307,7 +308,7 @@ public static class PlaceBuilder
         root.AddChild(gate);
 
         var (bx, _, bz) = curve.Offset(place.S, -(RoadMeshBuilder.Width * 0.5 + 6));
-        float by = ChunkBuilder.Ground(curve, bx, bz).Height;
+        float by = ground(bx, bz);
         var booth = new Node3D { Position = root.ToLocal(chunkRoot.ToGlobal(local(bx, by, bz))) };
         root.AddChild(booth);
 
@@ -320,7 +321,7 @@ public static class PlaceBuilder
             if (use.Kind == "gate")
                 built.Uses.Add(new Use("gate", built.Local + Vector3.Up * 1.2f, WorldState.Use("gate", use.Id), Gate: gate));
             else
-                AddPlanUse(curve, use, root, chunkRoot, built, local); // закрытый выезд сбоку
+                AddPlanUse(curve, use, root, chunkRoot, built, local, ground); // закрытый выезд сбоку
         }
 
         return true;
