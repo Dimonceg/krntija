@@ -101,11 +101,13 @@ public static class WorldGenerator
         int variantSeed = (int)(rng.NextUInt() & 0x7fffffff);
 
         string id = PlaceId(chunkIndex, placeIndex);
-        var loot = BuildLoot(worldSeed, chunkIndex, placeIndex, kind, Tier(s));
-        var uses = BuildUses(id, kind, Tier(s));
+        int tier = Tier(s);
+        var loot = BuildLoot(worldSeed, chunkIndex, placeIndex, kind, tier);
+        var uses = BuildUses(id, kind, tier);
+        var hazards = BuildHazards(worldSeed, chunkIndex, placeIndex, kind, tier);
 
         return new PlacePlan(id, kind, s, lateral, yaw, variantSeed, onRoad,
-            FootprintFor(kind), loot, uses);
+            FootprintFor(kind), loot, uses, hazards);
     }
 
     public static string PlaceId(int chunkIndex, int placeIndex) => $"c{chunkIndex}/p{placeIndex}";
@@ -276,5 +278,48 @@ public static class WorldGenerator
         }
 
         return uses;
+    }
+
+    // ------------------------------------------------------------ дорожные угрозы
+
+    /// <summary>
+    /// Угрозы у места: яма на подъезде, корова у фермы или амбара, попутчик у села.
+    /// Чем опаснее тир, тем больше шансов, что у места что-то случится.
+    /// </summary>
+    private static List<HazardPlan> BuildHazards(ulong worldSeed, int chunkIndex, int placeIndex,
+        PlaceKind kind, int tier)
+    {
+        var result = new List<HazardPlan>();
+        var rng = new Pcg32(Hash.Mix(worldSeed, chunkIndex, placeIndex + 23));
+
+        if (!rng.Chance(ThreatRules.DangerChance(tier))) return result;
+
+        int count = 1 + (rng.Chance(0.25 + tier * 0.05) ? 1 : 0);
+
+        for (int i = 0; i < count; i++)
+        {
+            HazardKind hazard = kind switch
+            {
+                PlaceKind.Farm or PlaceKind.Barn => rng.Chance(0.6) ? HazardKind.Cow : HazardKind.Pothole,
+                PlaceKind.Village => rng.Chance(0.6) ? HazardKind.Hitchhiker : HazardKind.Pothole,
+                _ => HazardKind.Pothole,
+            };
+
+            double amount = hazard switch
+            {
+                HazardKind.Pothole => Math.Round(0.02 + tier * 0.004, 3),
+                HazardKind.Hitchhiker => 10 + tier * 5,
+                _ => 0,
+            };
+
+            result.Add(new HazardPlan(
+                $"{PlaceId(chunkIndex, placeIndex)}/h{i}",
+                hazard,
+                Math.Round(rng.Range(-3.0, 3.0), 2),
+                Math.Round(rng.Range(2.0, 7.0), 2),
+                amount));
+        }
+
+        return result;
     }
 }

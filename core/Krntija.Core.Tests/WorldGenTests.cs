@@ -284,7 +284,7 @@ public class WorldGenTests
 
     private static PlacePlan PlaceAt(RoadCurve curve, double s, double lateral, double yaw) =>
         new("c0/p0", PlaceKind.House, s, lateral, yaw, 0, false,
-            new Footprint(5, 4), Array.Empty<LootPlan>(), Array.Empty<UsePlan>());
+            new Footprint(5, 4), Array.Empty<LootPlan>(), Array.Empty<UsePlan>(), Array.Empty<HazardPlan>());
 
     private static void AssertPlansEqual(ChunkPlan a, ChunkPlan b)
     {
