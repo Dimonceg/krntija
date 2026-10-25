@@ -223,8 +223,8 @@ def main():
     os.makedirs(OUT_DIR, exist_ok=True)
 
     for car_id, spec in SPECS.items():
-        if car_id == "zastava_101":
-            print("zastava_101: use Blender with tools/blender_zastava.py")
+        if car_id in ("zastava_101", "golf_2"):
+            print(f"{car_id}: authored Blender model, skipping")
             continue
         meshes = build_body(spec)
         data = build_glb(meshes, spec.get("paint", DEFAULT_PAINT))
