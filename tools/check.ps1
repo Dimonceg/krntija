@@ -55,6 +55,17 @@ try {
         $missing.Count -eq 0
     }
 
+    # Звуки — только CC0 (docs/AUDIO.md): папка каждого файла указана в LICENSES.md.
+    Step 'Лицензии звуков' {
+        $audio = Join-Path $KrntijaRoot 'game\assets\audio'
+        $licenses = Get-Content (Join-Path $audio 'LICENSES.md') -Raw -Encoding UTF8
+        $unlisted = @(Get-ChildItem $audio -Recurse -File -Include *.ogg, *.wav, *.mp3 |
+            ForEach-Object { $_.Directory.FullName.Substring($audio.Length + 1).Split('\')[0] } |
+            Select-Object -Unique | Where-Object { $licenses -notmatch "``$_``" })
+        $unlisted | ForEach-Object { Write-Host "  папки нет в LICENSES.md: $_" }
+        $unlisted.Count -eq 0
+    }
+
     Step 'Тесты ядра' {
         $out = & $DotnetExe run --project core\Krntija.Core.Tests -c Debug 2>&1 | Out-String
         $code = $LASTEXITCODE
@@ -87,6 +98,7 @@ try {
             '--selftest-menu' = 'Esc: окна, пауза, «Продолжить» без загрузки'
             '--check-car-upgrades' = 'Навесы улучшений: все на кузове, рессоры, сейв'
             '--check-car-assembly' = 'Кузов из деталей: гнёзда, открывание, снятые детали'
+            '--check-audio' = 'Звук: шины, записи CC0, циклы природы, пул голосов'
             '--check-zastava-detail' = 'Zastava в игре: PBR и стекло не подменены, салон, обводка'
             '--selftest-assembly' = 'Сборка руками: взять, поставить, снять, собрать и уехать'
             '--selftest-upgrades' = 'Улучшения у машины: подсказка U, установка, порядок на верстаке'
