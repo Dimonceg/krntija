@@ -1,57 +1,63 @@
 {
   "shell": {
-    "triangles": 3008,
+    "triangles": 2766,
     "socket": [
       0,
       0,
       0
     ],
-    "budget": 3100
+    "budget": 2850,
+    "materials": 4
   },
   "door_fl": {
-    "triangles": 444,
+    "triangles": 416,
     "socket": [
       -0.74,
       -0.03,
       -0.85
     ],
-    "budget": 600
+    "budget": 440,
+    "materials": 4
   },
   "door_fr": {
-    "triangles": 444,
+    "triangles": 416,
     "socket": [
       0.74,
       -0.03,
       -0.85
     ],
-    "budget": 600
+    "budget": 440,
+    "materials": 4
   },
   "door_rl": {
-    "triangles": 405,
+    "triangles": 415,
     "socket": [
       -0.74,
       -0.03,
       0.19
     ],
-    "budget": 600
+    "budget": 440,
+    "materials": 4
   },
   "door_rr": {
-    "triangles": 405,
+    "triangles": 415,
     "socket": [
       0.74,
       -0.03,
       0.19
     ],
-    "budget": 600
+    "budget": 440,
+    "materials": 4
   },
   "hood": {
-    "triangles": 36,
+    "triangles": 116,
     "socket": [
       0,
       0.342,
       -0.93
     ],
-    "budget": 600
+    "budget": 140,
+    "materials": 2
   },
   "trunk": {
     "triangles": 174,
@@ -60,6 +66,7 @@
       0.785,
       0.9
     ],
-    "budget": 600
+    "budget": 230,
+    "materials": 4
   }
 }
