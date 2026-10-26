@@ -23,7 +23,6 @@ public partial class Main
     private readonly List<ChunkPlace> _chunkPlaces = new();
 
     /// <summary>Мир кусками — по умолчанию; старый мир на 2,5 км — до конца фазы 3.</summary>
-    private bool UseChunkWorld => !HasArg("--world=legacy");
 
     private string WorldKind => SaveWorld.Chunks;
 
