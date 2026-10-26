@@ -104,6 +104,7 @@ public partial class Main
         _checkInteract = HasArg("--selftest-interact");
         _checkMenu = HasArg("--selftest-menu");
         _checkCarUpgrades = HasArg("--check-car-upgrades");
+        _checkCarAssembly = HasArg("--check-car-assembly");
         if (_chunkRun) DisplayServer.WindowSetVsyncMode(DisplayServer.VSyncMode.Disabled);
 
         _openJournalInShot = HasArg("--shot-ui");
@@ -164,6 +165,14 @@ public partial class Main
         {
             foreach (string id in Krntija.Core.Items.UpgradeCatalog.All.Keys) _car.Session.ApplyUpgrade(id);
             _car.BodyVisuals?.Sync(_car.Session.Upgrades);
+        }
+
+        // --open=all: машина с открытыми дверями, капотом и багажником (ADR 0003).
+        if (ArgValue("--open=") == "all" && _car.Assembly is { } assembly)
+        {
+            var state = new SceneAssemblyState();
+            foreach (string id in new[] { "door_fl", "door_fr", "door_rl", "door_rr", "hood", "trunk" }) state.Open.Add(id);
+            assembly.State = state;
         }
 
         if (_streamer is null) return;

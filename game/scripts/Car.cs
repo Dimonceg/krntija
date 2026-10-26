@@ -36,6 +36,29 @@ public partial class Car : RigidBody3D
     /// <summary>Навесы на кузове: для проверок.</summary>
     public CarUpgradeVisuals? BodyVisuals => _body;
 
+    /// <summary>Кузов из деталей (ADR 0003); null — у машины нет раскладки гнёзд.</summary>
+    private CarAssemblyVisual? _assembly;
+
+    /// <summary>Детали кузова по гнёздам: состояние, открывание, узлы деталей.</summary>
+    public CarAssemblyVisual? Assembly => _assembly;
+
+    private bool WheelInstalled(int index) =>
+        _assembly is null || _assembly.State.IsInstalled(CarAssemblyVisual.WheelSockets[index]);
+
+    /// <summary>
+    /// Мировой трансформ гнезда (закрытое положение): к нему примагничивается деталь в
+    /// руках. Колёса — точка крепления на оси в покое. Null — у машины нет такого гнезда.
+    /// </summary>
+    public Transform3D? SocketGlobal(string socket)
+    {
+        if (_assembly is null) return null;
+
+        int wheel = System.Array.IndexOf(CarAssemblyVisual.WheelSockets, socket);
+        return wheel >= 0
+            ? GlobalTransform * new Transform3D(Basis.Identity, Anchors[wheel] - Vector3.Up * RestLength)
+            : _assembly.SocketGlobal(socket);
+    }
+
     /// <summary>Колёса не под корнем кузова: рессоры их не поднимают. Для проверок.</summary>
     public bool WheelsOutsideBody => _body is null || _wheelVisuals.All(wheel => !_body.IsAncestorOf(wheel));
     private bool _modelBody;
@@ -148,7 +171,12 @@ public partial class Car : RigidBody3D
         });
 
         // Если в assets/models/cars лежит модель — берём её, иначе собираем заглушку.
-        var model = ModelLibrary.CarBody(ModelOverride ?? Session.Vehicle.Spec.Id);
+        // Машина из деталей (ADR 0003): оболочка от арта вместо цельного кузова, если она есть.
+        string specId = Session.Vehicle.Spec.Id;
+        bool assembled = ModelOverride is null && CarAssemblyVisual.HasLayout(specId);
+        var shell = assembled ? ModelLibrary.Instantiate($"res://assets/models/cars/{specId}_shell.glb") : null;
+
+        var model = shell ?? ModelLibrary.CarBody(ModelOverride ?? specId);
         if (model is not null)
         {
             // Кузов — под корнем навесов: рессоры поднимают его вместе с ними, колёса — нет.
@@ -157,7 +185,10 @@ public partial class Car : RigidBody3D
             _body.AddChild(model);
             _body.Sync(Session.Upgrades);
             if (PropFactory.Measure(model) is { } bounds)
+            {
                 GD.Print($"[car] кузов {bounds.Size.X:F2} × {bounds.Size.Y:F2} × {bounds.Size.Z:F2} м, низ {bounds.Position.Y:F2}");
+                if (assembled) _assembly = CarAssemblyVisual.Build(_body, specId, shell, bounds);
+            }
         }
         else BuildProceduralShell();
 
@@ -360,6 +391,7 @@ public partial class Car : RigidBody3D
         Session.Step(dt, sample, input, reversing);
         UpdateHeadlights();
         _body?.Sync(Session.Upgrades);
+        _assembly?.Sync();
 
         if (_audio is not null)
         {
@@ -422,6 +454,11 @@ public partial class Car : RigidBody3D
 
         for (int i = 0; i < Anchors.Length; i++)
         {
+            // Снятое колесо не держит свой угол: машина ложится на кузов.
+            bool wheelOn = WheelInstalled(i);
+            if (_wheels[i].Visible != wheelOn) _wheels[i].Visible = wheelOn;
+            if (!wheelOn) continue;
+
             Vector3 anchor = ToGlobal(Anchors[i]);
             var query = PhysicsRayQueryParameters3D.Create(anchor, anchor - up * (RestLength + WheelRadius));
             query.Exclude = new Godot.Collections.Array<Rid> { GetRid() };

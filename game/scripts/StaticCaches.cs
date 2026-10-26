@@ -17,6 +17,7 @@ public static class StaticCaches
 {
     public static void Release()
     {
+        CarAssemblyVisual.ReleaseCaches();
         ChunkBuilder.ReleaseCaches();
         InteractionHighlight.ReleaseCaches();
         LandscapeArt.ReleaseCaches();
