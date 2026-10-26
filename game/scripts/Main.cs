@@ -20,7 +20,7 @@ namespace Krntija.Game;
 public partial class Main : Node3D
 {
     /// <summary>Проверки сохраняются в свой файл: иначе check.ps1 затирал сейв игрока.</summary>
-    private string SavePath => _selfTest || _selfTestCars || _checkChunkPlaces || _checkMenu || _checkCarUpgrades
+    private string SavePath => _selfTest || _selfTestCars || _checkChunkPlaces || _checkMenu || _checkCarUpgrades || _checkCarAssembly
         ? "user://check_save.json"
         : "user://save.json";
 
@@ -205,6 +205,12 @@ public partial class Main : Node3D
         if (_checkCarUpgrades)
         {
             RunCarUpgradesCheck();
+            return;
+        }
+
+        if (_checkCarAssembly)
+        {
+            RunCarAssemblyCheck();
             return;
         }
 
