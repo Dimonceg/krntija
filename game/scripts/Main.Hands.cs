@@ -169,7 +169,7 @@ public partial class Main
         {
             foreach (var spec in layout.Slots)
             {
-                if (SocketPosition(spec.Slot) is not { } at) continue;
+                if (SnapPoint(spec.Slot, _held) is not { } at) continue;
                 _snapCandidates.Add((spec.Slot, from.DistanceTo(at)));
             }
         }
@@ -390,6 +390,13 @@ public partial class Main
     }
 
     /// <summary>Мировая точка гнезда: у открытой панели — её видимый узел, иначе гнездо.</summary>
+    /// <summary>
+    /// Куда подносить деталь для магнита: центр её модели, стоящей в гнезде. Деталь
+    /// в руках держат за центр, а у двери петля в полуметре от него (B1).
+    /// </summary>
+    private Vector3? SnapPoint(PartSlot slot, LoosePart part) =>
+        _car.SocketGlobal(PartSlotIds.Of(slot)) is { } socket ? socket * PartCenter(part) : null;
+
     private Vector3? SocketPosition(PartSlot slot)
     {
         string id = PartSlotIds.Of(slot);
