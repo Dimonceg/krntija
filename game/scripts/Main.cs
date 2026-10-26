@@ -259,6 +259,11 @@ public partial class Main : Node3D
 
         // Мир кусками: сначала подгрузка и сдвиг начала, потом всё остальное.
         _streamer?.Focus(_onFoot && _player is not null ? _player.GlobalPosition : _car.GlobalPosition);
+
+        // Станция вдоль дороги — единственная правда о том, где мы: тир и рекорд считает ядро.
+        if (_streamer is not null)
+            _car.Session.StepRoad(_streamer.StationAt(_car.GlobalPosition));
+
         if (_chunkRun)
         {
             ChunkRunStep();
