@@ -757,7 +757,7 @@ public partial class Main
     /// Проверка проходимости дверей: капсула игрока в центре каждого проёма
     /// не должна ни с чем пересекаться. Двери к этому моменту открыты.
     /// </summary>
-    private void RunHouseCheck()
+    private async void RunHouseCheck()
     {
         var space = GetWorld3D().DirectSpaceState;
         var capsule = new CapsuleShape3D { Radius = 0.34f, Height = 1.78f };
@@ -769,7 +769,7 @@ public partial class Main
             var door = point.Door;
 
             Vector3 center = door.GlobalPosition + door.GlobalBasis.X.Normalized() * (door.Width * 0.5f);
-            center.Y = _houseGroundY + 0.95f;
+            center.Y = (door.IsGarage ? _houseGroundY : door.GlobalPosition.Y) + 0.95f;
 
             var query = new PhysicsShapeQueryParameters3D
             {
@@ -811,7 +811,7 @@ public partial class Main
             // Наружная стена смотрит вдоль локальной Z дома: знак задаёт сторону.
             var houseNode = _houseNode!;
             float localZ = houseNode.ToLocal(door.GlobalPosition).Z;
-            Vector3 inward = door.GlobalBasis.Z.Normalized() * (localZ > 0 ? -1f : 1f);
+            Vector3 inward = houseNode.GlobalBasis.Z.Normalized() * (localZ > 0 ? -1f : 1f);
             Vector3 start = door.GlobalPosition
                             + door.GlobalBasis.X.Normalized() * (door.Width * 0.5f)
                             - inward * 4.5f;
@@ -883,6 +883,7 @@ public partial class Main
         if (_houseNode is { } house)
         {
             ok &= PlayerHouse.CheckAtticClearance(house);
+            ok &= PlayerHouse.CheckGarageClearance(house);
             var climb = new CharacterBody3D { Name = "ClimbProbe" };
             climb.AddChild(new CollisionShape3D { Shape = capsule, Position = new Vector3(0, 0.89f, 0) });
             AddChild(climb);
@@ -949,6 +950,7 @@ public partial class Main
             ok &= stays;
             GD.Print($"[houseattic] по чердаку: Y={attic.Y:F2}, Z={attic.Z:F2} — {(stays ? "ок" : "ПРОВАЛИЛСЯ ИЛИ ВЫШЕЛ")}");
             climb.QueueFree();
+            ok &= await CheckGarageDrive(house);
         }
 
         GD.Print(ok ? "[housecheck] OK" : "[housecheck] FAIL");

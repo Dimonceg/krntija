@@ -23,7 +23,7 @@ func run():
     for sun in scene.find_children("*","DirectionalLight3D",true,false):
         sun.rotation_degrees=Vector3(-38,-25,0);sun.light_energy=1.1
     var views=[
-        [Vector3(-10,6.5,-12),Vector3(0,2.6,0)],
+        [Vector3(14,7,-11),Vector3(3,2.6,-1)],
         [Vector3(1.5,1.7,-2.8),Vector3(-3.5,1,1.4)],
         [Vector3(1.7,4.4,1.4),Vector3(-3.4,3.5,-1)],
         [Vector3(3,1.7,-3.4),Vector3(4.3,1,-.5)]]

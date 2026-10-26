@@ -52,8 +52,10 @@ public static partial class PlayerHouse
         var hinge = door.GetNode<Node3D>("Hinge");
         foreach (var child in hinge.GetChildren())
             if (child is MeshInstance3D mesh) mesh.Visible = false;
-        var model = AddHouseModel(hinge, door.IsGarage ? "home_garage_door" : "home_door");
+        bool bay = door.Name.ToString().StartsWith("GarageBay");
+        var model = AddHouseModel(hinge, door.IsGarage || bay ? "home_garage_door" : "home_door");
         model.Scale = new Vector3(door.Width, door.Height, 1);
+        if (bay) model.Position = new Vector3(0,door.Height,0);
     }
 
     private static Material HouseMaterial(Color color)

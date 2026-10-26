@@ -151,6 +151,7 @@ public static partial class PlayerHouse
         doors.Add((ToWorld(root, new Vector3(-2.2f, 0, 3.4f)), AddDoor(
             root, "KitchenDoor", new Vector3(-2.2f, 0f, 3.4f), Mathf.Pi / 2, InnerDoorWidth, DoorHeight, DoorColor)));
 
+        BuildGarage(root, doors);
         return doors;
     }
 

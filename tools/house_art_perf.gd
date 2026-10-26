@@ -12,4 +12,4 @@ func run():
     if "--house-view" in OS.get_cmdline_user_args():
         var house=scene.find_child("PlayerHouse",true,false)
         var camera=Camera3D.new();scene.add_child(camera);camera.current=true;camera.fov=72
-        camera.look_at_from_position(house.to_global(Vector3(-10,6.5,-12)),house.to_global(Vector3(0,2.6,0)))
+        camera.look_at_from_position(house.to_global(Vector3(14,7,-11)),house.to_global(Vector3(3,2.6,-1)))
