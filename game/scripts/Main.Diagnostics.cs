@@ -108,6 +108,7 @@ public partial class Main
         _checkCarUpgrades = HasArg("--check-car-upgrades");
         _checkCarAssembly = HasArg("--check-car-assembly");
         _selfTestAssembly = HasArg("--selftest-assembly");
+        _selfTestUpgrades = HasArg("--selftest-upgrades");
         if (_chunkRun) DisplayServer.WindowSetVsyncMode(DisplayServer.VSyncMode.Disabled);
 
         _openJournalInShot = HasArg("--shot-ui");
