@@ -292,16 +292,20 @@ public partial class Main
         });
         station.AddChild(shop);
 
-        AddGasStationInteractions(origin, heading);
+        AddGasStationInteractions(origin, heading, model: null);
     }
 
-    /// <summary>Колонка и вход в лавку — считаются от точки POI, без привязки к узлу.</summary>
-    private void AddGasStationInteractions(Vector3 origin, float heading)
+    /// <summary>
+    /// Колонка и вход в лавку — считаются от точки POI. Колонка арт-модели — её
+    /// обводка, а её коллизия не закрывает точку, стоящую внутри неё.
+    /// </summary>
+    private void AddGasStationInteractions(Vector3 origin, float heading, Node3D? model)
     {
         Vector3 pump = origin + new Vector3(0, 1f, 0).Rotated(Vector3.Up, -heading);
         Vector3 shop = origin + new Vector3(0, 1.6f, -6.4f).Rotated(Vector3.Up, -heading);
 
-        _interactions.Add(new InteractionPoint(pump, InteractionKind.Pump, 4.5f));
+        _interactions.Add(new InteractionPoint(pump, InteractionKind.Pump, 4.5f,
+            Visual: model?.FindChild("pump*", true, false) as Node3D));
         _interactions.Add(new InteractionPoint(shop, InteractionKind.Shop, 4.5f));
     }
 }

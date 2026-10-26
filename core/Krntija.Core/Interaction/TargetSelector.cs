@@ -18,8 +18,10 @@ public enum Stance
 /// <param name="Radius">Ближе этого цель доступна и без взгляда на неё.</param>
 /// <param name="Priority">Небольшой перевес при равных условиях (машина, дорожные точки).</param>
 /// <param name="UsableFromCar">Можно сделать, не выходя: колонка, лавка, шлагбаум, скупщик.</param>
+/// <param name="InSight">Между игроком и целью нет стены или закрытой двери (проверяет сцена).</param>
 public readonly record struct Candidate(
-    int Id, double Distance, double AngleDeg, double Radius, int Priority = 0, bool UsableFromCar = false);
+    int Id, double Distance, double AngleDeg, double Radius, int Priority = 0, bool UsableFromCar = false,
+    bool InSight = true);
 
 /// <summary>
 /// Один селектор цели для клавиши E и для подсказки на экране: они не могут
@@ -27,6 +29,7 @@ public readonly record struct Candidate(
 /// строкой в таблицу приоритетов сцены, а не новым if.
 /// </summary>
 /// <remarks>
+/// Цель за стеной или закрытой дверью не выбирается никогда: сначала открой дверь.
 /// Пешком: если что-то в конусе взгляда — побеждает то, на что смотрят точнее
 /// и что ближе (приоритет — небольшой перевес). Иначе — ближайшее в своём радиусе.
 /// В машине стоя: только то, что делается из машины, ближайшее в радиусе;
@@ -74,7 +77,7 @@ public static class TargetSelector
         double bestScore = double.MaxValue;
         foreach (var candidate in candidates)
         {
-            if (!eligible(candidate)) continue;
+            if (!candidate.InSight || !eligible(candidate)) continue;
             double value = score(candidate);
             if (value >= bestScore) continue;
             best = candidate;

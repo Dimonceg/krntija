@@ -60,4 +60,25 @@ public class TargetSelectorTests
         var clear = TargetSelector.Select(Stance.OnFoot, new[] { CarAt(3.0, 45), DoorAt(3.0, 2) });
         Assert.Equal(Door, clear?.Id);
     }
+
+    [Fact]
+    public void BehindClosedDoor_ChestAndLootAreNotOffered()
+    {
+        // Баг: у закрытой двери подсказка «открыть сундук» / «поднять хлеб» за ней.
+        var hidden = new Candidate(Chest, 2.0, 2, 3, InSight: false);
+        Assert.Equal(Door, TargetSelector.Select(Stance.OnFoot, new[] { hidden, DoorAt(1.2, 4) })?.Id);
+
+        // И не «ближайшее в радиусе», когда смотрят в сторону.
+        Assert.Null(TargetSelector.Select(Stance.OnFoot, new[] { hidden with { AngleDeg = 150 } }));
+
+        // Дверь открыли — сундук виден.
+        Assert.Equal(Chest, TargetSelector.Select(Stance.OnFoot, new[] { hidden with { InSight = true } })?.Id);
+    }
+
+    [Fact]
+    public void InCar_PumpBehindWall_IsNotUsed()
+    {
+        var hidden = new Candidate(Pump, 3.0, 90, 4.5, UsableFromCar: true, InSight: false);
+        Assert.Null(TargetSelector.Select(Stance.InCarStopped, new[] { hidden }));
+    }
 }

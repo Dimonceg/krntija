@@ -20,6 +20,9 @@ public partial class Door : Node3D
     /// <summary>Широкая подъёмная дверь гаража: крутится вокруг верхней кромки.</summary>
     public bool IsGarage { get; private set; }
 
+    /// <summary>Середина закрытого полотна в сцене: сюда смотрит игрок, а не на петлю у порога.</summary>
+    public Vector3 Center => ToGlobal(new Vector3(Width / 2, IsGarage ? -Height / 2 : Height / 2, 0));
+
     public static Door Create(string name, Vector3 position, float yaw, float width, float height,
         Color color, bool garage = false)
     {

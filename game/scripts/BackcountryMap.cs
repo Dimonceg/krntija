@@ -208,14 +208,15 @@ public static class BackcountryMap
         Vector3 carSpot = RoadsideMap.PointAt(centerline, headings, carIndex, 1f, 12f);
         BuildWreck(parent, carSpot, headings[carIndex] + 0.6f);
         result.Places.Add(new MapPlace(carIndex, 1f, carSpot, "wreck", "Брошенная машина"));
-        result.Uses.Add(new MapUse(carSpot + Vector3.Up * 0.2f, "loot", "spare_tire", 1));
+        // Рядом с кузовом, а не внутри его коробки: изнутри предмет не видно и не взять.
+        result.Uses.Add(new MapUse(carSpot + Beside(headings[carIndex] + 0.6f, 1.5f), "loot", "spare_tire", 1));
 
         // Сломанный трактор у сарая.
         int tractorIndex = centerline.Count / 7;
         Vector3 tractorSpot = RoadsideMap.PointAt(centerline, headings, tractorIndex, -1f, 34f);
         BuildTractor(parent, tractorSpot, headings[tractorIndex] - 0.4f);
         result.Places.Add(new MapPlace(tractorIndex, -1f, tractorSpot, "tractor", "Трактор"));
-        result.Uses.Add(new MapUse(tractorSpot + Vector3.Up * 0.2f, "loot", "spark_plug", 2));
+        result.Uses.Add(new MapUse(tractorSpot + Beside(headings[tractorIndex] - 0.4f, 1.3f), "loot", "spark_plug", 2));
 
         // Собака у сарая: можно погладить.
         int dogIndex = centerline.Count * 3 / 4;
@@ -335,6 +336,10 @@ public static class BackcountryMap
         Box(root, new Vector3(radius * 2 + 0.7f, 0.15f, radius * 2 + 0.7f),
             new Vector3(0, 2.2f, 0), new Color(0.35f, 0.3f, 0.27f), (float)rng.Range(-0.1, 0.1));
     }
+
+    /// <summary>Сбоку от машины с поворотом <paramref name="yaw"/>, чуть над землёй.</summary>
+    private static Vector3 Beside(float yaw, float distance) =>
+        new Vector3(distance, 0.2f, 0).Rotated(Vector3.Up, yaw);
 
     private static void BuildWreck(Node3D parent, Vector3 position, float yaw)
     {
