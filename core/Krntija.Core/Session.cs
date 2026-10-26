@@ -128,6 +128,11 @@ public sealed class GameSession
         if (dt <= 0) return;
 
         Clock.Advance(dt);
+
+        // Дорога и погода задают множители, закон расхода остаётся законом машины.
+        Vehicle.FuelMultiplier = Journey.FuelFactor(Tier, Weather.RainIntensity);
+        Vehicle.WearMultiplier = Journey.WearFactor(Tier, Weather.RainIntensity);
+
         Systems.Step(dt, sample, input);
         DriveTrain.Update(sample.SpeedMps, input.Throttle, dt, reversing);
         Survival.Step(dt * Clock.TimeScale / 3600.0, sample.AmbientC);
