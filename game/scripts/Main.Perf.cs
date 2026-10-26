@@ -10,6 +10,8 @@ namespace Krntija.Game;
 /// `--resolution 1920x1080` перед `--`; окно по умолчанию 1152×648 сильно занижает
 /// цену видеокарты. --perf-off=shadows,ssao,glow,fog,multimesh выключает по одному
 /// виду нагрузки, чтобы увидеть его цену; --perf-spikes печатает долгие кадры.
+/// --perf-car — машина стоит, камера в три четверти рядом (цена модели машины);
+/// с --open=all открыты двери, капот и багажник.
 /// </summary>
 public partial class Main
 {
@@ -27,6 +29,7 @@ public partial class Main
             _perfOff = (ArgValue("--perf-off=") ?? string.Empty)
                 .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             if (_perfOff.Length > 0) GD.Print($"[perf] выключено: {string.Join(", ", _perfOff)}");
+            if (HasArg("--perf-car")) SetupPerfCar();
         }
 
         if (HasArg("--perf-spikes") && _streamer is not null
@@ -40,11 +43,29 @@ public partial class Main
         if (_frames % 30 == 1) ApplyPerfOff();
     }
 
+    /// <summary>Машина стоит на ручнике, камера в три четверти — кадр почти целиком машина.</summary>
+    private void SetupPerfCar()
+    {
+        _car.Autopilot = false;
+        _car.SetHandbrake(true);
+        _car.Session.Clock.SetTotalMinutes(12 * 60);
+
+        if (ArgValue("--open=") == "all" && Krntija.Core.CarLayout.For(_car.Session.Vehicle.Spec.Id) is { } layout)
+            foreach (var slot in layout.Slots)
+                if (slot.Opens) Krntija.Core.AssemblyRules.SetOpen(_car.Session.Vehicle, slot.Slot, true);
+
+        ShotCarCamera();
+        GD.Print($"[perf] машина крупно{(ArgValue("--open=") == "all" ? ", панели открыты" : string.Empty)}");
+    }
+
     private void PerfReport()
     {
         _perfProbe?.Report();
         GD.Print($"[perf] проехано {_car.Session.Vehicle.OdometerKm * 1000:F0} м, шагов постройки кусков {_streamer?.StepsBuilt ?? 0}, текущий кусок {_streamer?.CurrentChunk ?? 0}");
-        GD.Print($"[perf] треугольников {Performance.GetMonitor(Performance.Monitor.RenderTotalPrimitivesInFrame):F0}");
+        GD.Print($"[perf] треугольников {Performance.GetMonitor(Performance.Monitor.RenderTotalPrimitivesInFrame):F0}, "
+                 + $"вызовов отрисовки {Performance.GetMonitor(Performance.Monitor.RenderTotalDrawCallsInFrame):F0}, "
+                 + $"текстуры {Performance.GetMonitor(Performance.Monitor.RenderTextureMemUsed) / (1024 * 1024):F1} МБ, "
+                 + $"буферы {Performance.GetMonitor(Performance.Monitor.RenderBufferMemUsed) / (1024 * 1024):F1} МБ");
     }
 
     private void ApplyPerfOff()
