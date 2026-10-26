@@ -856,6 +856,7 @@ public partial class Main
         // Подъём на чердак: тело идёт от подножия вверх по пандусу.
         if (_houseNode is { } house)
         {
+            ok &= PlayerHouse.CheckAtticClearance(house);
             var climb = new CharacterBody3D { Name = "ClimbProbe" };
             climb.AddChild(new CollisionShape3D { Shape = capsule, Position = new Vector3(0, 0.89f, 0) });
             AddChild(climb);
