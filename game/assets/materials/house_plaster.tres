@@ -1,0 +1,8 @@
+[gd_resource type="ShaderMaterial" load_steps=2 format=3]
+
+[ext_resource type="Shader" path="res://assets/materials/house_surface.gdshader" id="1"]
+
+[resource]
+shader = ExtResource("1")
+shader_parameter/base_color = Color(0.69, 0.64, 0.53, 1)
+shader_parameter/timber = false

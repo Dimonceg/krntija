@@ -30,7 +30,9 @@ public static class PlaceBuilder
     public sealed record Built(PlacePlan Plan, Vector3 Local, List<Use> Uses, List<Loot> Loot);
 
     /// <summary>Радиус, внутри которого у места нет деревьев и травы: габарит и запас на крону.</summary>
-    public static float ClearRadius(PlacePlan place) => (float)place.Footprint.Radius + 4f;
+    public static float ClearRadius(PlacePlan place) =>
+        (place.Kind == PlaceKind.House ? Mathf.Max((float)place.Footprint.Radius, PlayerHouse.VisualRadius)
+            : (float)place.Footprint.Radius) + 4f;
 
     /// <param name="local">Мировые (x, y, z) → координаты корня куска.</param>
     /// <param name="ground">Высота земли куска в точке мира (x, z): с ровными площадками мест.</param>
