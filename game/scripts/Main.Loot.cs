@@ -159,6 +159,13 @@ public partial class Main
     {
         if (point.LootId is null || point.Node is null) return;
 
+        // С деталью в руках лут не подбирается (ADR 0003, п. 6).
+        if (_held is not null)
+        {
+            _hud.Toast("Руки заняты деталью");
+            return;
+        }
+
         int count = point.Node is LootItem item ? item.Count : 1;
         string name = Core.Items.ItemCatalog.Get(point.LootId).Name;
 

@@ -104,6 +104,12 @@ public static class AssemblyRules
     /// <summary>Во сколько раз быстрее греется мотор без радиатора.</summary>
     public const double NoRadiatorOverheatFactor = 4.0;
 
+    /// <summary>Насколько точно надо смотреть на гнездо, чтобы попасть в него, градусы.</summary>
+    public const double AimAngle = 28;
+
+    /// <summary>Дальше этого деталь на машине рукой не достать, метры.</summary>
+    public const double AimDistance = 2.6;
+
     public static double CarrySpeedFactor(double massKg) =>
         Math.Clamp(1.0 - massKg / CarryMassHalfSpeedKg, MinCarrySpeedFactor, 1.0);
 
@@ -252,6 +258,29 @@ public static class AssemblyRules
         if (def.SpecId is null) return true;
 
         return string.Equals(def.SpecId, vehicle.Spec.Id, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Гнездо, на которое смотрит игрок: угол до гнезда и расстояние считает сцена.
+    /// Берётся самое точное по углу в пределах <see cref="AimAngle"/> и
+    /// <see cref="AimDistance"/>; null — игрок смотрит не на деталь машины.
+    /// </summary>
+    public static PartSlot? AimedSlot(
+        IEnumerable<(PartSlot Slot, double AngleDeg, double Distance)> sockets)
+    {
+        PartSlot? best = null;
+        double bestAngle = AimAngle;
+
+        foreach (var (slot, angle, distance) in sockets)
+        {
+            if (distance < 0 || distance > AimDistance) continue;
+            if (angle < 0 || angle > bestAngle) continue;
+
+            best = slot;
+            bestAngle = angle;
+        }
+
+        return best;
     }
 
     private static bool IsWheel(PartSlot slot) =>

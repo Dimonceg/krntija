@@ -77,6 +77,8 @@ public partial class Main
     /// <summary>Тела деталей в мире: по одному на <c>LooseParts</c> (ADR 0003, п. 3).</summary>
     private void SpawnLooseParts()
     {
+        ClearHands();
+
         _loosePartsRoot?.QueueFree();
         _loosePartBodies.Clear();
 
@@ -84,19 +86,29 @@ public partial class Main
         AddChild(_loosePartsRoot);
 
         foreach (var loose in _car.Session.LooseParts.Items)
+            AddLoosePartBody(loose);
+    }
+
+    /// <summary>Тело одной детали по её мировым координатам: и для сейва, и когда игрок её бросил.</summary>
+    private RigidBody3D AddLoosePartBody(LoosePart loose)
+    {
+        if (_loosePartsRoot is null || !IsInstanceValid(_loosePartsRoot))
         {
-            var body = BuildLoosePartBody(loose);
-            _loosePartsRoot.AddChild(body);
-            body.GlobalPosition = WorldOrigin.ToScene(loose.X, loose.Y, loose.Z);
-            body.GlobalRotation = new Vector3(0, (float)loose.Yaw, 0);
-            _loosePartBodies.Add(body);
+            _loosePartsRoot = new Node3D { Name = "LooseParts" };
+            AddChild(_loosePartsRoot);
         }
+
+        var body = BuildLoosePartBody(loose);
+        _loosePartsRoot.AddChild(body);
+        body.GlobalPosition = WorldOrigin.ToScene(loose.X, loose.Y, loose.Z);
+        body.GlobalRotation = new Vector3(0, (float)loose.Yaw, 0);
+        _loosePartBodies.Add(body);
+        return body;
     }
 
     private static RigidBody3D BuildLoosePartBody(LoosePart loose)
     {
         var slot = loose.Definition?.Slot ?? PartSlot.Body;
-        Vector3 size = LoosePartLook.Size(slot);
 
         var body = new RigidBody3D
         {
@@ -107,23 +119,43 @@ public partial class Main
         };
         body.SetMeta("part_id", loose.Id);
 
-        body.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = size } });
+        body.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = LoosePartLook.Size(slot) } });
+        body.AddChild(LoosePartVisual(loose));
+        return body;
+    }
 
-        // Модель от арта (ADR 0003, п. 8) или коробка-заглушка, пока её нет.
+    /// <summary>Видимая деталь: модель арта (ADR 0003, п. 8), иначе коробка-заглушка.</summary>
+    private static Node3D LoosePartVisual(LoosePart loose)
+    {
+        var slot = loose.Definition?.Slot ?? PartSlot.Body;
+
         var model = loose.Definition is { } def
             ? ModelLibrary.Instantiate($"res://assets/models/parts/part_{def.Id}.glb")
             : null;
 
-        if (model is not null)
-            body.AddChild(model);
-        else
-            body.AddChild(new MeshInstance3D
-            {
-                Mesh = new BoxMesh { Size = size },
-                MaterialOverride = LoosePartLook.Material(slot),
-            });
+        if (model is not null) return model;
 
-        return body;
+        return new MeshInstance3D
+        {
+            Mesh = new BoxMesh { Size = LoosePartLook.Size(slot) },
+            MaterialOverride = LoosePartLook.Material(slot),
+        };
+    }
+
+    /// <summary>Тот же вид детали, но полупрозрачный — магнит показывает, куда она встанет.</summary>
+    private static Node3D GhostVisual(LoosePart loose)
+    {
+        var ghost = LoosePartVisual(loose);
+        PaintGhost(ghost);
+        return ghost;
+    }
+
+    private static void PaintGhost(Node node)
+    {
+        if (node is MeshInstance3D mesh) mesh.MaterialOverride = LoosePartLook.GhostMaterial();
+
+        foreach (Node child in node.GetChildren())
+            PaintGhost(child);
     }
 
     /// <summary>
@@ -158,6 +190,7 @@ public partial class Main
 public static class LoosePartLook
 {
     private static readonly Dictionary<PartSlot, StandardMaterial3D> Materials = new();
+    private static StandardMaterial3D? _ghost;
 
     public static Vector3 Size(PartSlot slot) => slot switch
     {
@@ -195,10 +228,27 @@ public static class LoosePartLook
         return material;
     }
 
+    /// <summary>Полупрозрачный вид для магнита: куда деталь встанет (ADR 0003, п. 6).</summary>
+    public static StandardMaterial3D GhostMaterial()
+    {
+        _ghost ??= new StandardMaterial3D
+        {
+            AlbedoColor = new Color(0.75f, 0.95f, 0.65f, 0.35f),
+            Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+            ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+            CullMode = BaseMaterial3D.CullModeEnum.Disabled,
+        };
+
+        return _ghost;
+    }
+
     /// <summary>Освободить материалы, пока движок жив (см. <see cref="StaticCaches"/>).</summary>
     public static void ReleaseCaches()
     {
         foreach (var material in Materials.Values) material.Dispose();
         Materials.Clear();
+
+        _ghost?.Dispose();
+        _ghost = null;
     }
 }

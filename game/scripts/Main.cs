@@ -81,6 +81,7 @@ public partial class Main : Node3D
 
         _car = Car.Build(session);
         AddChild(_car);
+        SyncAssemblyState();
         PlaceCarAtStart();
 
         _camera = new ChaseCamera
@@ -264,12 +265,15 @@ public partial class Main : Node3D
         }
 
         // Перегруз: полный карман замедляет пешехода, багажник на скорость не влияет.
+        // Деталь в руках замедляет по своей массе (ADR 0003, п. 2) — множители перемножаются.
         if (_player is not null)
         {
             var bag = _car.Session.Inventory;
-            _player.SpeedMultiplier = Core.Items.Encumbrance.SpeedFactor(bag.WeightKg, bag.MaxWeightKg);
+            _player.SpeedMultiplier = (float)(Core.Items.Encumbrance.SpeedFactor(bag.WeightKg, bag.MaxWeightKg)
+                * CarrySpeedFactor);
         }
 
+        UpdateHands();
         UpdateFocus();
 
         if (_mapUi is not null && _mapUi.IsOpen)
@@ -448,6 +452,11 @@ public partial class Main : Node3D
             case Key.R when _hud.Screen == HudScreen.Journal:
                 RepairSelectedPart();
                 break;
+
+            // R в игре: снять деталь машины в руки (ADR 0003, п. 6).
+            case Key.R when _hud.Screen == HudScreen.None:
+                TakeAimedPart();
+                break;
             case Key.F when _hud.Screen == HudScreen.Journal:
                 RefuelFromCan();
                 break;
@@ -512,6 +521,13 @@ public partial class Main : Node3D
 
     private void EnterCar()
     {
+        // Пока в руках деталь, в машину не сесть (ADR 0003, п. 6).
+        if (_held is not null)
+        {
+            _hud.Toast("Сначала поставь или положи деталь");
+            return;
+        }
+
         _player?.QueueFree();
         _player = null;
         _onFoot = false;
