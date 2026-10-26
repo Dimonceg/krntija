@@ -1,0 +1,92 @@
+{
+  "zastava_101_upgrade_tank": {
+    "triangles": 360,
+    "materials": 1,
+    "origin": [
+      0,
+      0,
+      0
+    ]
+  },
+  "zastava_101_upgrade_toolbox": {
+    "triangles": 352,
+    "materials": 1,
+    "origin": [
+      0,
+      0,
+      0
+    ]
+  },
+  "zastava_101_upgrade_headlights": {
+    "triangles": 392,
+    "materials": 1,
+    "origin": [
+      0,
+      0,
+      0
+    ]
+  },
+  "zastava_101_upgrade_bullbar": {
+    "triangles": 188,
+    "materials": 1,
+    "origin": [
+      0,
+      0,
+      0
+    ]
+  },
+  "zastava_101_upgrade_roofrack": {
+    "triangles": 400,
+    "materials": 1,
+    "origin": [
+      0,
+      0,
+      0
+    ]
+  },
+  "vaz_2106_upgrade_tank": {
+    "triangles": 360,
+    "materials": 1,
+    "origin": [
+      0,
+      0,
+      0
+    ]
+  },
+  "vaz_2106_upgrade_toolbox": {
+    "triangles": 352,
+    "materials": 1,
+    "origin": [
+      0,
+      0,
+      0
+    ]
+  },
+  "vaz_2106_upgrade_headlights": {
+    "triangles": 392,
+    "materials": 1,
+    "origin": [
+      0,
+      0,
+      0
+    ]
+  },
+  "vaz_2106_upgrade_bullbar": {
+    "triangles": 188,
+    "materials": 1,
+    "origin": [
+      0,
+      0,
+      0
+    ]
+  },
+  "vaz_2106_upgrade_roofrack": {
+    "triangles": 400,
+    "materials": 1,
+    "origin": [
+      0,
+      0,
+      0
+    ]
+  }
+}
