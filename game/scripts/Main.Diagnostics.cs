@@ -46,6 +46,8 @@ public partial class Main
     private bool _shotMapUi;
     private bool _shotGarage;
     private bool _shotDrive;
+    private bool _shotInside;
+    private bool _shotNight;
     private string? _shotProp;
 
     private bool _chunkBench;
@@ -107,6 +109,7 @@ public partial class Main
         _checkMenu = HasArg("--selftest-menu");
         _checkCarUpgrades = HasArg("--check-car-upgrades");
         _checkCarAssembly = HasArg("--check-car-assembly");
+        _checkZastavaDetail = HasArg("--check-zastava-detail");
         _selfTestAssembly = HasArg("--selftest-assembly");
         _selfTestUpgrades = HasArg("--selftest-upgrades");
         if (_chunkRun) DisplayServer.WindowSetVsyncMode(DisplayServer.VSyncMode.Disabled);
@@ -124,13 +127,16 @@ public partial class Main
         _shotMapUi = HasArg("--shot-mapui");
         _shotGarage = HasArg("--shot-garage");
         _shotDrive = HasArg("--shot-drive");
+        _shotInside = HasArg("--shot-inside");
+        _shotNight = HasArg("--night");
         _shotProp = ArgValue("--shot-prop=");
 
         // --shot-prop разбирается до этой строки: раньше порядок был обратный,
         // и превью пропа без второго --shot-флага не включало режим снимка.
         _shot = HasArg("--shot") || _openJournalInShot || _shotMenu || _shotDay || _shotSettings
                 || _shotRain || _shotCar || _shotLineup || _shotCars || _shotBackpack
-                || _shotMap || _shotMapUi || _shotGarage || _shotDrive || _shotProp is not null;
+                || _shotMap || _shotMapUi || _shotGarage || _shotDrive || _shotInside
+                || _shotProp is not null;
     }
 
     private static void PrintSoundDiagnostics()
@@ -221,7 +227,20 @@ public partial class Main
         _streamer.BuildAround(s);
         PlaceCarOnChunkRoad(s);
         _camera.GlobalPosition = _car.GlobalPosition + _car.GlobalBasis.Z * 9f + Vector3.Up * 4f;
-        _car.Session.Clock.SetTotalMinutes((_shotDay || _shotCar ? 12.0 : 18.75) * 60);
+        _car.Session.Clock.SetTotalMinutes((_shotNight ? 22.0 : _shotDay || _shotCar || _shotInside ? 12.0 : 18.75) * 60);
+
+        // --shot-inside: вид из-за руля — салон и стёкла на игре, а не на стенде.
+        if (_shotInside)
+        {
+            Transform3D basis = _car.GlobalTransform;
+            _camera.ProcessMode = ProcessModeEnum.Disabled;
+            _camera.LookAtFromPosition(basis * new Vector3(-0.36f, 0.62f, -0.15f),
+                basis * new Vector3(-0.3f, 0.52f, -6f));
+
+            GD.Print($"[shot] из салона: машина {_car.GlobalPosition}, "
+                     + $"время {_car.Session.Clock.Hour}:{_car.Session.Clock.Minute:00}");
+            return;
+        }
 
         // Место для превью — дорога под машиной: центр и направление.
         Vector3 center = _car.GlobalPosition with { Y = _car.GlobalPosition.Y - 0.6f };
