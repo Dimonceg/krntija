@@ -208,6 +208,7 @@ public partial class Main
 
         // Кузов показывает то, что решает ядро: детали и открытые панели (ADR 0003, п. 6).
         SyncAssemblyState();
+        SyncDust();
 
         _camera.Target = _car;
         _hud.Car = _car;

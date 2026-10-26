@@ -139,13 +139,27 @@ def ask_model(model: str, prompt: str, num_gpu: int | None, temperature: float,
         "options": options,
     }
     data = json.dumps(payload).encode("utf-8")
-    request = urllib.request.Request(OLLAMA_URL, data=data,
-                                     headers={"Content-Type": "application/json"})
 
-    with urllib.request.urlopen(request, timeout=timeout) as response:
-        result = json.loads(response.read().decode("utf-8"))
+    # 500 бывает сразу после загрузки модели: ждём и пробуем ещё раз.
+    for attempt in range(3):
+        request = urllib.request.Request(OLLAMA_URL, data=data,
+                                         headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                result = json.loads(response.read().decode("utf-8"))
+            return result.get("message", {}).get("content", "") or ""
+        except urllib.error.HTTPError as error:
+            if error.code < 500 or attempt == 2:
+                raise
+            print(f"  Ollama ответила {error.code}, повтор через 8 с…")
+            time.sleep(8)
+        except (TimeoutError, urllib.error.URLError):
+            if attempt == 2:
+                raise
+            print("  Ollama не отвечает, повтор через 8 с…")
+            time.sleep(8)
 
-    return result.get("message", {}).get("content", "") or ""
+    return ""
 
 
 # ---------------------------------------------------------------- файлы
@@ -255,6 +269,18 @@ def child_env(dotnet_root: Path, godot_dir: Path) -> dict[str, str]:
     return env
 
 
+def ensure_import(godot: Path, env: dict[str, str]):
+    """В свежем worktree ассетов нет в .godot: без импорта Godot-проверки красные."""
+    imported = ROOT / "game" / ".godot" / "imported"
+    if imported.is_dir():
+        return
+
+    print("  импорт ассетов (первый прогон в этой папке)…")
+    subprocess.run([str(godot), "--headless", "--path", "game", "--import"], cwd=ROOT,
+                   capture_output=True, text=True, encoding="utf-8", errors="replace",
+                   env=env, timeout=1800)
+
+
 def run_command(command: str, env: dict[str, str], timeout: int = 900) -> tuple[int, str]:
     print(f"  $ {command}")
     started = time.time()
@@ -357,6 +383,7 @@ def main() -> int:
 
     dotnet_root, godot = read_env()
     env = child_env(dotnet_root, godot.parent)
+    ensure_import(godot, env)
     stamp = datetime.now().strftime("%Y%m%d-%H%M")
     run_dir = RUNS_DIR / f"{stamp}_{args.task}"
     (run_dir / "prompts").mkdir(parents=True, exist_ok=True)
