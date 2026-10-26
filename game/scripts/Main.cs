@@ -20,7 +20,7 @@ namespace Krntija.Game;
 public partial class Main : Node3D
 {
     /// <summary>Проверки сохраняются в свой файл: иначе check.ps1 затирал сейв игрока.</summary>
-    private string SavePath => _selfTest || _selfTestCars || _checkChunkPlaces
+    private string SavePath => _selfTest || _selfTestCars || _checkChunkPlaces || _checkMenu
         ? "user://check_save.json"
         : "user://save.json";
 
@@ -215,6 +215,12 @@ public partial class Main : Node3D
         _menu.EscapePressed += OnEscape;
 
         // Проверка выбора машины: жмём кнопки и сверяем спеку. Без окна и мыши.
+        if (_checkMenu)
+        {
+            RunMenuCheck();
+            return;
+        }
+
         if (_selfTestCars)
         {
             RunCarSelectCheck();
@@ -409,9 +415,6 @@ public partial class Main : Node3D
 
         switch (key.Keycode)
         {
-            case Key.Escape:
-                if (_backpack.IsOpen) _backpack.Close();
-                break;
             case Key.B:
                 ToggleBackpack();
                 break;

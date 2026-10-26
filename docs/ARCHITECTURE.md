@@ -125,6 +125,13 @@ switch (WorldActions.TryRepairAtWorkbench(_car.Session, out var part))
   за закрытой дверью и обводку; с окном (без `--headless`) сохраняет снимки
   `user://interact_*.png`.
 
+### Esc и пауза
+
+- Esc ловит `MenuUi` (он работает и на паузе) и отдаёт `Main.OnEscape`: сначала
+  закрываются окна игры (`CloseGameWindows`: рюкзак, карта, журнал, лавка), и
+  только из чистой игры — пауза. Новое окно поверх игры — добавить туда.
+- `--selftest-menu` проверяет B → Esc, паузу и «Продолжить» настоящим вводом.
+
 ### `Variant` и результаты физических запросов
 
 - Поля результата `IntersectRay`/`IntersectShape` читать только через

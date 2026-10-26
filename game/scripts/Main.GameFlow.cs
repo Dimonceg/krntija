@@ -29,19 +29,36 @@ public partial class Main
 
     private bool HasSave() => System.IO.File.Exists(ProjectSettings.GlobalizePath(SavePath));
 
+    /// <summary>
+    /// Esc: сначала закрывает открытое окно игры (рюкзак, карту, журнал, лавку),
+    /// и только из чистой игры — пауза. Меню ловит Esc раньше игры, поэтому решение здесь.
+    /// </summary>
     private void OnEscape()
     {
         if (!_menu.IsOpen)
         {
-            PauseGame();
+            if (!CloseGameWindows()) PauseGame();
             return;
         }
 
         if (!_menu.InMainMode) ResumeGame();
     }
 
+    /// <summary>Закрыть окна поверх игры и свободный курсор; false — закрывать было нечего.</summary>
+    private bool CloseGameWindows()
+    {
+        bool closed = _backpack.IsOpen || _mapUi.IsOpen || _hud.Screen != HudScreen.None;
+        if (_backpack.IsOpen) _backpack.Close();
+        if (_mapUi.IsOpen) _mapUi.Toggle();
+        _hud.Screen = HudScreen.None;
+        SetCursorFree(false);
+        return closed;
+    }
+
     private void PauseGame()
     {
+        // Пауза поверх рюкзака оставляла его и свободный курсор висеть после «Продолжить».
+        CloseGameWindows();
         GetTree().Paused = true;
         _hud.Visible = false;
         Input.MouseMode = Input.MouseModeEnum.Visible;
@@ -135,6 +152,7 @@ public partial class Main
 
     private void LoadGame()
     {
+        _loads++; // --selftest-menu: пауза не должна грузить сейв
         var path = ProjectSettings.GlobalizePath(SavePath);
         if (!System.IO.File.Exists(path))
         {

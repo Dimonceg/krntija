@@ -99,6 +99,8 @@ public partial class MenuUi : CanvasLayer
             return;
         }
 
+        // Esc целиком решает Main (окно или пауза): дальше по дереву не пускаем.
+        GetViewport().SetInputAsHandled();
         EscapePressed?.Invoke();
     }
 
@@ -219,6 +221,41 @@ public partial class MenuUi : CanvasLayer
     public void Close() => _root.Visible = false;
 
     public bool InMainMode => _mainMode;
+
+    /// <summary>Кнопки на экране через запятую: для проверок.</summary>
+    public string Buttons => string.Join(", ", ButtonList().ConvertAll(button => button.Text));
+
+    /// <summary>
+    /// Клик мышью в середину кнопки — через настоящий ввод, со всеми слоями поверх.
+    /// Без окна (--headless) интерфейс не раскладывается: тогда просто сигнал кнопки.
+    /// </summary>
+    public void ClickButton(string text)
+    {
+        if (ButtonList().Find(button => button.Text == text && !button.IsQueuedForDeletion()) is not { } target) return;
+        if (DisplayServer.GetName() == "headless")
+        {
+            target.EmitSignal(BaseButton.SignalName.Pressed);
+            return;
+        }
+
+        Vector2 at = target.GetGlobalRect().GetCenter();
+        foreach (bool pressed in new[] { true, false })
+        {
+            using var click = new InputEventMouseButton
+            {
+                ButtonIndex = MouseButton.Left, Pressed = pressed, Position = at, GlobalPosition = at,
+            };
+            Input.ParseInputEvent(click);
+        }
+    }
+
+    private System.Collections.Generic.List<Button> ButtonList()
+    {
+        var list = new System.Collections.Generic.List<Button>();
+        foreach (var child in _buttons.GetChildren())
+            if (child is Button button) list.Add(button);
+        return list;
+    }
 
     private void Clear()
     {

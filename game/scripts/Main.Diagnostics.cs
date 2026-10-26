@@ -103,6 +103,7 @@ public partial class Main
         _chunkRun = HasArg("--chunk-run");
         _checkChunkPlaces = HasArg("--chunk-places");
         _checkInteract = HasArg("--selftest-interact");
+        _checkMenu = HasArg("--selftest-menu");
         if (_chunkRun) DisplayServer.WindowSetVsyncMode(DisplayServer.VSyncMode.Disabled);
 
         _openJournalInShot = HasArg("--shot-ui");
