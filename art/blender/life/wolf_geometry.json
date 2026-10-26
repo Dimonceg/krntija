@@ -1,0 +1,31 @@
+{
+  "triangles": 2280,
+  "materials": 1,
+  "bones": 25,
+  "clips": {
+    "idle": {
+      "seconds": 2.5,
+      "loop": true
+    },
+    "walk": {
+      "seconds": 1.0,
+      "loop": true
+    },
+    "run": {
+      "seconds": 0.6,
+      "loop": true
+    },
+    "attack": {
+      "seconds": 0.8,
+      "loop": false
+    }
+  },
+  "withers_m": 0.75,
+  "torso_length_m": 1.16,
+  "root_motion": false,
+  "size_x_y_z": [
+    0.49000000953674316,
+    1.0149999856948853,
+    2.036860942840576
+  ]
+}

@@ -249,6 +249,7 @@ public partial class Main
             "ruins_a", "ruins_b", "ruins",
             "farm_a", "farm_b", "farm",
             "checkpoint_a", "checkpoint",
+            "wolf",
         };
 
         bool ok = true;
