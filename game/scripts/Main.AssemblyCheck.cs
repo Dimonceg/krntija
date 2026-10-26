@@ -36,6 +36,13 @@ public partial class Main
         }
 
         var sockets = CarAssemblyVisual.Sockets.Concat(CarAssemblyVisual.WheelSockets).ToArray();
+
+        // Id гнёзд в сцене — те же, что в раскладке ядра (PartSlotIds): иначе
+        // механика рук спросит у Car гнездо, которого нет.
+        var coreIds = Krntija.Core.CarLayout.Zastava101.Slots
+            .Select(slot => Krntija.Core.PartSlotIds.Of(slot.Slot)).OrderBy(id => id).ToArray();
+        Check(coreIds.SequenceEqual(sockets.OrderBy(id => id)),
+            $"гнёзда сцены = раскладка ядра ({string.Join(", ", coreIds)})");
         var missing = sockets.Where(id => _car.SocketGlobal(id) is null).ToArray();
         Check(missing.Length == 0, $"все {sockets.Length} гнёзд дают трансформ (нет: {string.Join(", ", missing)})");
 
@@ -43,6 +50,14 @@ public partial class Main
         Vector3 local(string id) => _car.ToLocal(_car.SocketGlobal(id)!.Value.Origin);
         Check(local("hood").Z < 0 && local("trunk").Z > 0 && local("door_fl").X < 0 && local("door_fr").X > 0,
             "гнёзда стоят по своим местам кузова");
+
+        // Детали от арта (B2) стоят в гнёздах вместо коробок-заглушек.
+        foreach (string id in new[] { "engine", "radiator", "battery" })
+        {
+            bool model = assembly.PartNode(id)?.FindChildren("*", nameof(MeshInstance3D), true, false)
+                .OfType<MeshInstance3D>().Any(mesh => mesh.Mesh is not BoxMesh) == true;
+            Check(model, $"{id}: в гнезде модель, а не заглушка");
+        }
 
         var state = new SceneAssemblyState();
         assembly.State = state;
