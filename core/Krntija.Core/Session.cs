@@ -53,7 +53,21 @@ public sealed class GameSession
     public HashSet<string> Upgrades { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Рекорд дальности от дома, метры. Часть прогресса, а не счётчик сессии.</summary>
-    public double BestDistanceMeters { get; set; }
+    public double BestDistanceMeters { get; private set; }
+
+    /// <summary>Станция вдоль дороги: расстояние от дома по осевой линии, метры.</summary>
+    public double RoadS { get; private set; }
+
+    /// <summary>Тир мира на текущей станции: от километража по дороге, а не от одометра.</summary>
+    public int Tier => WorldGen.WorldGenerator.Tier(RoadS);
+
+    /// <summary>Сцена сообщает станцию каждый кадр; тир и рекорд считаются здесь.</summary>
+    public void StepRoad(double s)
+    {
+        RoadS = Math.Max(0, s);
+        if (RoadS > BestDistanceMeters) BestDistanceMeters = RoadS;
+    }
+
     public GameClock Clock { get; }
     public Pcg32 Rng { get; }
     public Wallet Wallet { get; }
@@ -266,8 +280,11 @@ public sealed class SaveData
     public List<ItemSave> HomeItems { get; set; } = new();
     public List<string> UpgradeIds { get; set; } = new();
 
-    /// <summary>Рекорд дальности в метрах: переживает загрузку.</summary>
+    /// <summary>Рекорд дальности по дороге, метры.</summary>
     public double BestDistanceMeters { get; set; }
+
+    /// <summary>Рекорд дальности в метрах: переживает загрузку.</summary>
+
     public ulong RngState { get; set; }
     public List<string> WorldDone { get; set; } = new();
 }
