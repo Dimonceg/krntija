@@ -283,8 +283,6 @@ public sealed class SaveData
     /// <summary>Рекорд дальности по дороге, метры.</summary>
     public double BestDistanceMeters { get; set; }
 
-    /// <summary>Рекорд дальности в метрах: переживает загрузку.</summary>
-
     public ulong RngState { get; set; }
     public List<string> WorldDone { get; set; } = new();
 }

@@ -47,13 +47,4 @@ public static class Journey
 
         return Math.Max(0, nextStart - s);
     }
-
-    /// <summary>Обновить рекорд дальности: возвращает true, если рекорд побит.</summary>
-    public static bool UpdateRecord(GameSession session, double s)
-    {
-        if (s <= session.BestDistanceMeters) return false;
-
-        session.StepRoad(s);
-        return true;
-    }
 }
