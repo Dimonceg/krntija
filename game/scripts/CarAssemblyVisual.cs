@@ -50,9 +50,6 @@ public partial class CarAssemblyVisual : Node3D
     /// <summary>Гнёзда колёс в порядке <c>Car.Anchors</c>: FL, FR, RL, RR.</summary>
     public static readonly string[] WheelSockets = { "wheel_fl", "wheel_fr", "wheel_rl", "wheel_rr" };
 
-    /// <summary>Машины с раскладкой гнёзд. Временно здесь, пока ядро не даст <c>CarLayout</c> (A1).</summary>
-    private static readonly HashSet<string> LaidOut = new() { "zastava_101" };
-
     /// <summary>Модель детали по умолчанию в гнезде: <c>parts/part_&lt;defId&gt;.glb</c>.</summary>
     private static readonly Dictionary<string, string> DefaultPart = new()
     {
@@ -80,7 +77,8 @@ public partial class CarAssemblyVisual : Node3D
     private bool _wholeBody;
     private ICarAssemblyState _state = new SceneAssemblyState();
 
-    public static bool HasLayout(string specId) => LaidOut.Contains(specId);
+    /// <summary>Есть ли у машины гнёзда — решает ядро (<see cref="Krntija.Core.CarLayout"/>).</summary>
+    public static bool HasLayout(string specId) => Krntija.Core.CarLayout.For(specId) is not null;
 
     /// <summary>Откуда брать «установлено» и «открыто». Сменить можно в любой момент.</summary>
     public ICarAssemblyState State
