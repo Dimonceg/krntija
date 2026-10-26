@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using Godot;
 using Krntija.Core;
@@ -8,9 +9,10 @@ namespace Krntija.Game;
 
 /// <summary>
 /// --selftest-assembly (ADR 0003, A5): руки, магнит и сборка машины без рук игрока.
-/// Снять капот и двигатель, положить, взять, примагнитить, поставить; с закрытым
-/// капотом двигатель не ставится; без аккумулятора не заводится; старт в гараже —
-/// собрать машину целиком и уехать; сейв посреди сборки.
+/// Старт в сборочном боксе (A6): машина на якоре, детали на местах, ворота закрыты;
+/// после сборки ворота открываются (E) и машина выезжает. Снять капот и двигатель,
+/// положить, взять, примагнитить, поставить; с закрытым капотом двигатель не
+/// ставится; без аккумулятора не заводится; сейв посреди сборки.
 /// </summary>
 public partial class Main
 {
@@ -25,19 +27,36 @@ public partial class Main
             for (int i = 0; i < count; i++) await ToSignal(GetTree(), SceneTree.SignalName.PhysicsFrame);
         }
 
-        // Встать рядом с точкой так, чтобы камера смотрела на неё: иначе SelectTarget
-        // выбирает по взгляду и проверка была бы не про то.
-        void StandAt(Vector3 at)
+        // Пол бокса: у якоря машины, иначе пол дома.
+        float FloorY()
         {
-            Vector3 away = at - _car.GlobalPosition;
-            away.Y = 0;
-            if (away.LengthSquared() < 0.01f) away = Vector3.Forward;
-            away = away.Normalized();
+            if (HouseNode() is not { } house) return _houseGroundY;
 
-            _player!.Teleport(at + away * 0.6f + Vector3.Up * 0.1f);
-            Vector3 eye = _player.GlobalPosition + Vector3.Up * 1.5f;
-            Vector3 dir = (at - eye).Normalized();
-            _camera.GlobalPosition = eye - dir * 0.2f;
+            return house.FindChild("GarageCarAnchor", true, false) is Node3D anchor
+                ? anchor.GlobalPosition.Y
+                : _houseGroundY;
+        }
+
+        // Встать рядом с точкой на полу бокса и смотреть на неё: иначе SelectTarget
+        // выбирает по взгляду и проверка была бы не про то. У детали в мире — со
+        // стороны машины, у детали машины и створки ворот — снаружи от неё.
+        void Stand(Vector3 at, bool awayFromCar, float distance = 0.6f)
+        {
+            // Проверка сама не должна оставаться за рулём: руки работают только пешком.
+            if (_player is null) ExitCar();
+
+            Vector3 dir = at - _car.GlobalPosition;
+            dir.Y = 0;
+            if (dir.LengthSquared() < 0.01f) dir = Vector3.Forward;
+            dir = dir.Normalized();
+            if (!awayFromCar) dir = -dir;
+
+            Vector3 feet = new(at.X + dir.X * distance, FloorY() + 0.05f, at.Z + dir.Z * distance);
+            _player!.Teleport(feet);
+
+            Vector3 eye = feet + Vector3.Up * 1.5f;
+            Vector3 look = (at - eye).Normalized();
+            _camera.GlobalPosition = eye - look * 0.2f;
             _camera.LookAt(at, Vector3.Up);
 
             UpdateHands();
@@ -56,7 +75,10 @@ public partial class Main
         {
             if (LooseBody(defId) is not { } body) return false;
 
-            StandAt(body.GlobalPosition);
+            // Деталь на столе стоит выше пола: от стола отходим дальше, иначе игрок
+            // оказывается внутри столешницы и не видит деталь.
+            float distance = body.GlobalPosition.Y > FloorY() + 0.8f ? 1.2f : 0.6f;
+            Stand(body.GlobalPosition, awayFromCar: false, distance);
             if (SelectTarget().Kind != TargetKind.LoosePart) return false;
 
             // Подсказка на экране — та, что видит игрок, а не отдельный вызов.
@@ -74,7 +96,7 @@ public partial class Main
         {
             if (SocketPosition(slot) is not { } at) return false;
 
-            StandAt(at);
+            Stand(at, awayFromCar: true);
             if (_snapSlot != slot) return false;
 
             if (!_hud.Prompt.Contains("установить"))
@@ -91,12 +113,25 @@ public partial class Main
         {
             if (SocketPosition(slot) is not { } at) return false;
 
-            StandAt(at);
+            Stand(at, awayFromCar: true);
             TakeAimedPart();
             return _held is not null;
         }
 
         bool IsOpen(PartSlot slot) => AssemblyRules.IsOpen(_car.Session.Vehicle, slot);
+
+        // Створка ворот: E на двери, как у игрока.
+        bool ToggleGate(string name)
+        {
+            var point = _interactions.FirstOrDefault(p => p.Door?.Name == name);
+            if (point?.Door is not { } door) return false;
+
+            Stand(door.Center, awayFromCar: false);
+            if (SelectTarget().Point?.Door != door) return false;
+
+            Interact();
+            return door.IsOpen;
+        }
 
         // С окном — снимки для ревью (user://assembly_*.png); камера остаётся под проверкой.
         async System.Threading.Tasks.Task Shot(string name, Vector3 at)
@@ -112,6 +147,40 @@ public partial class Main
         Check(StartScenario.NeedsAssembly(_car.Session.Vehicle), "старт в гараже: машина разобрана");
         Check(_car.Session.LooseParts.Count == 6, $"деталей в мире: {_car.Session.LooseParts.Count}");
         Check(_hud.Objective.Contains("Собери"), $"задача в HUD: «{_hud.Objective}»");
+
+        // A6: машина стоит в боксе по якорю, детали — по местам, ворота закрыты.
+        var house = HouseNode();
+        Check(house?.FindChild("GarageCarAnchor", true, false) is Node3D, "в доме есть GarageCarAnchor");
+        if (house is not null)
+        {
+            Vector3 localCar = house.ToLocal(_car.GlobalPosition);
+            Check(Mathf.Abs(localCar.X - 9f) < 0.5f && Mathf.Abs(localCar.Z + 1f) < 0.5f,
+                $"машина на якоре бокса: {localCar}");
+        }
+
+        foreach (string name in new[] { "GarageBayLeft", "GarageBayRight" })
+            Check(_interactions.Any(p => p.Door?.Name == name && !p.Door.IsOpen),
+                $"ворота {name} закрыты на старте");
+
+        if (house is not null)
+        {
+            var spots = SpotPoses(house);
+            Check(spots.Count == 8, $"мест PartSpot_* в боксе: {spots.Count}");
+
+            foreach (var placement in StartScenario.ZastavaGarage.LooseParts)
+            {
+                Check(spots.Any(spot => spot.Spot == placement.Spot), $"есть место {placement.Spot}");
+                var pose = spots.FirstOrDefault(spot => spot.Spot == placement.Spot);
+                var loose = _car.Session.LooseParts.Items.FirstOrDefault(part => part.DefId == placement.DefId);
+                Check(loose is not null, $"{placement.DefId} лежит в боксе");
+                if (loose is null) continue;
+
+                double dx = loose.X - pose.X;
+                double dz = loose.Z - pose.Z;
+                Check(Math.Sqrt(dx * dx + dz * dz) < 1.0 && Math.Abs(loose.Y - pose.Y) < 1.2,
+                    $"{placement.DefId} на месте {placement.Spot}");
+            }
+        }
 
         // Сейв и загрузка посреди сборки: пустые гнёзда и детали на месте.
         SaveGame();
@@ -138,7 +207,7 @@ public partial class Main
         Check(TakePart("hood_101"), "капот снова в руках");
         if (SocketPosition(PartSlot.Hood) is { } hoodGhost)
         {
-            StandAt(hoodGhost);
+            Stand(hoodGhost, awayFromCar: true);
             await Shot("assembly_hood_magnet", hoodGhost);
         }
 
@@ -154,7 +223,7 @@ public partial class Main
         Check(TakePart("engine_1_6"), "двигатель в руках");
         var engineSocket = SocketPosition(PartSlot.Engine);
         Check(engineSocket is not null, "у машины есть гнездо двигателя");
-        if (engineSocket is { } engineAt) StandAt(engineAt);
+        if (engineSocket is { } engineAt) Stand(engineAt, awayFromCar: true);
 
         Check(_snapSlot is null, $"с закрытым капотом магнита нет: {_snapSlot}");
         Interact();
@@ -166,7 +235,7 @@ public partial class Main
         Check(hoodSocket is not null, "у машины есть гнездо капота");
         if (hoodSocket is { } hoodAt)
         {
-            StandAt(hoodAt);
+            Stand(hoodAt, awayFromCar: true);
             var aim = SelectTarget();
             Check(aim.Kind == TargetKind.CarPart && aim.Slot == PartSlot.Hood,
                 $"E смотрит на капот: {aim.Kind}/{aim.Slot}");
@@ -177,7 +246,7 @@ public partial class Main
         Check(TakePart("engine_1_6"), "двигатель снова в руках");
         if (SocketPosition(PartSlot.Engine) is { } engineGhost)
         {
-            StandAt(engineGhost);
+            Stand(engineGhost, awayFromCar: true);
             await Shot("assembly_engine_magnet", engineGhost);
         }
 
@@ -216,17 +285,31 @@ public partial class Main
         Check(!StartScenario.NeedsAssembly(_car.Session.Vehicle), "машина собрана целиком");
         await Shot("assembly_done", _car.GlobalPosition);
         Check(_car.Session.LooseParts.Count == 0, $"деталей в мире: {_car.Session.LooseParts.Count}");
-        await Frames(2);
+
+        // Обновление HUD идёт в _Process, а кадры проверки — физические: зовём то же
+        // обновление сами, иначе проверка гоняется с кадром.
+        UpdateAssemblyObjective();
         Check(!_hud.Objective.Contains("Собери"), $"задача сборки снята: «{_hud.Objective}»");
 
-        // 8. Завестись и уехать.
+        // 8. Открыть ворота бокса (E на каждой створке), завестись и выехать наружу.
+        Check(ToggleGate("GarageBayLeft"), "левая створка ворот открыта (E)");
+        Check(ToggleGate("GarageBayRight"), "правая створка ворот открыта (E)");
+
         EnterCar();
         await Frames(3);
         _car.SetHandbrake(false);
         _car.ForcedInput = new DriveInput(Ignition: true, Throttle: 0.7);
-        await Frames(90);
+        await Frames(180);
         Check(_car.Session.Vehicle.EngineRunning, "двигатель завёлся");
         Check(_car.SpeedMps > 1f, $"машина поехала: {_car.SpeedMps:F2} м/с");
+
+        if (HouseNode() is { } houseNow)
+        {
+            // Ворота дома в локальных координатах на z = −5,5; выехали — значит дальше.
+            float z = houseNow.ToLocal(_car.GlobalPosition).Z;
+            Check(z < -6.2f, $"машина выехала из бокса: z={z:F1}");
+        }
+
         _car.ForcedInput = null;
         _car.SetHandbrake(true);
 

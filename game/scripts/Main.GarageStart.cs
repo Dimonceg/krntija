@@ -6,22 +6,22 @@ using Krntija.Core.Parts;
 namespace Krntija.Game;
 
 /// <summary>
-/// Старт в гараже дома (ADR 0003, п. 5): машина у ворот гаража, снятые детали
-/// лежат рядом, в HUD — задача «Собери машину», пока все гнёзда не заняты.
+/// Старт в гараже дома (ADR 0003, п. 5): машина в сборочном боксе, снятые детали
+/// лежат на своих местах, в HUD — задача «Собери машину», пока все гнёзда не заняты.
 /// </summary>
 /// <remarks>
-/// Где стоят машина и детали, решает ядро (<see cref="StartScenario"/>); сцена
-/// только поворачивает смещения на угол дома и ставит тела. Якоря
-/// <c>GarageCarAnchor</c> и <c>PartSpot_*</c> из модели дома появятся у арт-модели
-/// (B3), до тех пор берём смещения от ворот гаража процедурного дома.
+/// Где стоят машина и детали, решает ядро (<see cref="StartScenario"/>: какая
+/// деталь на каком месте); сцена находит якоря <c>GarageCarAnchor</c> и
+/// <c>PartSpot_0…7</c> в модели дома и отдаёт ядру их позы. Якорей нет — работаем
+/// по запасным смещениям от старого гаража.
 /// </remarks>
 public partial class Main
 {
+    private const string CarAnchorName = "GarageCarAnchor";
+    private const string PartSpotPrefix = "PartSpot_";
+
     /// <summary>
-    /// Машина перед воротами гаража (проём в фасаде x 2.5…5.5, пол на y = 0),
-    /// носом от дома. В нынешнем гараже (3,3 × 4 м) вокруг машины не пройти, а
-    /// к моторному отсеку нужно подходить спереди — арт B3 расширит гараж, и
-    /// якорь <c>GarageCarAnchor</c> поставит машину внутрь.
+    /// Запасной путь без якорей: машина перед воротами старого гаража, носом от дома.
     /// </summary>
     private static readonly Vector3 GarageCarLocal = new(4.0f, 0f, -6.4f);
 
@@ -31,7 +31,7 @@ public partial class Main
     private readonly List<RigidBody3D> _loosePartBodies = new();
 
     /// <summary>
-    /// Поставить машину к гаражу и разложить снятые детали. False — у машины нет
+    /// Поставить машину в бокс и разложить снятые детали. False — у машины нет
     /// раскладки, старт обычный (на дороге, машина собрана).
     /// </summary>
     private bool PlaceCarAtGarage()
@@ -40,11 +40,35 @@ public partial class Main
         var plan = StartScenario.For(session.Vehicle.Spec.Id);
         if (plan is null) return false;
 
+        var house = HouseNode();
+        Node3D? carAnchor = house?.FindChild(CarAnchorName, true, false) as Node3D;
+        List<SpotPose>? spots = null;
+
         Vector3 carScene = _car.GlobalPosition;
         float yaw = _car.Rotation.Y;
 
-        if (HouseNode() is { } house)
+        if (carAnchor is not null && house is not null)
         {
+            // Якорь задаёт пол бокса, перед машины (−Z) смотрит на ворота.
+            carScene = carAnchor.GlobalPosition;
+            yaw = carAnchor.GlobalRotation.Y;
+
+            // Шасси над полом: колёса должны лечь на пол, а не провалиться в него.
+            float lift = (float)session.Vehicle.Spec.WheelRadiusM + 0.02f;
+
+            _car.GlobalPosition = carScene + Vector3.Up * lift;
+            _car.Rotation = new Vector3(0, yaw, 0);
+            _car.LinearVelocity = Vector3.Zero;
+            _car.AngularVelocity = Vector3.Zero;
+
+            // Дорога рядом не нужна: автопилот проверок пусть едет от машины.
+            SteerAlongChunkRoad();
+
+            spots = SpotPoses(house);
+        }
+        else if (house is not null)
+        {
+            // Якорей нет (дом старый или арт не подвезли) — прежний путь на смещениях.
             carScene = house.ToGlobal(GarageCarLocal);
             yaw = house.GlobalRotation.Y;
 
@@ -53,16 +77,33 @@ public partial class Main
             _car.LinearVelocity = Vector3.Zero;
             _car.AngularVelocity = Vector3.Zero;
 
-            // Дорога рядом не нужна: автопилот проверок пусть едет от машины.
             SteerAlongChunkRoad();
         }
 
         var (worldX, worldZ) = WorldOrigin.ToWorld(carScene);
-        StartScenario.Apply(session, worldX, carScene.Y, worldZ, yaw);
+        StartScenario.Apply(session, worldX, carScene.Y, worldZ, yaw, spots);
 
         SpawnLooseParts();
-        GD.Print($"[garage] {plan.EmptySlots.Count} деталей снято, {session.LooseParts.Count} лежат у гаража");
+        GD.Print($"[garage] якорь машины: {(carAnchor is not null ? "есть" : "нет")}, "
+                 + $"мест деталей: {spots?.Count ?? 0}; снято {plan.EmptySlots.Count}, "
+                 + $"в мире {session.LooseParts.Count}");
         return true;
+    }
+
+    /// <summary>Позы якорей деталей <c>PartSpot_N</c> в мировых координатах.</summary>
+    private static List<SpotPose> SpotPoses(Node3D house)
+    {
+        var spots = new List<SpotPose>(8);
+
+        for (int i = 0; i < 8; i++)
+        {
+            if (house.FindChild($"{PartSpotPrefix}{i}", true, false) is not Node3D node) continue;
+
+            var (x, z) = WorldOrigin.ToWorld(node.GlobalPosition);
+            spots.Add(new SpotPose(i, x, node.GlobalPosition.Y, z, node.GlobalRotation.Y));
+        }
+
+        return spots;
     }
 
     /// <summary>Дом игрока: держим узел из мира кусками, иначе ищем по имени.</summary>
@@ -100,11 +141,10 @@ public partial class Main
         var body = BuildLoosePartBody(loose);
         _loosePartsRoot.AddChild(body);
 
-        // Деталь не должна оказаться в земле: старт в гараже задаёт высоту от пола
-        // дома, а двор может быть выше. Ставим на первую твёрдую поверхность.
+        // Деталь не должна оказаться в земле: высота из плана может быть ниже двора.
         Vector3 scene = WorldOrigin.ToScene(loose.X, loose.Y, loose.Z);
         Vector3 size = LoosePartLook.Size(loose.Definition?.Slot ?? PartSlot.Body);
-        float ground = GroundY(scene + Vector3.Up * 2f);
+        float ground = SurfaceUnder(scene, body);
         float y = Mathf.Max(scene.Y, ground + size.Y * 0.5f + 0.05f);
 
         loose.Y = y;
@@ -114,8 +154,25 @@ public partial class Main
         return body;
     }
 
-    private static RigidBody3D BuildLoosePartBody(LoosePart loose)
+    /// <summary>
+    /// Твёрдая поверхность под точкой в пределах полутора метров: пол бокса, стол,
+    /// земля. Так деталь не встаёт на крышу (она выше) и не проваливается в двор.
+    /// </summary>
+    private float SurfaceUnder(Vector3 point, RigidBody3D self)
     {
+        var query = PhysicsRayQueryParameters3D.Create(point + Vector3.Up * 0.05f, point - Vector3.Up * 1.5f);
+        var exclude = new Godot.Collections.Array<Rid> { _car.GetRid(), self.GetRid() };
+        if (_player is not null) exclude.Add(_player.GetRid());
+        query.Exclude = exclude;
+
+        var hit = GetWorld3D().DirectSpaceState.IntersectRay(query);
+        if (hit.Count > 0) return PhysicsHit.Position(hit).Y;
+
+        // Под точкой пусто (деталь в земле двора) — берём первую поверхность сверху.
+        return GroundY(point + Vector3.Up);
+    }
+
+    private static RigidBody3D BuildLoosePartBody(LoosePart loose)    {
         var slot = loose.Definition?.Slot ?? PartSlot.Body;
 
         var body = new RigidBody3D

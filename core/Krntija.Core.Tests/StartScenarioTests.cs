@@ -46,6 +46,72 @@ public class StartScenarioTests
     }
 
     [Fact]
+    public void EveryPlacementHasItsOwnSpot()
+    {
+        var spots = StartScenario.ZastavaGarage.LooseParts.Select(placement => placement.Spot).ToList();
+
+        Assert.Equal(spots.Count, spots.Distinct().Count());
+        foreach (int spot in spots)
+            Assert.InRange(spot, 0, 7);
+
+        // Тяжёлое — на полу: двигатель не на столе (места 1 и 6 — верстак).
+        var engine = StartScenario.ZastavaGarage.LooseParts.Single(placement => placement.Slot == PartSlot.Engine);
+        Assert.DoesNotContain(engine.Spot, new[] { 1, 6 });
+
+        // Мелкое можно на стол: аккумулятор — на верстаке.
+        var battery = StartScenario.ZastavaGarage.LooseParts.Single(placement => placement.Slot == PartSlot.Battery);
+        Assert.Contains(battery.Spot, new[] { 1, 6 });
+    }
+
+    [Fact]
+    public void ApplyUsesSpotPosesFromTheBay()
+    {
+        var session = Zastava();
+        var spots = new[]
+        {
+            new SpotPose(1, 11.3, 1.19, 2.7, 0.5),
+            new SpotPose(2, 6.2, 0.40, 1.0, 1.0),
+            new SpotPose(3, 11.5, 0.35, 0.9, 2.0),
+            new SpotPose(4, 11.5, 0.35, -0.9, 3.0),
+            new SpotPose(5, 6.2, 0.35, -1.4, 4.0),
+            new SpotPose(7, 6.3, 0.35, -3.3, 5.0),
+        };
+
+        StartScenario.Apply(session, 100, 5, 100, 1.2, spots);
+
+        foreach (var placement in StartScenario.ZastavaGarage.LooseParts)
+        {
+            var pose = spots.Single(spot => spot.Spot == placement.Spot);
+            var loose = session.LooseParts.Items.Single(part => part.DefId == placement.DefId);
+
+            Assert.Equal(pose.X, loose.X, 6);
+            Assert.Equal(pose.Y, loose.Y, 6);
+            Assert.Equal(pose.Z, loose.Z, 6);
+            Assert.Equal(pose.Yaw, loose.Yaw, 6);
+        }
+
+        // id по-прежнему стабильные и от мест не зависят.
+        Assert.Equal("part:garage:0", session.LooseParts.Items[0].Id);
+    }
+
+    [Fact]
+    public void MissingSpotFallsBackToOffsets()
+    {
+        var session = Zastava();
+        StartScenario.Apply(session, 10, 0.5, -20, 0, new[] { new SpotPose(2, 6.2, 0.4, 1.0, 0.0) });
+
+        var engine = session.LooseParts.Items.Single(part => part.DefId == "engine_1_6");
+        Assert.Equal(6.2, engine.X, 6);
+        Assert.Equal(1.0, engine.Z, 6);
+
+        // Капота нет среди мест — он ложится по запасному смещению (5,2; −8,7) от (10; −20).
+        var hood = session.LooseParts.Items.Single(part => part.DefId == "hood_101");
+        Assert.Equal(10 + 5.2, hood.X, 6);
+        Assert.Equal(-20 - 8.7, hood.Z, 6);
+        Assert.Equal(0.5 + 0.15, hood.Y, 3);
+    }
+
+    [Fact]
     public void ApplyTakesPartsOffAndPutsThemAroundTheCar()
     {
         var session = Zastava();
