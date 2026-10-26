@@ -21,6 +21,7 @@ public static class StaticCaches
         ChunkBuilder.ReleaseCaches();
         InteractionHighlight.ReleaseCaches();
         LandscapeArt.ReleaseCaches();
+        LoosePartLook.ReleaseCaches();
         RoadMeshBuilder.ReleaseCaches();
         WorldVegetation.ReleaseCaches();
         YardDecor.ReleaseCaches();

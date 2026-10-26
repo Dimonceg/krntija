@@ -234,6 +234,13 @@ public partial class Main
         if (_housePosition is { } house) _housePosition = house - delta;
         if (_objectivePosition is { } objective) _objectivePosition = objective - delta;
 
+        // Детали в мире (ADR 0003): узел-корень держит их в координатах сцены.
+        if (_loosePartsRoot is not null)
+        {
+            _loosePartsRoot.Position -= delta;
+            _loosePartsRoot.ForceUpdateTransform();
+        }
+
         RefreshChunkMap();
     }
 }

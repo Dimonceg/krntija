@@ -83,15 +83,20 @@ public partial class Main
     {
         Respawn(GameSession.NewGame(car: spec));
         PlaceCarAtStart(rebuild: true);
+
+        // Машина с раскладкой начинается разобранной у гаража (ADR 0003, п. 5).
+        bool garage = PlaceCarAtGarage();
+
         EngageParkingBrake();
         ResetWorldState();
 
         _objectiveDone = false;
+        _assemblyMissingShown = -1;
         _hud.Objective = string.Empty;
 
         ResumeGame();
-        _hud.Toast($"Новая игра: {spec.Name}");
-        GD.Print($"[newgame] {spec.Id}");
+        _hud.Toast(garage ? $"Новая игра: {spec.Name} — собери машину" : $"Новая игра: {spec.Name}");
+        GD.Print($"[newgame] {spec.Id} гараж={garage}");
     }
 
     /// <summary>Сброс состояния мира при новой игре в той же сцене.</summary>
@@ -176,6 +181,9 @@ public partial class Main
         }
 
         SyncWorldState();
+        // Детали из сейва: тела ставятся по сохранённым мировым координатам.
+        SpawnLooseParts();
+        _assemblyMissingShown = -1;
         _hud.Toast(samePlace ? "Загружено" : "Загружено: сейв из другого мира, машина на старте");
         GD.Print($"[load] мир {data.World}, сид {data.WorldSeed}, место {(samePlace ? "из сейва" : "старт")}");
     }

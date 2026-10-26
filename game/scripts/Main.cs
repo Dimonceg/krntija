@@ -297,6 +297,9 @@ public partial class Main : Node3D
         ApplyWeather();
         RewardNewPlaces();
 
+        // Пока машина не собрана, задача сборки важнее дорожной (ADR 0003, п. 5).
+        if (UpdateAssemblyObjective()) return;
+
         if (_objectiveDone || _objectivePosition is null) return;
 
         _hud.Objective = $"Добраться до: {_objectiveTitle}  (+{Krntija.Core.Economy.Money.Format(WorldActions.ObjectiveReward)})";
