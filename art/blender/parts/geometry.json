@@ -1,0 +1,32 @@
+{
+  "part_engine_1_6": {
+    "triangles": 884,
+    "budget": 1500,
+    "materials": 1,
+    "origin": [
+      0,
+      0,
+      0
+    ]
+  },
+  "part_radiator_std": {
+    "triangles": 368,
+    "budget": 500,
+    "materials": 1,
+    "origin": [
+      0,
+      0,
+      0
+    ]
+  },
+  "part_battery_std": {
+    "triangles": 340,
+    "budget": 400,
+    "materials": 1,
+    "origin": [
+      0,
+      0,
+      0
+    ]
+  }
+}

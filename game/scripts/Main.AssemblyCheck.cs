@@ -44,6 +44,14 @@ public partial class Main
         Check(local("hood").Z < 0 && local("trunk").Z > 0 && local("door_fl").X < 0 && local("door_fr").X > 0,
             "гнёзда стоят по своим местам кузова");
 
+        // Детали от арта (B2) стоят в гнёздах вместо коробок-заглушек.
+        foreach (string id in new[] { "engine", "radiator", "battery" })
+        {
+            bool model = assembly.PartNode(id)?.FindChildren("*", nameof(MeshInstance3D), true, false)
+                .OfType<MeshInstance3D>().Any(mesh => mesh.Mesh is not BoxMesh) == true;
+            Check(model, $"{id}: в гнезде модель, а не заглушка");
+        }
+
         var state = new SceneAssemblyState();
         assembly.State = state;
         state.Open.Add("hood");
