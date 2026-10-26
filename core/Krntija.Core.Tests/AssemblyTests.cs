@@ -371,6 +371,31 @@ public class AssemblyTests
     }
 
     [Fact]
+    public void AimedSlotPicksWhatThePlayerLooksAt()
+    {
+        var target = AssemblyRules.AimedSlot(new[]
+        {
+            (PartSlot.Hood, 22.0, 1.4),
+            (PartSlot.DoorFrontLeft, 8.0, 1.1),
+            (PartSlot.Engine, 3.0, 9.0),      // далеко: рукой не достать
+            (PartSlot.TrunkLid, 60.0, 1.0),   // мимо взгляда
+        });
+
+        Assert.Equal(PartSlot.DoorFrontLeft, target);
+    }
+
+    [Fact]
+    public void AimedSlotIsNullWhenNothingIsInReach()
+    {
+        Assert.Null(AssemblyRules.AimedSlot(Array.Empty<(PartSlot, double, double)>()));
+        Assert.Null(AssemblyRules.AimedSlot(new[]
+        {
+            (PartSlot.Hood, 5.0, AssemblyRules.AimDistance + 0.5),
+            (PartSlot.DoorFrontLeft, AssemblyRules.AimAngle + 5, 1.0),
+        }));
+    }
+
+    [Fact]
     public void CarWithoutLayout_IsNotRemovable()
     {
         var car = Golf();

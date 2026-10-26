@@ -51,6 +51,11 @@ public partial class Main
         Check(local("hood").Z < 0 && local("trunk").Z > 0 && local("door_fl").X < 0 && local("door_fr").X > 0,
             "гнёзда стоят по своим местам кузова");
 
+        // Кузов показывает состояние ядра (A4: старт в гараже — часть деталей снята),
+        // а проверке нужен полностью собранный кузов: подменяем состояние сразу.
+        var state = new SceneAssemblyState();
+        assembly.State = state;
+
         // Детали от арта (B2) стоят в гнёздах вместо коробок-заглушек.
         foreach (string id in new[] { "engine", "radiator", "battery" })
         {
@@ -59,8 +64,6 @@ public partial class Main
             Check(model, $"{id}: в гнезде модель, а не заглушка");
         }
 
-        var state = new SceneAssemblyState();
-        assembly.State = state;
         state.Open.Add("hood");
         state.Open.Add("door_fl");
         await Seconds(0.8f);

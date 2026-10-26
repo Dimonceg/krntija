@@ -128,6 +128,9 @@ public partial class Main
     private void SaveGame()
     {
         var path = ProjectSettings.GlobalizePath(SavePath);
+
+        // Деталь в руках сохраняется у ног игрока (ADR 0003, п. 3).
+        SyncHeldToFeet();
         var data = _car.Session.ToSave();
         data.ObjectiveDone = _objectiveDone;
         data.World = WorldKind;
@@ -204,6 +207,9 @@ public partial class Main
         _car.GlobalPosition = position;
         _car.GlobalRotation = rotation;
         _car.Autopilot = _smoke || _selfTest || _perf || _selfTestCars;
+
+        // Кузов показывает то, что решает ядро: детали и открытые панели (ADR 0003, п. 6).
+        SyncAssemblyState();
 
         _camera.Target = _car;
         _hud.Car = _car;
