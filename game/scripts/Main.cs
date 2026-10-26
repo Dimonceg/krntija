@@ -174,6 +174,12 @@ public partial class Main : Node3D
             return;
         }
 
+        if (_checkInteract)
+        {
+            RunInteractCheck();
+            return;
+        }
+
         if (HasArg("--check-scene"))
         {
             RunSceneReport();
