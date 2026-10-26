@@ -92,14 +92,16 @@ public partial class Main
         Check(overridden == 0, $"PBR не подменяется общим материалом, override: {overridden}");
 
         // Обводка: смотрим на дверь, цель фокуса — модель арта, а не заглушка.
-        Vector3 doorSide = _car.ToGlobal(new Vector3(-1.2f, 0.6f, 0f));
+        // Берём заднюю правую: на старте в боксе левая передняя снята (её нет в сборке).
+        Vector3 rearDoor = _car.ToGlobal(new Vector3(0.95f, 0.55f, 0.55f));
+        Vector3 doorSide = _car.ToGlobal(new Vector3(1.75f, 0.1f, 0.55f));
         _player = _player ?? new Player { Name = "Player" };
         if (_player.GetParent() is null) AddChild(_player);
         _player.Teleport(doorSide);
         _onFoot = true;
-        Vector3 eye = doorSide + Vector3.Up * 1.5f;
+        Vector3 eye = doorSide + Vector3.Up * 1.4f;
         _camera.GlobalPosition = eye;
-        _camera.LookAt(_car.GlobalPosition + Vector3.Up * 0.6f, Vector3.Up);
+        _camera.LookAt(rearDoor, Vector3.Up);
         await Frames(2);
         UpdateHands();
         UpdateFocus();
