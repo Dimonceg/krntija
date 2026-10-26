@@ -10,6 +10,8 @@ namespace Krntija.Game;
 /// </summary>
 public static partial class PlayerHouse
 {
+    // Asymmetric garage and rear pantry extend beyond the original plan rectangle.
+    public static float VisualRadius => new Vector2(12.8f, 8.7f).Length();
     private const float Width = 11f;
     private const float Depth = 8f;
     private const float WallHeight = 2.7f;
