@@ -20,14 +20,44 @@ public class SessionTests
     }
 
     [Fact]
+    public void NewGame_StartsInTheMorning()
+    {
+        var session = GameSession.NewGame();
+
+        Assert.Equal(8, session.Clock.Hour);
+        Assert.Equal(0, session.Clock.Minute);
+        Assert.Equal("День 1, 08:00", session.Clock.ToString());
+        Assert.False(session.Clock.IsNight, "утром не темно");
+    }
+
+    [Fact]
+    public void Clock_PrintsHoursAndMinutes()
+    {
+        var clock = new GameClock();
+
+        clock.SetTotalMinutes(18 * 60 + 45);
+        Assert.Equal("День 1, 18:45", clock.ToString());
+
+        clock.SetTotalMinutes(0);
+        Assert.Equal("День 1, 00:00", clock.ToString());
+
+        clock.SetTotalMinutes(25 * 60 + 5);
+        Assert.Equal("День 2, 01:05", clock.ToString());
+
+        // Полминуты не превращаются в «:00» — показываем целые минуты.
+        clock.SetTotalMinutes(12 * 60 + 59.7);
+        Assert.Equal("День 1, 12:59", clock.ToString());
+    }
+
+    [Fact]
     public void Clock_RunsAtConfiguredScale()
     {
         var session = GameSession.NewGame();
 
-        // 60 реальных секунд при TimeScale = 60 → 1 игровой час.
+        // 60 реальных секунд при TimeScale = 60 → 1 игровой час от старта в 08:00.
         session.Step(60, new VehicleSample(10), new DriveInput());
 
-        Assert.InRange(session.Clock.HourOfDay, 0.9, 1.1);
+        Assert.InRange(session.Clock.HourOfDay, 8.9, 9.1);
     }
 
     [Fact]
