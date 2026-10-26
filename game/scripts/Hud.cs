@@ -197,7 +197,14 @@ public partial class Hud : CanvasLayer
         string ignition = vehicle.EngineRunning ? string.Empty : "  · заглушен";
 
         _speed.Text = $"{Car.Kmh:F0} км/ч\n{train.GearText} · {train.Rpm:F0} об/мин{ignition}{heat}";
-        _info.Text = $"{session.Clock}\n{Money.Format(session.Wallet.Money)}   топливо {vehicle.Fuel.Liters:F1}/{vehicle.Fuel.CapacityLiters:F0} л";
+        double odometer = vehicle.OdometerKm * 1000;
+        Core.Journey.UpdateRecord(session, odometer);
+        int tier = Krntija.Core.WorldGen.WorldGenerator.Tier(odometer);
+        double toNext = Core.Journey.MetersToNextTier(odometer);
+        string nextTier = toNext <= 0 ? "тир максимум" : $"до тира {tier + 1}: {toNext / 1000:F1} км";
+
+        _info.Text = $"{session.Clock}\n{Money.Format(session.Wallet.Money)}   топливо {vehicle.Fuel.Liters:F1}/{vehicle.Fuel.CapacityLiters:F0} л"
+            + $"\nДальше всего: {session.BestDistanceMeters / 1000:F1} км   {nextTier}";
         _vitals.Text = $"Здоровье {survival.Health * 100:F0}%   голод {survival.Hunger * 100:F0}%   "
                        + $"жажда {survival.Thirst * 100:F0}%   сон {survival.Fatigue * 100:F0}%";
         _objective.Text = Objective;
