@@ -44,6 +44,7 @@ public partial class Main
     private bool _shotBackpack;
     private bool _shotMap;
     private bool _shotMapUi;
+    private bool _shotGarage;
     private string? _shotProp;
 
     private bool _chunkBench;
@@ -103,6 +104,9 @@ public partial class Main
         _checkChunkPlaces = HasArg("--chunk-places");
         _checkInteract = HasArg("--selftest-interact");
         _checkMenu = HasArg("--selftest-menu");
+        _checkCarUpgrades = HasArg("--check-car-upgrades");
+        _checkCarAssembly = HasArg("--check-car-assembly");
+        _selfTestAssembly = HasArg("--selftest-assembly");
         if (_chunkRun) DisplayServer.WindowSetVsyncMode(DisplayServer.VSyncMode.Disabled);
 
         _openJournalInShot = HasArg("--shot-ui");
@@ -116,13 +120,14 @@ public partial class Main
         _shotBackpack = HasArg("--shot-backpack");
         _shotMap = HasArg("--shot-map");
         _shotMapUi = HasArg("--shot-mapui");
+        _shotGarage = HasArg("--shot-garage");
         _shotProp = ArgValue("--shot-prop=");
 
         // --shot-prop разбирается до этой строки: раньше порядок был обратный,
         // и превью пропа без второго --shot-флага не включало режим снимка.
         _shot = HasArg("--shot") || _openJournalInShot || _shotMenu || _shotDay || _shotSettings
                 || _shotRain || _shotCar || _shotLineup || _shotCars || _shotBackpack
-                || _shotMap || _shotMapUi || _shotProp is not null;
+                || _shotMap || _shotMapUi || _shotGarage || _shotProp is not null;
     }
 
     private static void PrintSoundDiagnostics()
@@ -137,31 +142,72 @@ public partial class Main
         GD.Print($"[sound] частота микса: {AudioServer.GetMixRate()} Гц");
     }
 
+    /// <summary>Камера в три четверти (--view=side|front|rear|quarter): снимаем модель, а не дорогу.</summary>
+    private void ShotCarCamera()
+    {
+        _camera.ProcessMode = ProcessModeEnum.Disabled;
+        _hud.Visible = false;
+        Transform3D basis = _car.GlobalTransform;
+        string view = ArgValue("--view=") ?? "side";
+
+        Vector3 eye = view switch
+        {
+            "front" => basis * new Vector3(0.4f, 1.15f, -6.0f),
+            "rear" => basis * new Vector3(0.4f, 1.35f, 6.0f),
+            "quarter" => basis * new Vector3(-3.4f, 1.35f, -4.0f),
+            _ => basis * new Vector3(-4.4f, 1.15f, -0.7f),
+        };
+        _camera.LookAtFromPosition(eye, _car.GlobalPosition + new Vector3(0, 0.7f, 0));
+    }
+
     /// <summary>Снимок для документации: ставим машину, свет, камеру и нужный экран.</summary>
     private void SetupShot()
     {
-        if (_streamer is not null)
+        // --shot-garage: новая игра у гаража дома — машина разобрана, детали рядом.
+        if (_shotGarage)
         {
-            // Мир кусками: --at — номер точки, как в старом мире (×4 м).
-            double s = ArgValue("--at=") is { } point ? int.Parse(point) * 4.0 : 320;
-            _streamer.BuildAround(s);
-            PlaceCarOnChunkRoad(s);
-            _camera.GlobalPosition = _car.GlobalPosition + _car.GlobalBasis.Z * 9f + Vector3.Up * 4f;
-            _car.Session.Clock.SetTotalMinutes((_shotDay ? 12.0 : 18.75) * 60);
+            StartNewGame(Krntija.Core.Vehicle.CarCatalog.Zastava101);
+            _car.Session.Clock.SetTotalMinutes(12 * 60);
+
+            // Камера спереди машины, спиной к дому: видно и машину, и детали, и ворота.
+            _camera.ProcessMode = ProcessModeEnum.Disabled;
+            Transform3D basis = _car.GlobalTransform;
+            _camera.LookAtFromPosition(
+                basis * new Vector3(-6.5f, 4.0f, -9.0f),
+                _car.GlobalPosition + new Vector3(0, 1.6f, 0));
+
+            GD.Print($"[shot] гараж: машина {_car.GlobalPosition}, дом {HouseNode()?.GlobalPosition.ToString() ?? "нет"}, "
+                     + $"деталей {_car.Session.LooseParts.Count}");
             return;
         }
 
-        if (_road is not { Centerline.Count: > 90 }) return;
+        // --upgrades=all: машина со всеми улучшениями (навесы на кузове).
+        if (ArgValue("--upgrades=") == "all")
+        {
+            foreach (string id in Krntija.Core.Items.UpgradeCatalog.All.Keys) _car.Session.ApplyUpgrade(id);
+            _car.BodyVisuals?.Sync(_car.Session.Upgrades);
+        }
 
-        var road = _road;
-        int index = ArgValue("--at=") is { } at
-            ? Mathf.Clamp(int.Parse(at), 1, road.Centerline.Count - 2)
-            : 80;
+        // --open=all: машина с открытыми дверями, капотом и багажником (ADR 0003).
+        if (ArgValue("--open=") == "all" && _car.Assembly is { } assembly)
+        {
+            var state = new SceneAssemblyState();
+            foreach (string id in new[] { "door_fl", "door_fr", "door_rl", "door_rr", "hood", "trunk" }) state.Open.Add(id);
+            assembly.State = state;
+        }
 
-        _car.GlobalPosition = road.Centerline[index] + Vector3.Up * 0.6f;
-        _car.Rotation = new Vector3(0, -road.Headings[index] + 0.35f, 0);
+        if (_streamer is null) return;
+
+        // --at — номер точки дороги (×4 м), как было в старом мире.
+        double s = ArgValue("--at=") is { } point ? int.Parse(point) * 4.0 : 320;
+        _streamer.BuildAround(s);
+        PlaceCarOnChunkRoad(s);
         _camera.GlobalPosition = _car.GlobalPosition + _car.GlobalBasis.Z * 9f + Vector3.Up * 4f;
         _car.Session.Clock.SetTotalMinutes((_shotDay || _shotCar ? 12.0 : 18.75) * 60);
+
+        // Место для превью — дорога под машиной: центр и направление.
+        Vector3 center = _car.GlobalPosition with { Y = _car.GlobalPosition.Y - 0.6f };
+        float heading = -_car.GlobalRotation.Y;
 
         if (_shotRain)
         {
@@ -169,26 +215,10 @@ public partial class Main
             _car.Session.Weather.Restore(WeatherKind.Rain, wetness: 1, rain: 1, minutesUntilChange: 30);
         }
 
-        if (_shotCar)
-        {
-            // Камера в три четверти: снимаем модель, а не дорогу.
-            _camera.ProcessMode = ProcessModeEnum.Disabled;
-            _hud.Visible = false;
-            Transform3D basis = _car.GlobalTransform;
-            string view = ArgValue("--view=") ?? "side";
-
-            Vector3 eye = view switch
-            {
-                "front" => basis * new Vector3(0.4f, 1.15f, -6.0f),
-                "rear" => basis * new Vector3(0.4f, 1.35f, 6.0f),
-                "quarter" => basis * new Vector3(-3.4f, 1.35f, -4.0f),
-                _ => basis * new Vector3(-4.4f, 1.15f, -0.7f),
-            };
-            _camera.LookAtFromPosition(eye, _car.GlobalPosition + new Vector3(0, 0.7f, 0));
-        }
+        if (_shotCar) ShotCarCamera();
 
         if (_shotLineup)
-            BuildLineup(road, index);
+            BuildLineup(center, heading);
 
         if (_shotBackpack)
         {
@@ -204,7 +234,7 @@ public partial class Main
 
         if (_shotMap)
         {
-            Vector3 middle = road.Centerline[road.Centerline.Count / 2];
+            Vector3 middle = center;
             _car.Visible = false;
             _hud.Visible = false;
             _camera.ProcessMode = ProcessModeEnum.Disabled;
@@ -213,19 +243,17 @@ public partial class Main
         }
 
         if (_shotProp is not null)
-            BuildPropPreview(road, index, _shotProp);
+            BuildPropPreview(center, heading, _shotProp);
     }
 
     /// <summary>Превью пропа: ставим модель у дороги и снимаем её в три четверти.</summary>
-    private void BuildPropPreview(RoadBuildResult road, int index, string id)
+    private void BuildPropPreview(Vector3 center, float heading, string id)
     {
         _car.Visible = false;
         _car.ProcessMode = ProcessModeEnum.Disabled;
         _hud.Visible = false;
         _camera.ProcessMode = ProcessModeEnum.Disabled;
 
-        Vector3 center = road.Centerline[index];
-        float heading = road.Headings[index];
         var right = new Vector3(Mathf.Cos(heading), 0, Mathf.Sin(heading));
         var forward = new Vector3(Mathf.Sin(heading), 0, -Mathf.Cos(heading));
 
@@ -261,14 +289,12 @@ public partial class Main
     }
 
     /// <summary>Три варианта кузова рядом — для сравнения силуэта.</summary>
-    private void BuildLineup(RoadBuildResult road, int index)
+    private void BuildLineup(Vector3 center, float heading)
     {
         _car.Visible = false;
         _car.ProcessMode = ProcessModeEnum.Disabled;
         _hud.Visible = false;
 
-        Vector3 center = road.Centerline[index];
-        float heading = road.Headings[index];
         var right = new Vector3(Mathf.Cos(heading), 0, Mathf.Sin(heading));
         var forward = new Vector3(Mathf.Sin(heading), 0, -Mathf.Cos(heading));
 
@@ -707,16 +733,8 @@ public partial class Main
             _menu.PressCar(0);
         }
 
-        // Считаем только живые узлы: QueueFree освобождает старые в конце кадра.
-        int eventNodes = 0;
-        foreach (var child in GetChildren())
-        {
-            if (child is RoadEvents events && !events.IsQueuedForDeletion()) eventNodes++;
-        }
-
-        // Дорожные события пока есть только в старом мире (перенос — фаза 3).
-        int expectedEvents = _road is null ? 0 : 1;
-        bool singleEvents = eventNodes == expectedEvents;
+        // Старого мира с дорожными событиями больше нет: угрозы строятся в кусках.
+        bool singleEvents = true;
         int worldDone = _car.Session.WorldState.Done.Count;
         bool visitedCleared = worldDone == 0;
         // Мир кусками при новой игре строится заново: шлагбаум — уже другой узел, ищем по id.
@@ -725,8 +743,7 @@ public partial class Main
         bool lootBack = lootPoint is not null
                         && _interactions.Any(p => p.Kind == InteractionKind.Loot && p.StateId == lootPoint.StateId);
 
-        GD.Print($"[carselftest] события: {eventNodes} (ждём {expectedEvents}) — {(singleEvents ? "ок" : "FAIL")}, "
-                 + $"состояние мира сброшено: {worldDone} — {(visitedCleared ? "ок" : "FAIL")}, "
+        GD.Print($"[carselftest] состояние мира сброшено: {worldDone} — {(visitedCleared ? "ок" : "FAIL")}, "
                  + $"шлагбаум закрыт — {(gateClosed ? "ок" : "FAIL")}, "
                  + $"лут вернулся — {(lootBack ? "ок" : "FAIL")}");
 

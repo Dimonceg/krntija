@@ -20,7 +20,8 @@ namespace Krntija.Game;
 public partial class Main : Node3D
 {
     /// <summary>Проверки сохраняются в свой файл: иначе check.ps1 затирал сейв игрока.</summary>
-    private string SavePath => _selfTest || _selfTestCars || _checkChunkPlaces || _checkMenu
+    private string SavePath => _selfTest || _selfTestCars || _checkChunkPlaces || _checkMenu || _checkCarUpgrades || _checkCarAssembly
+        || _selfTestAssembly
         ? "user://check_save.json"
         : "user://save.json";
 
@@ -34,9 +35,7 @@ public partial class Main : Node3D
     private MapUi _mapUi = null!;
     private MapUi _miniMap = null!;
     private float _miniMapTimer;
-    private RoadBuildResult? _road;
     private MenuUi _menu = null!;
-    private RoadEvents? _events;
     private RainFx _rain = null!;
     private DirectionalLight3D? _sun;
     private Godot.Environment? _environment;
@@ -83,6 +82,7 @@ public partial class Main : Node3D
 
         _car = Car.Build(session);
         AddChild(_car);
+        SyncAssemblyState();
         PlaceCarAtStart();
 
         _camera = new ChaseCamera
@@ -105,8 +105,6 @@ public partial class Main : Node3D
 
         _mapUi = new MapUi();
         AddChild(_mapUi);
-        if (_road is not null)
-            _mapUi.SetData(_road.Centerline, _map.Branches, _map.Places, _map.ClosedExits);
 
         // Маленькая карта в углу: видна всегда.
         _miniMap = new MapUi { Compact = true };
@@ -117,22 +115,7 @@ public partial class Main : Node3D
         _miniMap.OffsetRight = -12;
         _miniMap.OffsetBottom = 170;
         _miniMap.Visible = true;
-        if (_road is not null)
-            _miniMap.SetData(_road.Centerline, _map.Branches, _map.Places, _map.ClosedExits);
         RefreshChunkMap();
-
-        // Дом игрока у старта: слева от дороги, со своими дверями и чердаком.
-        BuildPlayerHouse();
-        SpawnLoot();
-        BatchStaticGeometry();
-
-        // Дорожные события: ямы, коровы, попутчики.
-        if (_road is not null)
-        {
-            _events = new RoadEvents();
-            AddChild(_events);
-            _events.Setup(_road.Centerline, _road.Headings, _car, _hud);
-        }
 
         _rain = new RainFx();
         AddChild(_rain);
@@ -221,14 +204,32 @@ public partial class Main : Node3D
             return;
         }
 
+        if (_checkCarUpgrades)
+        {
+            RunCarUpgradesCheck();
+            return;
+        }
+
+        if (_checkCarAssembly)
+        {
+            RunCarAssemblyCheck();
+            return;
+        }
+
         if (_selfTestCars)
         {
             RunCarSelectCheck();
             return;
         }
 
+        if (_selfTestAssembly)
+        {
+            RunAssemblySelfTest();
+            return;
+        }
+
         // В автоматических прогонах меню не показываем: тесты должны ехать сразу.
-        bool automated = _smoke || _selfTest || _shot || _perf || _checkHouse || _chunkRun;
+        bool automated = _smoke || _selfTest || _shot || _perf || _checkHouse || _chunkRun || _selfTestAssembly;
         if (!automated)
         {
             _menu.ShowMainMenu(HasSave());
@@ -271,12 +272,15 @@ public partial class Main : Node3D
         }
 
         // Перегруз: полный карман замедляет пешехода, багажник на скорость не влияет.
+        // Деталь в руках замедляет по своей массе (ADR 0003, п. 2) — множители перемножаются.
         if (_player is not null)
         {
             var bag = _car.Session.Inventory;
-            _player.SpeedMultiplier = Core.Items.Encumbrance.SpeedFactor(bag.WeightKg, bag.MaxWeightKg);
+            _player.SpeedMultiplier = (float)(Core.Items.Encumbrance.SpeedFactor(bag.WeightKg, bag.MaxWeightKg)
+                * CarrySpeedFactor);
         }
 
+        UpdateHands();
         UpdateFocus();
 
         if (_mapUi is not null && _mapUi.IsOpen)
@@ -303,6 +307,9 @@ public partial class Main : Node3D
         UpdateSky();
         ApplyWeather();
         RewardNewPlaces();
+
+        // Пока машина не собрана, задача сборки важнее дорожной (ADR 0003, п. 5).
+        if (UpdateAssemblyObjective()) return;
 
         if (_objectiveDone || _objectivePosition is null) return;
 
@@ -366,7 +373,7 @@ public partial class Main : Node3D
 
         _car.GripScale = (float)weather.GripFactor;
 
-        if ((_road?.RoadMaterial ?? _streamer?.RoadMaterial) is { } material)
+        if (_streamer?.RoadMaterial is { } material)
         {
             material.Roughness = Mathf.Lerp(0.95f, 0.55f, wet);
             material.Metallic = Mathf.Lerp(0f, 0.08f, wet);
@@ -452,6 +459,11 @@ public partial class Main : Node3D
             case Key.R when _hud.Screen == HudScreen.Journal:
                 RepairSelectedPart();
                 break;
+
+            // R в игре: снять деталь машины в руки (ADR 0003, п. 6).
+            case Key.R when _hud.Screen == HudScreen.None:
+                TakeAimedPart();
+                break;
             case Key.F when _hud.Screen == HudScreen.Journal:
                 RefuelFromCan();
                 break;
@@ -516,6 +528,13 @@ public partial class Main : Node3D
 
     private void EnterCar()
     {
+        // Пока в руках деталь, в машину не сесть (ADR 0003, п. 6).
+        if (_held is not null)
+        {
+            _hud.Toast("Сначала поставь или положи деталь");
+            return;
+        }
+
         _player?.QueueFree();
         _player = null;
         _onFoot = false;

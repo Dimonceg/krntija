@@ -83,6 +83,10 @@ public partial class Main
     {
         Respawn(GameSession.NewGame(car: spec));
         PlaceCarAtStart(rebuild: true);
+
+        // Машина с раскладкой начинается разобранной у гаража (ADR 0003, п. 5).
+        bool garage = PlaceCarAtGarage();
+
         EngageParkingBrake();
         ResetWorldState();
 
@@ -90,8 +94,8 @@ public partial class Main
         _hud.Objective = string.Empty;
 
         ResumeGame();
-        _hud.Toast($"Новая игра: {spec.Name}");
-        GD.Print($"[newgame] {spec.Id}");
+        _hud.Toast(garage ? $"Новая игра: {spec.Name} — собери машину" : $"Новая игра: {spec.Name}");
+        GD.Print($"[newgame] {spec.Id} гараж={garage}");
     }
 
     /// <summary>Сброс состояния мира при новой игре в той же сцене.</summary>
@@ -99,16 +103,6 @@ public partial class Main
     {
         // Новая сессия — пустой WorldState: лут возвращается, шлагбаумы закрываются.
         SyncWorldState();
-
-        // События хранят сработавшие точки и ссылки на старую машину:
-        // проще собрать их заново, чем чинить флаги и удалённые узлы.
-        if (_road is not null)
-        {
-            _events?.QueueFree();
-            _events = new RoadEvents();
-            AddChild(_events);
-            _events.Setup(_road.Centerline, _road.Headings, _car, _hud);
-        }
     }
 
     private void ContinueGame()
@@ -133,6 +127,9 @@ public partial class Main
     private void SaveGame()
     {
         var path = ProjectSettings.GlobalizePath(SavePath);
+
+        // Деталь в руках сохраняется у ног игрока (ADR 0003, п. 3).
+        SyncHeldToFeet();
         var data = _car.Session.ToSave();
         data.ObjectiveDone = _objectiveDone;
         data.World = WorldKind;
@@ -186,6 +183,8 @@ public partial class Main
         }
 
         SyncWorldState();
+        // Детали из сейва: тела ставятся по сохранённым мировым координатам.
+        SpawnLooseParts();
         _hud.Toast(samePlace ? "Загружено" : "Загружено: сейв из другого мира, машина на старте");
         GD.Print($"[load] мир {data.World}, сид {data.WorldSeed}, место {(samePlace ? "из сейва" : "старт")}");
     }
@@ -207,14 +206,12 @@ public partial class Main
         _car.GlobalRotation = rotation;
         _car.Autopilot = _smoke || _selfTest || _perf || _selfTestCars;
 
+        // Кузов показывает то, что решает ядро: детали и открытые панели (ADR 0003, п. 6).
+        SyncAssemblyState();
+
         _camera.Target = _car;
         _hud.Car = _car;
         if (_streamer is not null) SteerAlongChunkRoad();
-        else _car.Path = _road?.Centerline;
-
-        // События держат ссылку на машину: без Rebind ямы и коровы
-        // продолжали бы толкать удалённый объект после загрузки сейва.
-        _events?.Rebind(_car, _hud);
     }
 
     /// <summary>Игрок начинает на ручнике; в автотестах ручник не мешает движению.</summary>
@@ -228,17 +225,6 @@ public partial class Main
     /// <param name="rebuild">Мир кусками: собрать куски заново по плану и состоянию новой сессии.</param>
     private void PlaceCarAtStart(bool rebuild = false)
     {
-        if (_streamer is not null)
-        {
-            PlaceCarOnChunkRoad(StartStation, rebuild);
-            return;
-        }
-
-        // Не на самом краю полотна, иначе половина машины висит в воздухе.
-        Vector3 start = _road is { Centerline.Count: > 4 } ? _road.Centerline[4] : new Vector3(0, 0.6f, 0);
-        _car.GlobalPosition = start + Vector3.Up * 0.62f;
-        _car.LinearVelocity = Vector3.Zero;
-        _car.AngularVelocity = Vector3.Zero;
-        _car.Path = _road?.Centerline;
+        if (_streamer is not null) PlaceCarOnChunkRoad(StartStation, rebuild);
     }
 }

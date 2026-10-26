@@ -76,6 +76,9 @@ public sealed class GameSession
     /// <summary>Изменения мира: лут, места, шлагбаумы, выезды. Сохраняются.</summary>
     public WorldState WorldState { get; } = new();
 
+    /// <summary>Детали, лежащие в мире или в руках: снятые с машины и стартовые (ADR 0003).</summary>
+    public LooseParts LooseParts { get; } = new();
+
     public static GameSession NewGame(ulong seed = 20261023, CarSpec? car = null)
     {
         var inventory = new Inventory();
@@ -223,6 +226,22 @@ public sealed class GameSession
         RainIntensity = Weather.RainIntensity,
         WeatherTimer = Weather.MinutesUntilChange,
         WorldDone = WorldState.Done.OrderBy(id => id, StringComparer.Ordinal).ToList(),
+        OpenSlots = Vehicle.OpenSlots
+            .Select(slot => slot.ToString())
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToList(),
+        LooseParts = LooseParts.Items
+            .Select(part => new LoosePartSave
+            {
+                Id = part.Id,
+                DefId = part.DefId,
+                Condition = part.Condition,
+                X = part.X,
+                Y = part.Y,
+                Z = part.Z,
+                Yaw = part.Yaw,
+            })
+            .ToList(),
     };
 
     public static GameSession FromSave(SaveData data)
@@ -245,6 +264,10 @@ public sealed class GameSession
             created.SetCondition(part.Condition);
             vehicle.Install(created);
         }
+
+        // До v4 отсутствующий слот значил «слот не сохраняется», а не «детали нет»
+        // (ADR 0003, п. 4): старый сейв читается как полностью собранная машина.
+        if (data.Version < 4) vehicle.CompleteBuild();
 
         var survival = new SurvivalState
         {
@@ -281,6 +304,24 @@ public sealed class GameSession
             session.Weather.Restore(kind, data.Wetness, data.RainIntensity, data.WeatherTimer);
 
         session.WorldState.Restore(data.WorldDone);
+
+        // Детали в мире (ADR 0003, п. 3): неизвестный id детали не ломает загрузку.
+        foreach (var loose in data.LooseParts)
+        {
+            if (string.IsNullOrWhiteSpace(loose.Id)) continue;
+            if (!PartCatalog.All.ContainsKey(loose.DefId)) continue;
+
+            session.LooseParts.Add(new LoosePart(
+                loose.Id, loose.DefId, loose.Condition, loose.X, loose.Y, loose.Z, loose.Yaw));
+        }
+
+        // Открытые панели: только те, что есть в раскладке и установлены.
+        foreach (string name in data.OpenSlots)
+        {
+            if (!Enum.TryParse<PartSlot>(name, out var slot)) continue;
+            AssemblyRules.SetOpen(session.Vehicle, slot, true);
+        }
+
         return session;
     }
 }
@@ -289,10 +330,13 @@ public sealed class SaveData
 {
     /// <summary>
     /// 2 — добавлен WorldDone. 3 — мир (World, WorldSeed), позиция машины в
-    /// координатах мира, а не сцены (ADR 0002). Старые сейвы читаются, их
-    /// согласует с текущим миром <see cref="SaveWorld.Prepare"/>.
+    /// координатах мира, а не сцены (ADR 0002). 4 — сборка машины (ADR 0003):
+    /// детали в мире (<see cref="LooseParts"/>) и открытые панели
+    /// (<see cref="OpenSlots"/>); отсутствующий слот в <see cref="Parts"/> значит
+    /// «деталь не установлена». Старые сейвы читаются, их согласует с текущим
+    /// миром <see cref="SaveWorld.Prepare"/>.
     /// </summary>
-    public const int CurrentVersion = 3;
+    public const int CurrentVersion = 4;
 
     public int Version { get; set; } = CurrentVersion;
     public long SavedAtUnix { get; set; }
@@ -335,6 +379,23 @@ public sealed class SaveData
 
     public ulong RngState { get; set; }
     public List<string> WorldDone { get; set; } = new();
+
+    /// <summary>Открытые панели кузова: имена <see cref="PartSlot"/>.</summary>
+    public List<string> OpenSlots { get; set; } = new();
+
+    /// <summary>Детали, лежащие в мире или в руках (ADR 0003, п. 3).</summary>
+    public List<LoosePartSave> LooseParts { get; set; } = new();
+}
+
+public sealed class LoosePartSave
+{
+    public string Id { get; set; } = "";
+    public string DefId { get; set; } = "";
+    public double Condition { get; set; } = 1;
+    public double X { get; set; }
+    public double Y { get; set; }
+    public double Z { get; set; }
+    public double Yaw { get; set; }
 }
 
 public sealed class PartSave

@@ -102,6 +102,7 @@ godot --path game
 # проверки без окна
 godot --headless --path game -- --selftest
 godot --headless --path game -- --selftest-cars
+godot --headless --path game -- --selftest-assembly   # руки: взять, поставить, снять, собрать и уехать
 godot --headless --path game -- --smoke
 godot --headless --path game -- --smoke --car=golf_2
 
@@ -115,6 +116,7 @@ tools\balance.ps1
 godot --path game -- --shot-day --at=210
 godot --path game -- --shot-car --car=golf_2 --view=quarter
 godot --path game -- --shot-cars
+godot --path game -- --shot-garage --shot-name=garage   # новая игра у гаража (ADR 0003)
 ```
 
 `tools\play.ps1` собирает и запускает игру; аргументы после имени скрипта
@@ -131,13 +133,12 @@ Godot). На 2026-10-25 всё зелёное.
 2026-10-25 осталось ≈1 падение на 40 прогонов, причина не найдена; `check.ps1`
 повторяет прогон, если код возврата не 0 и не 1.
 
-Мир кусками (ADR 0002) — мир по умолчанию; старый мир на 2,5 км — `--world=legacy`
-до конца фазы 3. Проверки сохраняют в `user://check_save.json`, сейв игрока
+Мир кусками (ADR 0002) — единственный мир; старый мир на 2,5 км удалён
+2026-10-26. Проверки сохраняют в `user://check_save.json`, сейв игрока
 (`user://save.json`) не трогают.
 
 ```powershell
 godot --path game                                   # играть в бесконечном мире
-godot --path game -- --world=legacy                 # старый мир
 godot --headless --path game -- --chunk-bench       # время шагов постройки куска
 godot --path game -- --chunk-run                    # 10 км: дыры, утечки, сдвиг начала
 godot --headless --path game -- --chunk-places      # места из плана, лут и шлагбаум после выгрузки

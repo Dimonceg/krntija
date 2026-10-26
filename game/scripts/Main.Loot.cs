@@ -159,6 +159,13 @@ public partial class Main
     {
         if (point.LootId is null || point.Node is null) return;
 
+        // С деталью в руках лут не подбирается (ADR 0003, п. 6).
+        if (_held is not null)
+        {
+            _hud.Toast("Руки заняты деталью");
+            return;
+        }
+
         int count = point.Node is LootItem item ? item.Count : 1;
         string name = Core.Items.ItemCatalog.Get(point.LootId).Name;
 
@@ -173,40 +180,6 @@ public partial class Main
         MarkWorld(point.StateId);
         _interactions.Remove(point);
         point.Node.QueueFree();
-    }
-
-    /// <summary>Разложить лут у точек интереса и внутри дома.</summary>
-    private void SpawnLoot()
-    {
-        if (_road is null) return;
-
-        int placed = 0;
-        foreach (var (position, itemId, count) in LootSpawner.PlanLandmarks(_road.Points))
-            AddLoot(WorldState.Loot("poi", placed++), position, itemId, count);
-
-        int inHouse = 0;
-        if (GetNodeOrNull<Node3D>("PlayerHouse") is { } house)
-            foreach (var (position, itemId, count) in LootSpawner.PlanHouse(house))
-                AddLoot(WorldState.Loot("house", inHouse++), position, itemId, count);
-
-        // Лут у построек карты: у руин металлолом, у дома — кассеты, у сарая — запчасти.
-        int inMap = 0;
-        foreach (var place in _mapPlaces)
-        {
-            string itemId = place.Kind switch
-            {
-                "ruins" => "scrap_metal",
-                "barn" => "spark_plug",
-                "house" or "abandoned" => "cassette",
-                "well" => "bottle_cap",
-                _ => "duct_tape",
-            };
-
-            Vector3 spot = place.Position + new Vector3(0, 0.15f, 1.8f);
-            AddLoot(WorldState.Loot("place", inMap++), spot, itemId, 1 + place.Index % 2);
-        }
-
-        GD.Print($"[loot] предметов: {placed} у мест, {inHouse} в доме, {inMap} на карте");
     }
 
     /// <summary>

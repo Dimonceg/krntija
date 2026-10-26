@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using Krntija.Core;
@@ -48,10 +49,37 @@ public partial class Hud : CanvasLayer
     private static readonly PartSlot[] SlotOrder = Enum.GetValues<PartSlot>();
     private int _selected;
 
-    public PartSlot SelectedSlot => SlotOrder[Mathf.Clamp(_selected, 0, SlotOrder.Length - 1)];
+    /// <summary>Какие детали сейчас на машине: снятых нет в списке (ADR 0003).</summary>
+    private List<PartSlot> InstalledSlots()
+    {
+        var parts = Car?.Session.Vehicle.Parts;
+        if (parts is null) return new List<PartSlot>();
 
-    public void MoveSelection(int delta) =>
-        _selected = (_selected + delta + SlotOrder.Length) % SlotOrder.Length;
+        var installed = new List<PartSlot>(parts.Count);
+        foreach (var slot in SlotOrder)
+            if (parts.ContainsKey(slot))
+                installed.Add(slot);
+
+        return installed;
+    }
+
+    /// <summary>Выбранная в журнале деталь — только из установленных.</summary>
+    public PartSlot SelectedSlot
+    {
+        get
+        {
+            var installed = InstalledSlots();
+            if (installed.Count == 0) return PartSlot.Engine;
+
+            return installed[Mathf.Clamp(_selected, 0, installed.Count - 1)];
+        }
+    }
+
+    public void MoveSelection(int delta)
+    {
+        int count = Mathf.Max(1, InstalledSlots().Count);
+        _selected = (_selected + delta + count) % count;
+    }
 
     public override void _Ready()
     {

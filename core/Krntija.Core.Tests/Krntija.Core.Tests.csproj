@@ -17,4 +17,9 @@
     <ProjectReference Include="..\Krntija.Core\Krntija.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Образцы сейвов прошлых версий (ADR 0002, п. 6): тесты читают их с диска. -->
+    <None Update="Saves\**\*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

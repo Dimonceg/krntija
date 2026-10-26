@@ -34,6 +34,9 @@ public partial class Main
         Workbench,
         SleepHome,
         Crate,
+
+        /// <summary>Деталь, лежащая в мире (ADR 0003, п. 6): тела в <c>_loosePartBodies</c>.</summary>
+        LoosePart,
     }
 
     /// <param name="StateId">Id в <see cref="WorldState"/>, если действие меняет мир и сохраняется.</param>
@@ -49,7 +52,7 @@ public partial class Main
 
     private readonly List<InteractionPoint> _interactions = new();
 
-    /// <summary>Что сделает E: точка мира, сесть, выйти, «сначала остановись» или ничего.</summary>
+    /// <summary>Что сделает E: точка мира, деталь в мире, деталь на машине, сесть, выйти…</summary>
     private enum TargetKind
     {
         None,
@@ -57,15 +60,28 @@ public partial class Main
         EnterCar,
         ExitCar,
         StopFirst,
+
+        /// <summary>Деталь в мире: E берёт в руки.</summary>
+        LoosePart,
+
+        /// <summary>Деталь на машине: E открывает панель, R снимает.</summary>
+        CarPart,
     }
 
-    private readonly record struct InteractionTarget(TargetKind Kind, InteractionPoint? Point = null);
+    private readonly record struct InteractionTarget(TargetKind Kind, InteractionPoint? Point = null,
+        PartSlot? Slot = null, RigidBody3D? Body = null);
 
     /// <summary>Id машины среди кандидатов: точки идут по индексу в <see cref="_interactions"/>.</summary>
     private const int CarCandidate = -1;
 
+    /// <summary>Кандидаты-детали в мире: id = <c>LooseCandidate - индекс в _loosePartBodies</c>.</summary>
+    private const int LooseCandidate = -100;
+
     /// <summary>Пешком ближе этого к машине — сесть можно и не глядя на неё.</summary>
     private const float CarReach = 3.5f;
+
+    /// <summary>Деталь в мире берут в руки вплотную: радиус подсказки, метры.</summary>
+    private const float LooseReach = 1.6f;
 
     private readonly List<Candidate> _candidates = new();
 
@@ -76,6 +92,9 @@ public partial class Main
     private static (int Priority, bool FromCar) Rules(InteractionKind kind) => kind switch
     {
         InteractionKind.Pump or InteractionKind.Shop or InteractionKind.Gate or InteractionKind.SellAll => (1, true),
+
+        // Деталь под ногами важнее машины: её и берут, когда смотрят на неё.
+        InteractionKind.LoosePart => (2, false),
         _ => (0, false),
     };
 
@@ -113,13 +132,51 @@ public partial class Main
         }
 
         if (onFoot)
-            _candidates.Add(new Candidate(CarCandidate, DistanceToCar(), AngleTo(_car.GlobalPosition + Vector3.Up * 0.8f),
+        {
+            // Цель «машина» — там, куда игрок смотрит на ней: у детали под взглядом,
+            // иначе у середины кузова. Иначе при взгляде на моторный отсек цель
+            // «машина» уходит из конуса взгляда и проигрывает далёкой двери дома.
+            var aimed = AimedPart(from, AngleTo);
+            Vector3 carAt = (aimed is { } aimedSlot ? AimedSocketPosition(aimedSlot) : null)
+                            ?? _car.GlobalPosition + Vector3.Up * 0.8f;
+
+            _candidates.Add(new Candidate(CarCandidate, from.DistanceTo(carAt), AngleTo(carAt),
                 CarReach, Priority: 1));
 
+            // Детали в мире (ADR 0003, п. 6): тела ездят и катятся, поэтому кандидаты
+            // берутся из их позиций, а не из _interactions кусков.
+            var looseRules = Rules(InteractionKind.LoosePart);
+            for (int i = 0; i < _loosePartBodies.Count; i++)
+            {
+                var body = _loosePartBodies[i];
+                if (!IsInstanceValid(body)) continue;
+
+                Vector3 at = body.GlobalPosition;
+                float distance = from.DistanceTo(at);
+                bool reachable = distance <= LooseReach + 1f;
+                var probe = new InteractionPoint(at, InteractionKind.LoosePart, LooseReach, Node: body);
+
+                _candidates.Add(new Candidate(LooseCandidate - i, distance, AngleTo(at), LooseReach,
+                    looseRules.Priority, looseRules.FromCar, InSight: reachable && InSight(eye, probe)));
+            }
+        }
+
         if (TargetSelector.Select(stance, _candidates) is { } chosen)
-            return chosen.Id == CarCandidate
-                ? new InteractionTarget(TargetKind.EnterCar)
-                : new InteractionTarget(TargetKind.Point, _interactions[chosen.Id]);
+        {
+            if (chosen.Id == CarCandidate)
+            {
+                // Смотрим на деталь машины — E открывает панель, R снимает (ADR 0003, п. 6).
+                return AimedPart(from, AngleTo) is { } slot
+                    ? new InteractionTarget(TargetKind.CarPart, Slot: slot)
+                    : new InteractionTarget(TargetKind.EnterCar);
+            }
+
+            if (chosen.Id <= LooseCandidate)
+                return new InteractionTarget(TargetKind.LoosePart,
+                    Body: _loosePartBodies[LooseCandidate - chosen.Id]);
+
+            return new InteractionTarget(TargetKind.Point, _interactions[chosen.Id]);
+        }
 
         return stance switch
         {
@@ -133,15 +190,31 @@ public partial class Main
 
     private string BuildPrompt(InteractionTarget target)
     {
+        // В руках деталь — подсказка только про неё: поставить или положить. Здесь,
+        // а не выше: экран обновляет UpdateFocus через этот вариант.
+        if (_held is not null) return HandsPrompt();
+
         return target.Kind switch
         {
             TargetKind.Point => PromptFor(target.Point!),
+            TargetKind.LoosePart => target.Body is not null && LooseName(target.Body) is { } name
+                ? $"[E] взять {name}"
+                : "[E] взять деталь",
+            TargetKind.CarPart => CarPartPrompt(target.Slot!.Value),
             TargetKind.EnterCar => "[E] сесть в машину",
             TargetKind.ExitCar => "[E] выйти из машины",
             TargetKind.None when _onFoot && _hud.Screen == HudScreen.None =>
                 "мышь — обзор, W/S — идти, A/D — шаг вбок, Shift — бежать",
             _ => string.Empty,
         };
+    }
+
+    /// <summary>Имя детали по её телу в мире.</summary>
+    private string? LooseName(RigidBody3D body)
+    {
+        string id = body.GetMeta("part_id").AsString();
+        var loose = _car.Session.LooseParts.Find(id);
+        return loose is null ? null : PartName(loose);
     }
 
     private static string PromptFor(InteractionPoint point) => point.Kind switch
@@ -174,11 +247,24 @@ public partial class Main
             return;
         }
 
+        // С деталью в руках E всегда про неё: поставить в гнездо магнита или положить.
+        if (_held is not null)
+        {
+            InstallHeld();
+            return;
+        }
+
         var target = SelectTarget();
         switch (target.Kind)
         {
             case TargetKind.Point:
                 Use(target.Point!);
+                break;
+            case TargetKind.LoosePart:
+                if (target.Body is not null) TakeLoosePart(target.Body);
+                break;
+            case TargetKind.CarPart:
+                UseCarPart(target.Slot!.Value);
                 break;
             case TargetKind.EnterCar:
                 EnterCar();
@@ -289,25 +375,7 @@ public partial class Main
     }
 
     /// <summary>За первое посещение каждого места — деньги: есть смысл ехать дальше.</summary>
-    private void RewardNewPlaces()
-    {
-        if (_streamer is not null)
-        {
-            RewardChunkPlaces();
-            return;
-        }
-
-        if (_road is null) return;
-
-        for (int i = 0; i < _road.Points.Count; i++)
-        {
-            var point = _road.Points[i];
-            if (_car.GlobalPosition.DistanceTo(point.Position) > 25f) continue;
-
-            if (!WorldActions.TryRewardPlace(_car.Session, i)) continue;
-            _hud.Toast($"{point.Segment.Title}: +{Krntija.Core.Economy.Money.Format(WorldActions.PlaceReward)}");
-        }
-    }
+    private void RewardNewPlaces() => RewardChunkPlaces();
 
     private void TrySleep()
     {
@@ -442,7 +510,7 @@ public partial class Main
     private void TalkToResident(InteractionPoint point)
     {
         int index = int.TryParse(point.LootId, out int parsed) ? parsed : 0;
-        string line = MapLife.ResidentLines[Math.Abs(index) % MapLife.ResidentLines.Length];
+        string line = ResidentLines.All[Math.Abs(index) % ResidentLines.All.Length];
         _hud.Toast(line);
         Sfx.PlayUi();
     }
