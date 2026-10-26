@@ -1,4 +1,4 @@
-"""Six original visual replacements. No gameplay, collisions or animation clips.
+"""Five static visual replacements. Animated wolf is owned by blender_wolf.py.
 Blender --background --python tools/blender_life.py
 """
 import sys
@@ -135,10 +135,14 @@ def crate():
    for h in (.12,.59):box('iron nail',(x,h,z),(.018,.018,.009),'metal')
 
 stats={}
-for name,builder in [('resident',resident),('dog',lambda:canine(False)),('wolf',lambda:canine(True)),
+wolf_stats=SOURCE/'wolf_geometry.json'
+if wolf_stats.exists():
+ data=json.loads(wolf_stats.read_text(encoding='utf8'))
+ stats['wolf']={k:data[k] for k in ('triangles','size_x_y_z')}
+for name,builder in [('resident',resident),('dog',lambda:canine(False)),
                      ('rockslide',rockslide),('roadblock',roadblock),('wooden_crate',crate)]:
  collection(name);builder()
- scale=.8 if name=='dog' else .9 if name=='wolf' else 1.0
+ scale=.8 if name=='dog' else 1.0
  for ob in context['current'].objects:
   ob.location*=scale;ob.scale*=scale
  bpy.context.view_layer.update()
