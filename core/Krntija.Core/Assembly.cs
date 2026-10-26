@@ -198,6 +198,24 @@ public static class AssemblyRules
     public static bool IsOpen(VehicleState vehicle, PartSlot slot) =>
         vehicle.OpenSlots.Contains(slot) && vehicle.Parts.ContainsKey(slot);
 
+    /// <summary>Дальше этого от проёма водительской двери не сесть, метры.</summary>
+    public const double EnterDistance = 1.8;
+
+    /// <summary>
+    /// Можно ли сесть за руль: водительская дверь открыта (или снята) и игрок
+    /// стоит у проёма. Через закрытую дверь не садятся — раньше можно было
+    /// залезть в машину из любой точки рядом.
+    /// </summary>
+    public static bool CanEnter(VehicleState vehicle, double distanceToDoor)
+    {
+        if (distanceToDoor < 0 || distanceToDoor > EnterDistance) return false;
+
+        bool wayIn = !vehicle.Parts.ContainsKey(PartSlot.DoorFrontLeft)
+                     || IsOpen(vehicle, PartSlot.DoorFrontLeft);
+
+        return wayIn;
+    }
+
     /// <summary>
     /// Открыть или закрыть панель. Открывается только установленная панель, у которой
     /// это есть в раскладке; для остального — false и ничего не меняется.

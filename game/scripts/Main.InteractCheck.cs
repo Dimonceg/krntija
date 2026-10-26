@@ -1,5 +1,6 @@
 using System.Linq;
 using Godot;
+using Krntija.Core.Parts;
 
 namespace Krntija.Game;
 
@@ -76,8 +77,21 @@ public partial class Main
         CheckPointsReachable();
         await CheckWorkbenchOutline();
 
-        string atCar = Look(_car.GlobalPosition + Vector3.Up * 0.8f);
-        Check(atCar == nameof(TargetKind.EnterCar), $"пешком, взгляд на машину у двери: {atCar}");
+        // Машина: сесть можно только через открытую водительскую дверь и глядя
+        // внутрь. Стоим у проёма, смотрим на сиденье водителя.
+        Vector3 seat = _car.ToGlobal(_car.DriverEyeLocal);
+        _player!.Teleport(_car.ToGlobal(_car.DriverDoorLocal) - _car.GlobalBasis.X.Normalized() * 0.8f);
+        await WaitPhysics();
+
+        string atClosed = Look(seat);
+        Check(atClosed == nameof(TargetKind.CarPart), $"закрытая дверь не пускает: {atClosed}");
+        Check(BuildPrompt().Contains("открыть дверь"), $"подсказка про дверь: «{BuildPrompt()}»");
+
+        UseCarPart(PartSlot.DoorFrontLeft);
+        await WaitPhysics();
+
+        string atOpen = Look(seat);
+        Check(atOpen == nameof(TargetKind.EnterCar), $"открытая дверь и взгляд внутрь: {atOpen}");
         Check(BuildPrompt() == "[E] сесть в машину", $"подсказка совпадает с действием: «{BuildPrompt()}»");
 
         // В машине у дома: E — выйти, а не дверь и не сундук.

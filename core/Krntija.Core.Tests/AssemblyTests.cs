@@ -421,4 +421,39 @@ public class AssemblyTests
         for (double t = 0; t < seconds; t += 1)
             systems.Step(1, new VehicleSample(0), new DriveInput(Ignition: true, Throttle: 1));
     }
+
+    [Fact]
+    public void EnterNeedsAnOpenDriversDoor()
+    {
+        var car = Zastava();
+
+        Assert.False(AssemblyRules.CanEnter(car, 1.0), "через закрытую дверь не садятся");
+
+        Assert.True(AssemblyRules.SetOpen(car, PartSlot.DoorFrontLeft, true), "дверь должна открываться");
+        Assert.True(AssemblyRules.CanEnter(car, 1.0), "открытая дверь и 1 м — можно");
+        Assert.True(AssemblyRules.CanEnter(car, AssemblyRules.EnterDistance), "ровно на границе — можно");
+        Assert.False(AssemblyRules.CanEnter(car, AssemblyRules.EnterDistance + 0.01), "дальше границы — нельзя");
+
+        Assert.True(AssemblyRules.SetOpen(car, PartSlot.DoorFrontLeft, false));
+        Assert.False(AssemblyRules.CanEnter(car, 1.0), "закрыл дверь — снова нельзя");
+    }
+
+    [Fact]
+    public void EnterCountsOnlyTheDriversDoor()
+    {
+        var car = Zastava();
+        Assert.True(AssemblyRules.SetOpen(car, PartSlot.DoorFrontRight, true));
+
+        Assert.False(AssemblyRules.CanEnter(car, 1.0), "пассажирская дверь не считается");
+    }
+
+    [Fact]
+    public void EnterThroughARemovedDoor()
+    {
+        var car = Zastava();
+        car.Parts.Remove(PartSlot.DoorFrontLeft);
+
+        Assert.True(AssemblyRules.CanEnter(car, 1.0), "двери нет — проём открыт");
+        Assert.False(AssemblyRules.CanEnter(car, 5.0), "но всё равно надо стоять у проёма");
+    }
 }
