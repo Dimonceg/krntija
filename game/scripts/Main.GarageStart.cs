@@ -108,11 +108,20 @@ public partial class Main
         body.SetMeta("part_id", loose.Id);
 
         body.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = size } });
-        body.AddChild(new MeshInstance3D
-        {
-            Mesh = new BoxMesh { Size = size },
-            MaterialOverride = LoosePartLook.Material(slot),
-        });
+
+        // Модель от арта (ADR 0003, п. 8) или коробка-заглушка, пока её нет.
+        var model = loose.Definition is { } def
+            ? ModelLibrary.Instantiate($"res://assets/models/parts/part_{def.Id}.glb")
+            : null;
+
+        if (model is not null)
+            body.AddChild(model);
+        else
+            body.AddChild(new MeshInstance3D
+            {
+                Mesh = new BoxMesh { Size = size },
+                MaterialOverride = LoosePartLook.Material(slot),
+            });
 
         return body;
     }
