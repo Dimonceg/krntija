@@ -44,6 +44,7 @@ public partial class Main
     private bool _shotBackpack;
     private bool _shotMap;
     private bool _shotMapUi;
+    private bool _shotGarage;
     private string? _shotProp;
 
     private bool _chunkBench;
@@ -118,13 +119,14 @@ public partial class Main
         _shotBackpack = HasArg("--shot-backpack");
         _shotMap = HasArg("--shot-map");
         _shotMapUi = HasArg("--shot-mapui");
+        _shotGarage = HasArg("--shot-garage");
         _shotProp = ArgValue("--shot-prop=");
 
         // --shot-prop разбирается до этой строки: раньше порядок был обратный,
         // и превью пропа без второго --shot-флага не включало режим снимка.
         _shot = HasArg("--shot") || _openJournalInShot || _shotMenu || _shotDay || _shotSettings
                 || _shotRain || _shotCar || _shotLineup || _shotCars || _shotBackpack
-                || _shotMap || _shotMapUi || _shotProp is not null;
+                || _shotMap || _shotMapUi || _shotGarage || _shotProp is not null;
     }
 
     private static void PrintSoundDiagnostics()
@@ -160,6 +162,24 @@ public partial class Main
     /// <summary>Снимок для документации: ставим машину, свет, камеру и нужный экран.</summary>
     private void SetupShot()
     {
+        // --shot-garage: новая игра у гаража дома — машина разобрана, детали рядом.
+        if (_shotGarage)
+        {
+            StartNewGame(Krntija.Core.Vehicle.CarCatalog.Zastava101);
+            _car.Session.Clock.SetTotalMinutes(12 * 60);
+
+            // Камера спереди машины, спиной к дому: видно и машину, и детали, и ворота.
+            _camera.ProcessMode = ProcessModeEnum.Disabled;
+            Transform3D basis = _car.GlobalTransform;
+            _camera.LookAtFromPosition(
+                basis * new Vector3(-6.5f, 4.0f, -9.0f),
+                _car.GlobalPosition + new Vector3(0, 1.6f, 0));
+
+            GD.Print($"[shot] гараж: машина {_car.GlobalPosition}, дом {HouseNode()?.GlobalPosition.ToString() ?? "нет"}, "
+                     + $"деталей {_car.Session.LooseParts.Count}");
+            return;
+        }
+
         // --upgrades=all: машина со всеми улучшениями (навесы на кузове).
         if (ArgValue("--upgrades=") == "all")
         {

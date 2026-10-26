@@ -115,6 +115,7 @@ tools\balance.ps1
 godot --path game -- --shot-day --at=210
 godot --path game -- --shot-car --car=golf_2 --view=quarter
 godot --path game -- --shot-cars
+godot --path game -- --shot-garage --shot-name=garage   # новая игра у гаража (ADR 0003)
 ```
 
 `tools\play.ps1` собирает и запускает игру; аргументы после имени скрипта
