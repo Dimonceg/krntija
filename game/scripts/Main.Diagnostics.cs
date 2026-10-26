@@ -20,7 +20,6 @@ public partial class Main
     private bool _smokeDone;
     private bool _perf;
     private double _fpsSum;
-    private double _fpsMin = 999;
     private bool _selfTest;
     private bool _selfTestDone;
     private bool _selfTestOk;
@@ -323,24 +322,34 @@ public partial class Main
 
         if (_perf)
         {
+            PerfSample();
             double fps = Performance.GetMonitor(Performance.Monitor.TimeFps);
             _fpsSum += fps;
-            if (_frames == 1 || fps < _fpsMin) _fpsMin = fps;
 
-            if (_frames >= 600)
+            // 600 шагов физики = 10 с у старта; --perf-seconds=60 доезжает до новых кусков.
+            if (_frames >= (ArgValue("--perf-seconds=") is { } seconds ? int.Parse(seconds) * 60 : 600))
             {
                 _smokeDone = true;
                 double avgFps = _fpsSum / _frames;
                 double vramMb = Performance.GetMonitor(Performance.Monitor.RenderVideoMemUsed) / (1024.0 * 1024.0);
                 GD.Print($"[perf] кадр {1000.0 / avgFps:F2} мс (бюджет 8), видеопамять {vramMb:F0} МБ (бюджет 2048)");
-                GD.Print($"[perf] средний FPS {avgFps:F1}, минимум {_fpsMin:F1}, " +
+                GD.Print($"[perf] средний FPS {avgFps:F1}, " +
                          $"кадров {_frames}, объектов {Performance.GetMonitor(Performance.Monitor.ObjectCount):F0}, " +
                          $"узлов {Performance.GetMonitor(Performance.Monitor.ObjectNodeCount):F0}, " +
                          $"вызовов отрисовки {Performance.GetMonitor(Performance.Monitor.RenderTotalDrawCallsInFrame):F0}");
+                PerfReport();
                 QuitSoon(0);
             }
 
             return;
+        }
+
+        // Снимок с --perf-off: сравнить картинку с тем, что выключено ради кадра.
+        if (_shot && _frames == 60)
+        {
+            _perfOff = (ArgValue("--perf-off=") ?? string.Empty)
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            ApplyPerfOff();
         }
 
         if (_shot && _frames == 120 && _openJournalInShot)
@@ -350,7 +359,7 @@ public partial class Main
         {
             _smokeDone = true;
             var image = GetViewport().GetTexture().GetImage();
-            var path = ProjectSettings.GlobalizePath("user://shot.png");
+            var path = ProjectSettings.GlobalizePath($"user://{ArgValue("--shot-name=") ?? "shot"}.png");
             image.SavePng(path);
             GD.Print($"[shot] {path}");
             QuitSoon(0);

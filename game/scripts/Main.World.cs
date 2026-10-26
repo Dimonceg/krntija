@@ -57,9 +57,10 @@ public partial class Main
             SsaoIntensity = 1.6f,
             SsaoPower = 1.4f,
 
-            GlowEnabled = true,
-            GlowIntensity = 0.22f,
-            GlowBloom = 0.05f,
+            // Свечение выключено (2026-10-26): при 1920×1080 стоило 0,6 мс видеокарты
+            // (12 % кадра), а на снимках днём и вечером разницы нет — светящегося в мире
+            // пока нет. Понадобится для ламп или артефактов — включать с уровнями под них.
+            GlowEnabled = false,
 
             TonemapMode = Godot.Environment.ToneMapper.Filmic,
             TonemapExposure = 0.85f,
