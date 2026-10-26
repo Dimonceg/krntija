@@ -502,6 +502,7 @@ public partial class Main : Node3D
         if (_onFoot)
         {
             _camera.FirstPersonOffset = new Vector3(0f, 1.62f, 0f);
+            _camera.Seated = false;
             _camera.OrbitWithMouse = true;
             _camera.PitchWithMouse = true;
             _camera.UseTargetYaw = true;
@@ -509,9 +510,12 @@ public partial class Main : Node3D
         }
         else
         {
-            _camera.FirstPersonOffset = new Vector3(0.30f, 0.86f, -1.05f);
+            // Из-за руля: глаз водителя в кресле, голова поворачивается мышью,
+            // но сидит жёстко — иначе камера «плавает» внутри салона.
+            _camera.FirstPersonOffset = _car.DriverEyeLocal;
+            _camera.Seated = _firstPerson;
             _camera.OrbitWithMouse = true;
-            _camera.PitchWithMouse = false;
+            _camera.PitchWithMouse = _firstPerson;
             _camera.UseTargetYaw = false;
         }
 
@@ -539,6 +543,7 @@ public partial class Main : Node3D
         _camera.PitchWithMouse = true;
         _camera.UseTargetYaw = true;
         _camera.FirstPersonOffset = new Vector3(0f, 1.62f, 0f);
+        _camera.Seated = false;
         _player.SetModelVisible(!_firstPerson);
         _camera.ResetOrbit();
         Sfx.PlayDoor(_car.GlobalPosition);
@@ -566,9 +571,10 @@ public partial class Main : Node3D
         _camera.LookHeight = 0.8f;
         _camera.Fov = 68f;
         _camera.OrbitWithMouse = true;
-        _camera.PitchWithMouse = false;
+        _camera.PitchWithMouse = _firstPerson;
         _camera.UseTargetYaw = false;
-        _camera.FirstPersonOffset = new Vector3(0.30f, 0.86f, -1.05f);
+        _camera.FirstPersonOffset = _car.DriverEyeLocal;
+        _camera.Seated = _firstPerson;
         _camera.ResetOrbit();
         Sfx.PlayDoor(_car.GlobalPosition);
 

@@ -230,12 +230,29 @@ public partial class Main
         _car.Session.Clock.SetTotalMinutes((_shotNight ? 22.0 : _shotDay || _shotCar || _shotInside ? 12.0 : 18.75) * 60);
 
         // --shot-inside: вид из-за руля — салон и стёкла на игре, а не на стенде.
+        // --drive вместе с ним: машина едет, снимок из кресла водителя на ходу.
         if (_shotInside)
         {
-            Transform3D basis = _car.GlobalTransform;
-            _camera.ProcessMode = ProcessModeEnum.Disabled;
-            _camera.LookAtFromPosition(basis * new Vector3(-0.36f, 0.62f, -0.15f),
-                basis * new Vector3(-0.3f, 0.52f, -6f));
+            _firstPerson = true;
+            _camera.FirstPerson = true;
+            _camera.Seated = true;
+            _camera.FirstPersonOffset = _car.DriverEyeLocal;
+            _camera.UseTargetYaw = false;
+            _camera.OrbitWithMouse = false;
+            _camera.PitchWithMouse = false;
+
+            if (HasArg("--drive"))
+            {
+                _car.SetHandbrake(false);
+                _car.Autopilot = true;
+            }
+            else
+            {
+                _camera.ProcessMode = ProcessModeEnum.Disabled;
+                Vector3 eye = _car.ToGlobal(_car.DriverEyeLocal);
+                _camera.LookAtFromPosition(eye,
+                    _car.ToGlobal(_car.DriverEyeLocal + new Vector3(0f, -0.08f, -6f)));
+            }
 
             GD.Print($"[shot] из салона: машина {_car.GlobalPosition}, "
                      + $"время {_car.Session.Clock.Hour}:{_car.Session.Clock.Minute:00}");

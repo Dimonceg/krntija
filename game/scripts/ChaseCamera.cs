@@ -33,6 +33,12 @@ public partial class ChaseCamera : Camera3D
     /// <summary>Вид от первого лица: камера сидит в голове цели.</summary>
     public bool FirstPerson { get; set; }
 
+    /// <summary>
+    /// Сидячий вид (в машине): камера жёстко в кресле, без мягкого догона —
+    /// иначе голова «плавает» относительно салона.
+    /// </summary>
+    public bool Seated { get; set; }
+
     /// <summary>Смещение «головы» в локальных координатах цели.</summary>
     public Vector3 FirstPersonOffset { get; set; } = new(0f, 1.45f, 0f);
 
@@ -74,7 +80,7 @@ public partial class ChaseCamera : Camera3D
         if (FirstPerson)
         {
             Vector3 head = Target.GlobalPosition + Target.GlobalBasis * FirstPersonOffset;
-            GlobalPosition = GlobalPosition.Lerp(head, Mathf.Clamp(dt * 22f, 0f, 1f));
+            GlobalPosition = Seated ? head : GlobalPosition.Lerp(head, Mathf.Clamp(dt * 22f, 0f, 1f));
 
             // Пешком обзор жёстко привязан к персонажу: иначе клавиши «плывут».
             float fpYaw = UseTargetYaw ? 0f : _yawOffset;
