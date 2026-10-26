@@ -718,16 +718,8 @@ public partial class Main
             _menu.PressCar(0);
         }
 
-        // Считаем только живые узлы: QueueFree освобождает старые в конце кадра.
-        int eventNodes = 0;
-        foreach (var child in GetChildren())
-        {
-            if (child is RoadEvents events && !events.IsQueuedForDeletion()) eventNodes++;
-        }
-
-        // Дорожные события пока есть только в старом мире (перенос — фаза 3).
-        int expectedEvents = _road is null ? 0 : 1;
-        bool singleEvents = eventNodes == expectedEvents;
+        // Старого мира с дорожными событиями больше нет: угрозы строятся в кусках.
+        bool singleEvents = true;
         int worldDone = _car.Session.WorldState.Done.Count;
         bool visitedCleared = worldDone == 0;
         // Мир кусками при новой игре строится заново: шлагбаум — уже другой узел, ищем по id.
@@ -736,8 +728,7 @@ public partial class Main
         bool lootBack = lootPoint is not null
                         && _interactions.Any(p => p.Kind == InteractionKind.Loot && p.StateId == lootPoint.StateId);
 
-        GD.Print($"[carselftest] события: {eventNodes} (ждём {expectedEvents}) — {(singleEvents ? "ок" : "FAIL")}, "
-                 + $"состояние мира сброшено: {worldDone} — {(visitedCleared ? "ок" : "FAIL")}, "
+        GD.Print($"[carselftest] состояние мира сброшено: {worldDone} — {(visitedCleared ? "ок" : "FAIL")}, "
                  + $"шлагбаум закрыт — {(gateClosed ? "ок" : "FAIL")}, "
                  + $"лут вернулся — {(lootBack ? "ок" : "FAIL")}");
 

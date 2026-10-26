@@ -25,7 +25,7 @@ public partial class Main
     /// <summary>Мир кусками — по умолчанию; старый мир на 2,5 км — до конца фазы 3.</summary>
     private bool UseChunkWorld => !HasArg("--world=legacy");
 
-    private string WorldKind => _streamer is null ? SaveWorld.Legacy : SaveWorld.Chunks;
+    private string WorldKind => SaveWorld.Chunks;
 
     private void BuildChunkWorld()
     {

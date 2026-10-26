@@ -99,16 +99,6 @@ public partial class Main
     {
         // Новая сессия — пустой WorldState: лут возвращается, шлагбаумы закрываются.
         SyncWorldState();
-
-        // События хранят сработавшие точки и ссылки на старую машину:
-        // проще собрать их заново, чем чинить флаги и удалённые узлы.
-        if (_road is not null)
-        {
-            _events?.QueueFree();
-            _events = new RoadEvents();
-            AddChild(_events);
-            _events.Setup(_road.Centerline, _road.Headings, _car, _hud);
-        }
     }
 
     private void ContinueGame()
@@ -210,11 +200,6 @@ public partial class Main
         _camera.Target = _car;
         _hud.Car = _car;
         if (_streamer is not null) SteerAlongChunkRoad();
-        else _car.Path = _road?.Centerline;
-
-        // События держат ссылку на машину: без Rebind ямы и коровы
-        // продолжали бы толкать удалённый объект после загрузки сейва.
-        _events?.Rebind(_car, _hud);
     }
 
     /// <summary>Игрок начинает на ручнике; в автотестах ручник не мешает движению.</summary>
