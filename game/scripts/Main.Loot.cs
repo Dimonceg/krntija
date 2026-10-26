@@ -175,7 +175,16 @@ public partial class Main
             return;
         }
 
-        _hud.Toast($"Подобрано: {name} ×{count}");
+        // A9: улучшение не «просто предмет» — оно ставится у машины, скажем это сразу.
+        if (UpgradeCatalog.TryGet(point.LootId, out var upgrade))
+        {
+            _hud.Toast($"{upgrade.Name}: улучшение — ставится у машины, клавиша U");
+        }
+        else
+        {
+            _hud.Toast($"Подобрано: {name} ×{count}");
+        }
+
         Sfx.PlayUi();
         MarkWorld(point.StateId);
         _interactions.Remove(point);

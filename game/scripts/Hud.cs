@@ -114,8 +114,10 @@ public partial class Hud : CanvasLayer
             AnchorBottom = 1f,
             OffsetLeft = -320,
             OffsetRight = 320,
-            OffsetTop = -78,
+            // Две строки: действие и, если есть, что поставит U (A9).
+            OffsetTop = -108,
             OffsetBottom = -46,
+            VerticalAlignment = VerticalAlignment.Bottom,
         };
         Style(_prompt, 19, new Color(0.98f, 0.9f, 0.65f));
         AddChild(_prompt);

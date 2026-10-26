@@ -164,7 +164,7 @@ public partial class Main
         // а не выше: экран обновляет UpdateFocus через этот вариант.
         if (_held is not null) return HandsPrompt();
 
-        return target.Kind switch
+        string prompt = target.Kind switch
         {
             TargetKind.Point => PromptFor(target.Point!),
             TargetKind.LoosePart => target.Body is not null && LooseName(target.Body) is { } name
@@ -177,9 +177,15 @@ public partial class Main
                 "мышь — обзор, W/S — идти, A/D — шаг вбок, Shift — бежать",
             _ => string.Empty,
         };
+
+        // A9: пешком у машины вторая строка — что поставит U.
+        string upgrades = UpgradeHint();
+        if (upgrades.Length == 0) return prompt;
+
+        return prompt.Length == 0 ? upgrades : prompt + "\n" + upgrades;
     }
 
-    private static string PromptFor(InteractionPoint point) => point.Kind switch
+    private string PromptFor(InteractionPoint point) => point.Kind switch
     {
         InteractionKind.Shop => "[E] зайти в лавку",
         InteractionKind.SellAll => "[E] сдать всё скупщику",
@@ -189,7 +195,7 @@ public partial class Main
         InteractionKind.RepairExit => $"[E] починить выезд ({Krntija.Core.Economy.Money.Format(WorldActions.ExitRepairPrice)} + изолента)",
         InteractionKind.ClearCollapse => "[E] разобрать завал",
         InteractionKind.Chest => "[E] открыть сундук",
-        InteractionKind.Workbench => $"[E] верстак: починить деталь ({Krntija.Core.Economy.Money.Format(WorldActions.WorkbenchPrice)} + изолента)",
+        InteractionKind.Workbench => WorkbenchPrompt(),
         InteractionKind.SleepHome => "[E] поспать дома",
         InteractionKind.Crate => "[E] открыть ящик",
         InteractionKind.Gate => point.Gate is { IsOpen: true } ? "[E] шлагбаум открыт" : $"[E] заплатить {Krntija.Core.Economy.Money.Format(point.Gate?.Toll ?? WorldActions.GateToll)} за проезд",

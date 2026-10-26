@@ -21,7 +21,7 @@ public partial class Main : Node3D
 {
     /// <summary>Проверки сохраняются в свой файл: иначе check.ps1 затирал сейв игрока.</summary>
     private string SavePath => _selfTest || _selfTestCars || _checkChunkPlaces || _checkMenu || _checkCarUpgrades || _checkCarAssembly
-        || _selfTestAssembly
+        || _selfTestAssembly || _selfTestUpgrades
         ? "user://check_save.json"
         : "user://save.json";
 
@@ -228,8 +228,15 @@ public partial class Main : Node3D
             return;
         }
 
+        if (_selfTestUpgrades)
+        {
+            RunUpgradeSelfTest();
+            return;
+        }
+
         // В автоматических прогонах меню не показываем: тесты должны ехать сразу.
-        bool automated = _smoke || _selfTest || _shot || _perf || _checkHouse || _chunkRun || _selfTestAssembly;
+        bool automated = _smoke || _selfTest || _shot || _perf || _checkHouse || _chunkRun
+                         || _selfTestAssembly || _selfTestUpgrades;
         if (!automated)
         {
             _menu.ShowMainMenu(HasSave());
@@ -407,6 +414,13 @@ public partial class Main : Node3D
         if (@event is not InputEventKey { Pressed: true, Echo: false } key)
             return;
 
+        // A9: U — поставить улучшение у машины (действие из SetupInput).
+        if (@event.IsActionPressed("install_upgrade"))
+        {
+            InstallUpgradeNearCar();
+            return;
+        }
+
         if (_hud.Screen == HudScreen.Shop && key.Keycode >= Key.Key1 && key.Keycode <= Key.Key6)
         {
             BuyShopItem((int)key.Keycode - (int)Key.Key1);
@@ -565,6 +579,7 @@ public partial class Main : Node3D
         AddKey("handbrake", Key.Space);
         AddKey("sprint", Key.Shift);
         AddKey("journal", Key.J);
+        AddKey("install_upgrade", Key.U);
     }
 
     private static void AddKey(string action, Key key)
