@@ -45,6 +45,7 @@ public partial class Main
     private bool _shotMap;
     private bool _shotMapUi;
     private bool _shotGarage;
+    private bool _shotDrive;
     private string? _shotProp;
 
     private bool _chunkBench;
@@ -121,13 +122,14 @@ public partial class Main
         _shotMap = HasArg("--shot-map");
         _shotMapUi = HasArg("--shot-mapui");
         _shotGarage = HasArg("--shot-garage");
+        _shotDrive = HasArg("--shot-drive");
         _shotProp = ArgValue("--shot-prop=");
 
         // --shot-prop разбирается до этой строки: раньше порядок был обратный,
         // и превью пропа без второго --shot-флага не включало режим снимка.
         _shot = HasArg("--shot") || _openJournalInShot || _shotMenu || _shotDay || _shotSettings
                 || _shotRain || _shotCar || _shotLineup || _shotCars || _shotBackpack
-                || _shotMap || _shotMapUi || _shotGarage || _shotProp is not null;
+                || _shotMap || _shotMapUi || _shotGarage || _shotDrive || _shotProp is not null;
     }
 
     private static void PrintSoundDiagnostics()
@@ -178,6 +180,21 @@ public partial class Main
 
             GD.Print($"[shot] гараж: машина {_car.GlobalPosition}, дом {HouseNode()?.GlobalPosition.ToString() ?? "нет"}, "
                      + $"деталей {_car.Session.LooseParts.Count}");
+            return;
+        }
+
+        // --shot-drive: машина едет сама, снимок на ходу — пыль, дым выхлопа, брызги.
+        // Автопилот держит машину на дороге, снимает штатный кадр на 180-м кадре.
+        if (_shotDrive)
+        {
+            double driveS = ArgValue("--at=") is { } drivePoint ? int.Parse(drivePoint) * 4.0 : 40;
+            _streamer?.BuildAround(driveS);
+            PlaceCarOnChunkRoad(driveS);
+            _car.SetHandbrake(false);
+            _car.Autopilot = true;
+            _car.Session.Clock.SetTotalMinutes(12 * 60);
+
+            GD.Print($"[shot] едем: s={driveS}, машина {_car.GlobalPosition}");
             return;
         }
 
