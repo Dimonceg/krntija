@@ -76,6 +76,12 @@ public sealed class VehicleTuning
 
 public sealed class VehicleState
 {
+    /// <summary>Множитель расхода от дороги и погоды: 1 — обычная езда у дома в сухую.</summary>
+    public double FuelMultiplier { get; set; } = 1;
+
+    /// <summary>Множитель износа от дороги и погоды.</summary>
+    public double WearMultiplier { get; set; } = 1;
+
     /// <summary>Модель: масса, мощность, бак, передаточные числа.</summary>
     public CarSpec Spec { get; init; } = CarCatalog.Zastava101;
 
@@ -149,6 +155,12 @@ public sealed class VehicleSystems
     public double GripFactor { get; private set; }
 
     public double FuelBurnLitersPerHour { get; private set; }
+
+    /// <summary>Множитель расхода от дороги и погоды: 1 — обычная езда у дома в сухую.</summary>
+    public double FuelMultiplier { get; set; } = 1;
+
+    /// <summary>Множитель износа от дороги и погоды.</summary>
+    public double WearMultiplier { get; set; } = 1;
     public bool Overheating => State.EngineTempC >= _tuning.OverheatC;
 
     public void Step(double dt, in VehicleSample sample, in DriveInput input)
@@ -178,7 +190,8 @@ public sealed class VehicleSystems
         if (st.EngineRunning)
         {
             double load = 0.25 + 0.75 * throttle;
-            FuelBurnLitersPerHour = _tuning.IdleLitersPerHour + _tuning.FullThrottleLitersPerHour * throttle * load;
+            FuelBurnLitersPerHour = (_tuning.IdleLitersPerHour + _tuning.FullThrottleLitersPerHour * throttle * load)
+                * Math.Clamp(st.FuelMultiplier, 0.2, 4.0);
             st.Fuel.Consume(FuelBurnLitersPerHour * dt / 3600.0);
 
             // Генератор потихоньку заряжает батарею.
@@ -246,6 +259,6 @@ public sealed class VehicleSystems
     private void Wear(PartSlot slot, double amount)
     {
         if (amount <= 0) return;
-        State.Get(slot)?.Wear(amount);
+        State.Get(slot)?.Wear(amount * Math.Clamp(State.WearMultiplier, 0.2, 4.0));
     }
 }
