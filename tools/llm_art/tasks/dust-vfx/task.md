@@ -1,6 +1,7 @@
 ---
 slug: dust-vfx
 writes: game/scripts/CarDust.cs
+skeleton: tools/llm_art/tasks/dust-vfx/skeleton/CarDust.cs
 refs: game/scripts/RainFx.cs, game/scripts/Car.cs:55-120, docs/ART.md:1-35
 build: dotnet build game\Krntija.Game.csproj -v q --nologo
 check: --selftest

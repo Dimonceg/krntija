@@ -1,6 +1,9 @@
 ---
 slug: имя-задачи
 writes: game/scripts/MyNode.cs
+# Заготовка (необязательно): файл с верными сигнатурами и TODO в телах. Модель
+# заполняет тела — API не изобретает. Заготовка обязана собираться как есть.
+skeleton: tools/llm_art/tasks/имя-задачи/skeleton/MyNode.cs
 refs: game/scripts/RainFx.cs, game/scripts/Car.cs:55-120, docs/ART.md:1-35
 build: dotnet build game\Krntija.Game.csproj -v q --nologo
 check: --selftest

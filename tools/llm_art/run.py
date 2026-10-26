@@ -106,6 +106,13 @@ def build_prompt(meta: dict[str, str], body: str) -> str:
     parts = [system, "\n\n## ЗАДАНИЕ\n", body.strip(), "\n\n## ФАЙЛЫ, КОТОРЫЕ НУЖНО ВЕРНУТЬ\n"]
     parts += [f"- {path}\n" for path in split_list(meta.get("writes"))]
 
+    # Заготовка: API и сигнатуры уже верные, модель заполняет только тела.
+    skeleton = meta.get("skeleton", "").strip()
+    if skeleton:
+        parts.append("\n## ЗАГОТОВКА — ЗАПОЛНИ ТЕЛА, СИГНАТУРЫ НЕ МЕНЯЙ\n")
+        parts.append(read_ref(skeleton))
+        parts.append("\nВерни получившийся файл целиком, с тем же путём из списка выше.\n")
+
     refs = split_list(meta.get("refs"))
     if refs:
         parts.append("\n## РЕФЕРЕНСЫ ИЗ РЕПОЗИТОРИЯ\n")
@@ -338,6 +345,10 @@ def main() -> int:
     meta, body = parse_front_matter(task_file.read_text(encoding="utf-8"))
     writes = split_list(meta.get("writes"))
     prompt = build_prompt(meta, body)
+
+    if meta.get("skeleton", "").strip() and len(writes) != 1:
+        print("skeleton: в writes должен быть ровно один файл", file=sys.stderr)
+        return 2
 
     if args.dry_run:
         print(prompt)
