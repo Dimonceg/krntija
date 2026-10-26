@@ -133,7 +133,14 @@ public partial class Main
 
         if (onFoot)
         {
-            _candidates.Add(new Candidate(CarCandidate, DistanceToCar(), AngleTo(_car.GlobalPosition + Vector3.Up * 0.8f),
+            // Цель «машина» — там, куда игрок смотрит на ней: у детали под взглядом,
+            // иначе у середины кузова. Иначе при взгляде на моторный отсек цель
+            // «машина» уходит из конуса взгляда и проигрывает далёкой двери дома.
+            var aimed = AimedPart(from, AngleTo);
+            Vector3 carAt = (aimed is { } aimedSlot ? AimedSocketPosition(aimedSlot) : null)
+                            ?? _car.GlobalPosition + Vector3.Up * 0.8f;
+
+            _candidates.Add(new Candidate(CarCandidate, from.DistanceTo(carAt), AngleTo(carAt),
                 CarReach, Priority: 1));
 
             // Детали в мире (ADR 0003, п. 6): тела ездят и катятся, поэтому кандидаты
@@ -159,7 +166,7 @@ public partial class Main
             if (chosen.Id == CarCandidate)
             {
                 // Смотрим на деталь машины — E открывает панель, R снимает (ADR 0003, п. 6).
-                return AimedPart(eye, AngleTo) is { } slot
+                return AimedPart(from, AngleTo) is { } slot
                     ? new InteractionTarget(TargetKind.CarPart, Slot: slot)
                     : new InteractionTarget(TargetKind.EnterCar);
             }

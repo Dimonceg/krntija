@@ -21,6 +21,7 @@ public partial class Main : Node3D
 {
     /// <summary>Проверки сохраняются в свой файл: иначе check.ps1 затирал сейв игрока.</summary>
     private string SavePath => _selfTest || _selfTestCars || _checkChunkPlaces || _checkMenu || _checkCarUpgrades || _checkCarAssembly
+        || _selfTestAssembly
         ? "user://check_save.json"
         : "user://save.json";
 
@@ -221,8 +222,14 @@ public partial class Main : Node3D
             return;
         }
 
+        if (_selfTestAssembly)
+        {
+            RunAssemblySelfTest();
+            return;
+        }
+
         // В автоматических прогонах меню не показываем: тесты должны ехать сразу.
-        bool automated = _smoke || _selfTest || _shot || _perf || _checkHouse || _chunkRun;
+        bool automated = _smoke || _selfTest || _shot || _perf || _checkHouse || _chunkRun || _selfTestAssembly;
         if (!automated)
         {
             _menu.ShowMainMenu(HasSave());

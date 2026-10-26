@@ -71,7 +71,7 @@ public class StartScenarioTests
         Assert.NotNull(hood);
         Assert.Equal("hood_101", hood!.DefId);
         Assert.Equal(1.0, hood.Condition, 3);
-        Assert.True(hood.X < 10, "капот лежит слева от машины");
+        Assert.True(hood.X > 10, "капот лежит справа от машины");
         Assert.Equal(0.5 + 0.15, hood.Y, 3);
     }
 
@@ -81,11 +81,11 @@ public class StartScenarioTests
         var session = Zastava();
         StartScenario.Apply(session, 0, 0, 0, Math.PI / 2);
 
-        // При повороте на 90° смещение в осях машины (−1,8; −2,3) → в мире (−2,3; +1,8).
+        // При повороте на 90° смещение в осях машины (6,0; −7,4) → в мире (−7,4; −6,0).
         var battery = session.LooseParts.Find("part:garage:1");
         Assert.NotNull(battery);
-        Assert.Equal(-2.3, battery!.X, 6);
-        Assert.Equal(1.8, battery.Z, 6);
+        Assert.Equal(-7.4, battery!.X, 6);
+        Assert.Equal(-6.0, battery.Z, 6);
     }
 
     [Fact]

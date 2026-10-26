@@ -107,8 +107,8 @@ public static class AssemblyRules
     /// <summary>Насколько точно надо смотреть на гнездо, чтобы попасть в него, градусы.</summary>
     public const double AimAngle = 28;
 
-    /// <summary>Дальше этого деталь на машине рукой не достать, метры.</summary>
-    public const double AimDistance = 2.6;
+    /// <summary>Дальше этого деталь на машине рукой не достать (от игрока), метры.</summary>
+    public const double AimDistance = 1.8;
 
     public static double CarrySpeedFactor(double massKg) =>
         Math.Clamp(1.0 - massKg / CarryMassHalfSpeedKg, MinCarrySpeedFactor, 1.0);

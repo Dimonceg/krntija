@@ -347,8 +347,11 @@ public partial class Main
         return _car.SocketGlobal(id)?.Origin;
     }
 
-    /// <summary>Гнездо под взглядом: угол и расстояние считает сцена, выбирает ядро.</summary>
-    private PartSlot? AimedPart(Vector3 eye, Func<Vector3, float> angleTo)
+    /// <summary>
+    /// Гнездо под взглядом: угол до гнезда и расстояние от игрока считает сцена,
+    /// выбирает ядро (<see cref="AssemblyRules.AimedSlot"/>). null — не смотрит на деталь.
+    /// </summary>
+    private PartSlot? AimedPart(Vector3 from, Func<Vector3, float> angleTo)
     {
         var vehicle = _car.Session.Vehicle;
         if (CarLayout.For(vehicle.Spec.Id) is not { } layout) return null;
@@ -359,11 +362,14 @@ public partial class Main
             if (!vehicle.Parts.ContainsKey(spec.Slot)) continue;
             if (SocketPosition(spec.Slot) is not { } at) continue;
 
-            _aim.Add((spec.Slot, angleTo(at), eye.DistanceTo(at)));
+            _aim.Add((spec.Slot, angleTo(at), from.DistanceTo(at)));
         }
 
         return AssemblyRules.AimedSlot(_aim);
     }
+
+    /// <summary>Точка гнезда, на которое смотрит игрок (для кандидата машины).</summary>
+    private Vector3? AimedSocketPosition(PartSlot slot) => SocketPosition(slot);
 
     /// <summary>Подсказка, когда в руках деталь.</summary>
     private string HandsPrompt()

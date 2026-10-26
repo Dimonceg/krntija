@@ -29,7 +29,6 @@ public partial class Main
 
     private Node3D? _loosePartsRoot;
     private readonly List<RigidBody3D> _loosePartBodies = new();
-    private int _assemblyMissingShown = -1;
 
     /// <summary>
     /// Поставить машину к гаражу и разложить снятые детали. False — у машины нет
@@ -100,7 +99,16 @@ public partial class Main
 
         var body = BuildLoosePartBody(loose);
         _loosePartsRoot.AddChild(body);
-        body.GlobalPosition = WorldOrigin.ToScene(loose.X, loose.Y, loose.Z);
+
+        // Деталь не должна оказаться в земле: старт в гараже задаёт высоту от пола
+        // дома, а двор может быть выше. Ставим на первую твёрдую поверхность.
+        Vector3 scene = WorldOrigin.ToScene(loose.X, loose.Y, loose.Z);
+        Vector3 size = LoosePartLook.Size(loose.Definition?.Slot ?? PartSlot.Body);
+        float ground = GroundY(scene + Vector3.Up * 2f);
+        float y = Mathf.Max(scene.Y, ground + size.Y * 0.5f + 0.05f);
+
+        loose.Y = y;
+        body.GlobalPosition = new Vector3(scene.X, y, scene.Z);
         body.GlobalRotation = new Vector3(0, (float)loose.Yaw, 0);
         _loosePartBodies.Add(body);
         return body;
@@ -168,16 +176,18 @@ public partial class Main
 
         if (missing == 0)
         {
-            if (_assemblyMissingShown > 0) _hud.Toast("Машина собрана");
-            _assemblyMissingShown = 0;
+            // Текст мог остаться от прошлого кадра или от сейва — убираем свой.
+            if (_hud.Objective.StartsWith(AssemblyObjective))
+            {
+                _hud.Objective = string.Empty;
+                _hud.Toast("Машина собрана");
+            }
+
             return false;
         }
 
-        if (missing != _assemblyMissingShown)
-        {
-            _assemblyMissingShown = missing;
-            _hud.Objective = $"{AssemblyObjective} (осталось {missing})";
-        }
+        string text = $"{AssemblyObjective} (осталось {missing})";
+        if (_hud.Objective != text) _hud.Objective = text;
 
         return true;
     }
