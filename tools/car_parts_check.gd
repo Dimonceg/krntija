@@ -47,6 +47,7 @@ func check_modular_car():
     var total=0
     for visual in shell.find_children("*","MeshInstance3D",true,false):
         total+=visual.mesh.get_faces().size()/3
+        check_finish(visual,"shell")
     check(total<=3100,"shell triangle budget: "+str(total))
     for id in ids:
         var socket=shell.find_child("Socket_"+id,true,false) as Node3D
@@ -67,6 +68,7 @@ func check_modular_car():
         for visual in panel.find_children("*","MeshInstance3D",true,false):
             check(visual.transform.is_equal_approx(Transform3D.IDENTITY),id+" baked mesh transform")
             tris+=visual.mesh.get_faces().size()/3
+            check_finish(visual,id)
             # Hinge must touch the panel geometry, not sit at a far-away chassis origin.
             var bounds=visual.get_aabb().grow(.12)
             check(bounds.has_point(Vector3.ZERO),id+" hinge lies on panel edge")
@@ -75,3 +77,21 @@ func check_modular_car():
     check(total<=5000,"assembled shell and panels budget: "+str(total))
     check(shell.find_children("*","CollisionObject3D",true,false).is_empty(),"shell no collisions")
     shell.free()
+
+func check_finish(visual: MeshInstance3D,id: String):
+    check(visual.mesh.get_surface_count()<=4,id+" at most four PBR surfaces")
+    var tinted=false
+    for index in visual.mesh.get_surface_count():
+        var colors=visual.mesh.surface_get_arrays(index)[Mesh.ARRAY_COLOR]
+        if colors!=null:
+            for color in colors:
+                if color.r<.7 and color.g<.7:tinted=true;break
+        var mat=visual.get_active_material(index) as StandardMaterial3D
+        check(mat!=null,id+" standard material")
+        if mat==null:continue
+        if "Glass" in mat.resource_name:
+            check(mat.transparency==BaseMaterial3D.TRANSPARENCY_ALPHA and mat.albedo_color.a<.4,id+" transparent glazing")
+        else:
+            check(mat.albedo_texture!=null and mat.roughness_texture!=null,id+" albedo and roughness textures")
+            check(mat.vertex_color_use_as_albedo,id+" vertex palette preserved")
+    check(tinted,id+" exported palette contains nonwhite colours")

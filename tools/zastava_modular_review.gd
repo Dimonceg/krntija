@@ -3,6 +3,7 @@ extends SceneTree
 var sheet: SubViewport
 var frames := 0
 var fitted := "--fitted" in OS.get_cmdline_user_args()
+var detail := "--detail" in OS.get_cmdline_user_args()
 const IDS = ["door_fl", "door_fr", "door_rl", "door_rr", "hood", "trunk"]
 func _initialize(): call_deferred("setup")
 func setup():
@@ -17,6 +18,10 @@ func setup():
         env.environment.background_mode=Environment.BG_COLOR; env.environment.background_color=Color("414b50")
         env.environment.ambient_light_source=Environment.AMBIENT_SOURCE_COLOR
         env.environment.ambient_light_color=Color("b7c1ca"); env.environment.ambient_light_energy=.8; world.add_child(env)
+        if detail:
+            var sky=Sky.new();sky.sky_material=ProceduralSkyMaterial.new()
+            env.environment.sky=sky
+            env.environment.reflected_light_source=Environment.REFLECTION_SOURCE_SKY
         var light=DirectionalLight3D.new(); light.rotation_degrees=Vector3(-40,-45,0); light.light_energy=1.5; world.add_child(light)
         var car=load("res://assets/models/cars/zastava_101_shell.glb").instantiate(); world.add_child(car)
         for id in IDS:
@@ -39,8 +44,12 @@ func setup():
         var camera=Camera3D.new(); world.add_child(camera); camera.projection=Camera3D.PROJECTION_ORTHOGONAL
         camera.size=5.9 if i==1 else 4.6
         camera.look_at_from_position(Vector3(-4,2.7,5 if i==2 else -5),Vector3(0,.1,0)); camera.current=true
+        if detail and i==2:
+            camera.size=1.7
+            camera.look_at_from_position(Vector3(-1.4,.55,.70),Vector3(.0,.12,-.45))
         var label=Label.new(); label.text=["Closed — original silhouette","Open — engine bay empty","Panels removed — cabin"][i]
         if fitted:label.text=["Existing upgrades — unchanged fit","Open — mechanical parts installed","Cabin — panels removed"][i]
+        if detail:label.text=["Paint, chrome and clear glazing","Hinges and engine bay","Cabin detail"][i]
         label.position=Vector2(i*600,750); label.size=Vector2(600,45); label.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
         label.add_theme_font_size_override("font_size",21); sheet.add_child(label)
 func _process(_delta):
@@ -48,6 +57,7 @@ func _process(_delta):
     if frames==40:
         await RenderingServer.frame_post_draw
         var file="zastava-modular-fitted.png" if fitted else "zastava-modular.png"
+        if detail:file="zastava-detail-fitted.png" if fitted else "zastava-detail.png"
         print("[modular-shot] ",sheet.get_texture().get_image().save_png("res://../docs/screenshots/"+file))
         quit()
     return false

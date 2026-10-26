@@ -174,53 +174,5 @@ for key,pos in SOCKETS.items():
         ob.location=xyz(pos);ob.rotation_euler=(C @ Matrix.Rotation(math.radians(deg),3,axis) @ C.inverted()).to_euler()
         ob.empty_display_size=.06
 
-# Bake the established opaque glass/palette style; open panels expose the cabin.
-palette=material('Zastava modular vertex palette',(1,1,1),.18,.65)
-vc=palette.node_tree.nodes.new('ShaderNodeVertexColor');vc.layer_name='Color'
-palette.node_tree.links.new(vc.outputs['Color'],palette.node_tree.nodes['Principled BSDF'].inputs['Base Color'])
-bpy.context.preferences.filepaths.save_version=0
-bpy.ops.wm.save_as_mainfile(filepath=str(OUT/'zastava_modular.blend'))
-stats={}
-for key,coll in colls.items():
-    meshes=[o for o in coll.objects if o.type!='EMPTY']
-    for ob in meshes:
-        bpy.ops.object.select_all(action='DESELECT');ob.select_set(True);bpy.context.view_layer.objects.active=ob
-        for modifier in ob.modifiers:
-            if modifier.type=='BEVEL':modifier.segments=1
-        bpy.ops.object.convert(target='MESH')
-        colors=[m.diffuse_color[:] for m in ob.data.materials]
-        attr=ob.data.color_attributes.new(name='Color',type='BYTE_COLOR',domain='CORNER')
-        for p in ob.data.polygons:
-            for idx in p.loop_indices:attr.data[idx].color=colors[p.material_index]
-        ob.data.materials.clear();ob.data.materials.append(palette)
-        for p in ob.data.polygons:p.material_index=0
-    bpy.ops.object.select_all(action='DESELECT')
-    for ob in meshes:ob.select_set(True)
-    bpy.context.view_layer.objects.active=meshes[0];bpy.ops.object.join();ob=bpy.context.object
-    name='zastava_101_'+key;ob.name=name
-    pivot=SOCKETS.get(key,(0,0,0));bpy.context.scene.cursor.location=xyz(pivot)
-    bpy.ops.object.origin_set(type='ORIGIN_CURSOR');ob.location=(0,0,0)
-    bpy.ops.object.transform_apply(location=False,rotation=True,scale=True)
-    dissolve=ob.modifiers.new('remove coplanar triangles','DECIMATE');dissolve.decimate_type='DISSOLVE'
-    dissolve.angle_limit=math.radians(.5);bpy.ops.object.modifier_apply(modifier=dissolve.name)
-    ob.data.calc_loop_triangles();triangles=len(ob.data.loop_triangles)
-    budget=3100 if key=='shell' else 600
-    if triangles>budget:
-        dec=ob.modifiers.new('game geometry budget','DECIMATE');dec.ratio=(budget-40)/triangles
-        bpy.ops.object.modifier_apply(modifier=dec.name)
-    ob.data.calc_loop_triangles();triangles=len(ob.data.loop_triangles)
-    stats[key]={'triangles':triangles,'socket':list(pivot),'budget':budget}
-    assert triangles<=stats[key]['budget'],(key,triangles)
-    for anchor in coll.objects:
-        if anchor.type=='EMPTY':anchor.select_set(True)
-    bpy.ops.export_scene.gltf(filepath=str(ASSETS/(name+'.glb')),export_format='GLB',use_selection=True,
-        export_yup=True,export_apply=True,export_animations=False,export_cameras=False,export_lights=False,export_all_vertex_colors=True)
-    imp=ASSETS/(name+'.glb.import')
-    if not imp.exists():
-        template=(ASSETS/'zastava_101_upgrade_tank.glb.import').read_text(encoding='utf8')
-        template=re.sub(r'^uid=.*\n','',template,flags=re.M)
-        digest=hashlib.md5(('res://assets/models/cars/'+name+'.glb').encode()).hexdigest()
-        template=template.replace('zastava_101_upgrade_tank',name).replace('2dc0b20d27212862e4da210eb195cd77',digest)
-        imp.write_text(template,encoding='utf8',newline='\n')
-(OUT/'geometry.json').write_text(json.dumps(stats,indent=2)+'\n',encoding='utf8')
-print('MODULAR_ZASTAVA',json.dumps(stats))
+finish=Path(__file__).with_name('blender_zastava_finish.py')
+exec(compile(finish.read_text(encoding='utf8'),str(finish),'exec'))
