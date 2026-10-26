@@ -123,8 +123,10 @@ public static class AssemblyRules
         if (spec is null) return AssemblyResult.NotRemovable;
 
         if (!Fits(vehicle, slot, def)) return AssemblyResult.WrongPart;
-        if (spec.NeedsAccess && !HasEngineAccess(vehicle)) return AssemblyResult.NeedsAccess;
+        // Занятое гнездо важнее капота: подсказка «сними деталь» полезнее, чем
+        // «открой капот», когда ставить всё равно некуда.
         if (vehicle.Parts.ContainsKey(slot)) return AssemblyResult.Occupied;
+        if (spec.NeedsAccess && !HasEngineBayAccess(vehicle)) return AssemblyResult.NeedsAccess;
 
         return AssemblyResult.Ok;
     }
@@ -138,7 +140,7 @@ public static class AssemblyRules
         var spec = layout.Find(slot);
         if (spec is null) return AssemblyResult.NotRemovable;
         if (!vehicle.Parts.ContainsKey(slot)) return AssemblyResult.Empty;
-        if (spec.NeedsAccess && !HasEngineAccess(vehicle)) return AssemblyResult.NeedsAccess;
+        if (spec.NeedsAccess && !HasEngineBayAccess(vehicle)) return AssemblyResult.NeedsAccess;
 
         return AssemblyResult.Ok;
     }
@@ -183,7 +185,7 @@ public static class AssemblyRules
     }
 
     /// <summary>Доступ под капот: капот открыт или снят (ADR 0003, п. 1).</summary>
-    public static bool HasEngineAccess(VehicleState vehicle) =>
+    public static bool HasEngineBayAccess(VehicleState vehicle) =>
         vehicle.OpenSlots.Contains(PartSlot.Hood) || !vehicle.Parts.ContainsKey(PartSlot.Hood);
 
     /// <summary>Открыта ли панель. Снятая панель не открыта.</summary>

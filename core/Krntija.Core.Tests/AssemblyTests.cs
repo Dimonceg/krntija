@@ -116,12 +116,23 @@ public class AssemblyTests
     {
         var car = Zastava();
 
-        Assert.False(AssemblyRules.HasEngineAccess(car), "капот установлен и закрыт");
+        Assert.False(AssemblyRules.HasEngineBayAccess(car), "капот установлен и закрыт");
         Assert.Equal(AssemblyResult.NeedsAccess, AssemblyRules.CanRemove(car, PartSlot.Engine));
-        Assert.Equal(AssemblyResult.NeedsAccess, AssemblyRules.CanInstall(car, PartSlot.Engine, Def("engine_1_6")));
 
         Assert.Null(AssemblyRules.Remove(car, PartSlot.Engine));
         Assert.True(car.Parts.ContainsKey(PartSlot.Engine), "закрытый капот ничего не снял");
+
+        // Пустое гнездо под капотом: ставить нельзя, пока капот закрыт.
+        OpenHood(car);
+        Assert.NotNull(AssemblyRules.Remove(car, PartSlot.Engine));
+        Assert.True(AssemblyRules.SetOpen(car, PartSlot.Hood, false));
+        Assert.Equal(AssemblyResult.NeedsAccess, AssemblyRules.CanInstall(car, PartSlot.Engine, Def("engine_1_6")));
+
+        // А если гнездо занято, подсказка — «занято», а не «открой капот».
+        OpenHood(car);
+        Assert.Equal(AssemblyResult.Ok, AssemblyRules.Install(car, PartSlot.Engine, new Part(Def("engine_1_6"))));
+        Assert.True(AssemblyRules.SetOpen(car, PartSlot.Hood, false));
+        Assert.Equal(AssemblyResult.Occupied, AssemblyRules.CanInstall(car, PartSlot.Engine, Def("engine_1_6")));
     }
 
     [Fact]
@@ -130,7 +141,7 @@ public class AssemblyTests
         var car = Zastava();
         OpenHood(car);
 
-        Assert.True(AssemblyRules.HasEngineAccess(car));
+        Assert.True(AssemblyRules.HasEngineBayAccess(car));
         var engine = AssemblyRules.Remove(car, PartSlot.Engine);
         Assert.NotNull(engine);
         Assert.Equal(AssemblyResult.Ok, AssemblyRules.Install(car, PartSlot.Engine, engine!));
@@ -143,7 +154,7 @@ public class AssemblyTests
 
         var hood = AssemblyRules.Remove(car, PartSlot.Hood);
         Assert.NotNull(hood);
-        Assert.True(AssemblyRules.HasEngineAccess(car), "снятый капот — тоже доступ");
+        Assert.True(AssemblyRules.HasEngineBayAccess(car), "снятый капот — тоже доступ");
 
         Assert.NotNull(AssemblyRules.Remove(car, PartSlot.Engine));
         Assert.Equal(AssemblyResult.Ok, AssemblyRules.Install(car, PartSlot.Hood, hood!));

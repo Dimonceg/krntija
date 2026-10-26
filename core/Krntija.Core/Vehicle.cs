@@ -111,21 +111,32 @@ public sealed class VehicleState
             Fuel = new FuelTank(spec.FuelCapacityL, spec.FuelStartL),
         };
 
-        foreach (var (id, slot) in PartCatalog.StandardBuild)
-            state.Install(PartCatalog.Create(id, slot));
+        state.CompleteBuild();
+        return state;
+    }
 
-        // Панели кузова есть только у машины с раскладкой гнёзд (ADR 0003).
-        if (CarLayout.For(spec.Id) is { } layout)
+    /// <summary>
+    /// Доставить всё, чего в машине нет: «машина собрана целиком». Так выглядит
+    /// новая машина «с завода» и старый сейв до v4, где «нет слота» значило
+    /// «слот не сохраняется» (ADR 0003, п. 4). Панели кузова — только у машины
+    /// с раскладкой гнёзд.
+    /// </summary>
+    public void CompleteBuild()
+    {
+        foreach (var (id, slot) in PartCatalog.StandardBuild)
         {
-            foreach (var slotSpec in layout.Slots)
-            {
-                if (state.Parts.ContainsKey(slotSpec.Slot)) continue;
-                var def = PartCatalog.PanelFor(spec.Id, slotSpec.Slot);
-                if (def is not null) state.Install(new Part(def));
-            }
+            if (Parts.ContainsKey(slot)) continue;
+            Install(PartCatalog.Create(id, slot));
         }
 
-        return state;
+        if (CarLayout.For(Spec.Id) is not { } layout) return;
+
+        foreach (var slotSpec in layout.Slots)
+        {
+            if (Parts.ContainsKey(slotSpec.Slot)) continue;
+            var def = PartCatalog.PanelFor(Spec.Id, slotSpec.Slot);
+            if (def is not null) Install(new Part(def));
+        }
     }
 
     public void Install(Part part) => Parts[part.Slot] = part;

@@ -101,6 +101,40 @@ public class SessionTests
         Assert.True(survival.Health < 1.0, "без воды здоровье должно падать");
     }
 
+    [Fact]
+    public void SaveV3_IsReadAsWholeCarWithPanels()
+    {
+        // ADR 0003, п. 4: в v3 отсутствующий слот значил «слот не сохраняется»,
+        // поэтому старый сейв читается как полностью собранная машина.
+        var path = Path.Combine(AppContext.BaseDirectory, "Saves", "save_v3.json");
+        var data = SaveSerializer.LoadFile(path);
+
+        Assert.Equal(3, data.Version);
+        Assert.DoesNotContain(data.Parts, p => p.Slot == nameof(PartSlot.Hood));
+
+        var car = GameSession.FromSave(data).Vehicle;
+
+        foreach (var socket in CarLayout.Zastava101.Slots)
+            Assert.True(car.Parts.ContainsKey(socket.Slot), $"гнездо {socket.Slot} должно быть занято после загрузки v3");
+        Assert.Equal(PartCatalog.StandardBuild.Select(p => p.Slot)
+            .Concat(CarLayout.Zastava101.Slots.Select(s => s.Slot)).Distinct().Count(), car.Parts.Count);
+        Assert.Equal(0.86, car.Get(PartSlot.Engine)!.Condition, 3);
+    }
+
+    [Fact]
+    public void SaveV4_KeepsRemovedPanelsRemoved()
+    {
+        // С v4 «нет слота в Parts» — это «детали нет», и доставлять её нельзя.
+        var data = new SaveData { Version = 4, SpecId = CarCatalog.Zastava101.Id };
+        data.Parts.Add(new PartSave { Slot = nameof(PartSlot.Engine), DefId = "engine_1_6", Condition = 0.5 });
+
+        var car = GameSession.FromSave(data).Vehicle;
+
+        Assert.True(car.Parts.ContainsKey(PartSlot.Engine));
+        Assert.False(car.Parts.ContainsKey(PartSlot.Hood), "снятый капот в v4 остаётся снятым");
+        Assert.False(car.Parts.ContainsKey(PartSlot.DoorFrontLeft));
+    }
+
     private static void Nearly(double expected, double actual, double tolerance = 1e-5) =>
         Assert.True(Math.Abs(expected - actual) <= tolerance, $"ожидали {expected}, получили {actual}");
 }
