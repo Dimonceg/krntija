@@ -186,16 +186,14 @@ public partial class Main
         };
     }
 
-    private string BuildPrompt()
-    {
-        // В руках деталь — подсказка только про неё: поставить или положить.
-        if (_held is not null) return HandsPrompt();
-
-        return BuildPrompt(SelectTarget());
-    }
+    private string BuildPrompt() => BuildPrompt(SelectTarget());
 
     private string BuildPrompt(InteractionTarget target)
     {
+        // В руках деталь — подсказка только про неё: поставить или положить. Здесь,
+        // а не выше: экран обновляет UpdateFocus через этот вариант.
+        if (_held is not null) return HandsPrompt();
+
         return target.Kind switch
         {
             TargetKind.Point => PromptFor(target.Point!),

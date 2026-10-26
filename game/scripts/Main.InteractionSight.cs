@@ -1,4 +1,5 @@
 using Godot;
+using Krntija.Core;
 
 namespace Krntija.Game;
 
@@ -18,7 +19,15 @@ public partial class Main
     {
         var target = SelectTarget();
         _hud.Prompt = BuildPrompt(target);
-        _highlight.Show(target.Kind == TargetKind.Point ? target.Point!.Body : null);
+
+        // С деталью в руках обводки нет: E про деталь, её место показывает магнит.
+        _highlight.Show(_held is not null ? null : target.Kind switch
+        {
+            TargetKind.Point => target.Point!.Body,
+            TargetKind.LoosePart => target.Body,
+            TargetKind.CarPart => _car.Assembly?.PartNode(PartSlotIds.Of(target.Slot!.Value)),
+            _ => null,
+        });
     }
 
     /// <summary>

@@ -59,6 +59,13 @@ public partial class Main
             StandAt(body.GlobalPosition);
             if (SelectTarget().Kind != TargetKind.LoosePart) return false;
 
+            // Подсказка на экране — та, что видит игрок, а не отдельный вызов.
+            if (!_hud.Prompt.Contains("взять"))
+            {
+                Check(false, $"подсказка у детали: «{_hud.Prompt}»");
+                return false;
+            }
+
             Interact();
             return _held is not null && _held.DefId == defId;
         }
@@ -69,6 +76,12 @@ public partial class Main
 
             StandAt(at);
             if (_snapSlot != slot) return false;
+
+            if (!_hud.Prompt.Contains("установить"))
+            {
+                Check(false, $"подсказка с деталью у гнезда: «{_hud.Prompt}»");
+                return false;
+            }
 
             Interact();
             return _held is null && _car.Session.Vehicle.Parts.ContainsKey(slot);
@@ -84,6 +97,13 @@ public partial class Main
         }
 
         bool IsOpen(PartSlot slot) => AssemblyRules.IsOpen(_car.Session.Vehicle, slot);
+
+        // С окном — снимки для ревью (user://assembly_*.png); камера остаётся под проверкой.
+        async System.Threading.Tasks.Task Shot(string name, Vector3 at)
+        {
+            await Snap(name, at);
+            _camera.ProcessMode = ProcessModeEnum.Disabled;
+        }
 
         StartNewGame(CarCatalog.Get("zastava_101"));
         await Frames(6);
@@ -105,6 +125,7 @@ public partial class Main
         ExitCar();
         await Frames(4);
         _camera.ProcessMode = ProcessModeEnum.Disabled;
+        await Shot("assembly_start", _car.GlobalPosition);
 
         // 1. Капот: взять, положить (гнездо далеко, магнита нет), взять и поставить.
         Check(TakePart("hood_101"), "капот в руках");
@@ -115,6 +136,12 @@ public partial class Main
         Check(_held is null && _loosePartBodies.Count == 6, "капот положен");
 
         Check(TakePart("hood_101"), "капот снова в руках");
+        if (SocketPosition(PartSlot.Hood) is { } hoodGhost)
+        {
+            StandAt(hoodGhost);
+            await Shot("assembly_hood_magnet", hoodGhost);
+        }
+
         Check(PutPart(PartSlot.Hood), "капот поставлен магнитом");
         Check(_car.Session.LooseParts.Count == 5, $"в мире деталей: {_car.Session.LooseParts.Count}");
 
@@ -148,6 +175,12 @@ public partial class Main
         }
 
         Check(TakePart("engine_1_6"), "двигатель снова в руках");
+        if (SocketPosition(PartSlot.Engine) is { } engineGhost)
+        {
+            StandAt(engineGhost);
+            await Shot("assembly_engine_magnet", engineGhost);
+        }
+
         Check(PutPart(PartSlot.Engine), "двигатель поставлен магнитом");
 
         Check(RemovePart(PartSlot.Engine) && _held?.DefId == "engine_1_6", "двигатель снят в руки (R)");
@@ -181,6 +214,7 @@ public partial class Main
         Check(TakePart("door_fl_101") && PutPart(PartSlot.DoorFrontLeft), "дверь поставлена");
 
         Check(!StartScenario.NeedsAssembly(_car.Session.Vehicle), "машина собрана целиком");
+        await Shot("assembly_done", _car.GlobalPosition);
         Check(_car.Session.LooseParts.Count == 0, $"деталей в мире: {_car.Session.LooseParts.Count}");
         await Frames(2);
         Check(!_hud.Objective.Contains("Собери"), $"задача сборки снята: «{_hud.Objective}»");
