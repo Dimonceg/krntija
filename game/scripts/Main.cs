@@ -36,7 +36,6 @@ public partial class Main : Node3D
     private float _miniMapTimer;
     private RoadBuildResult? _road;
     private MenuUi _menu = null!;
-    private RoadEvents? _events;
     private RainFx _rain = null!;
     private DirectionalLight3D? _sun;
     private Godot.Environment? _environment;
@@ -105,8 +104,6 @@ public partial class Main : Node3D
 
         _mapUi = new MapUi();
         AddChild(_mapUi);
-        if (_road is not null)
-            _mapUi.SetData(_road.Centerline, _map.Branches, _map.Places, _map.ClosedExits);
 
         // Маленькая карта в углу: видна всегда.
         _miniMap = new MapUi { Compact = true };
@@ -117,22 +114,11 @@ public partial class Main : Node3D
         _miniMap.OffsetRight = -12;
         _miniMap.OffsetBottom = 170;
         _miniMap.Visible = true;
-        if (_road is not null)
-            _miniMap.SetData(_road.Centerline, _map.Branches, _map.Places, _map.ClosedExits);
         RefreshChunkMap();
 
         // Дом игрока у старта: слева от дороги, со своими дверями и чердаком.
         BuildPlayerHouse();
         SpawnLoot();
-        BatchStaticGeometry();
-
-        // Дорожные события: ямы, коровы, попутчики.
-        if (_road is not null)
-        {
-            _events = new RoadEvents();
-            AddChild(_events);
-            _events.Setup(_road.Centerline, _road.Headings, _car, _hud);
-        }
 
         _rain = new RainFx();
         AddChild(_rain);

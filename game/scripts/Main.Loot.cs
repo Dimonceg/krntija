@@ -189,24 +189,7 @@ public partial class Main
             foreach (var (position, itemId, count) in LootSpawner.PlanHouse(house))
                 AddLoot(WorldState.Loot("house", inHouse++), position, itemId, count);
 
-        // Лут у построек карты: у руин металлолом, у дома — кассеты, у сарая — запчасти.
-        int inMap = 0;
-        foreach (var place in _mapPlaces)
-        {
-            string itemId = place.Kind switch
-            {
-                "ruins" => "scrap_metal",
-                "barn" => "spark_plug",
-                "house" or "abandoned" => "cassette",
-                "well" => "bottle_cap",
-                _ => "duct_tape",
-            };
-
-            Vector3 spot = place.Position + new Vector3(0, 0.15f, 1.8f);
-            AddLoot(WorldState.Loot("place", inMap++), spot, itemId, 1 + place.Index % 2);
-        }
-
-        GD.Print($"[loot] предметов: {placed} у мест, {inHouse} в доме, {inMap} на карте");
+        GD.Print($"[loot] предметов: {placed} у мест, {inHouse} в доме");
     }
 
     /// <summary>
