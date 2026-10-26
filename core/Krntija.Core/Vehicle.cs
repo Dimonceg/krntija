@@ -82,6 +82,12 @@ public sealed class VehicleState
     /// <summary>Множитель износа от дороги и погоды.</summary>
     public double WearMultiplier { get; set; } = 1;
 
+    /// <summary>Улучшение «двигатель»: множитель мощности.</summary>
+    public double EnginePowerFactor { get; set; } = 1;
+
+    /// <summary>Улучшение «кенгурятник»: во сколько раз меньше урона от удара.</summary>
+    public double CrashDamageFactor { get; set; } = 1;
+
     /// <summary>Модель: масса, мощность, бак, передаточные числа.</summary>
     public CarSpec Spec { get; init; } = CarCatalog.Zastava101;
 
