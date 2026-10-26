@@ -1,4 +1,5 @@
 using Godot;
+using System.Linq;
 
 namespace Krntija.Game;
 
@@ -37,10 +38,13 @@ public static partial class PlayerHouse
     private static void AddFurniture(Node3D parent, string id, string use, Vector3 position, Vector3 size, bool solid = true)
     {
         var model = AddHouseModel(parent, id);
-        model.Name = "Use_" + use;
         model.Position = position;
         model.AddToGroup(StaticBatcher.SkipGroup);
-        if (solid) Blocker(model, size, new Vector3(0, size.Y / 2, 0));
+        var visual = model as MeshInstance3D
+            ?? model.FindChildren("*", nameof(MeshInstance3D), true, false).OfType<MeshInstance3D>().Single();
+        visual.Name = "Use_" + use;
+        visual.AddToGroup(StaticBatcher.SkipGroup);
+        if (solid) Blocker(visual, size, new Vector3(0, size.Y / 2, 0));
     }
 
     private static void DressDoor(Door door)
