@@ -28,6 +28,14 @@ public static class Journey
         return baseRate * (1 + 0.4 * Math.Clamp(rainIntensity, 0, 1));
     }
 
+    /// <summary>Множитель к закону расхода машины: на тире 0 в сухую ровно 1.</summary>
+    public static double FuelFactor(int tier, double rainIntensity = 0) =>
+        LitersPerKm(tier, rainIntensity) / LitersPerKm(0, 0);
+
+    /// <summary>Множитель к износу: на тире 0 в сухую ровно 1.</summary>
+    public static double WearFactor(int tier, double rainIntensity = 0) =>
+        WearPerKm(tier, rainIntensity) / WearPerKm(0, 0);
+
     /// <summary>Сколько километров ещё можно проехать на остатке бака.</summary>
     public static double RangeKm(double liters, int tier, double rainIntensity = 0)
     {
@@ -46,14 +54,5 @@ public static class Journey
             : FirstTierMeters + tier * TierStepMeters;
 
         return Math.Max(0, nextStart - s);
-    }
-
-    /// <summary>Обновить рекорд дальности: возвращает true, если рекорд побит.</summary>
-    public static bool UpdateRecord(GameSession session, double s)
-    {
-        if (s <= session.BestDistanceMeters) return false;
-
-        session.BestDistanceMeters = s;
-        return true;
     }
 }

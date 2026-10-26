@@ -45,13 +45,13 @@ public class JourneyTests
     {
         var session = GameSession.NewGame();
 
-        Assert.True(Journey.UpdateRecord(session, 500));
+        session.StepRoad(500);
         Assert.Equal(500, session.BestDistanceMeters);
 
-        Assert.False(Journey.UpdateRecord(session, 300));
+        session.StepRoad(300);
         Assert.Equal(500, session.BestDistanceMeters);
 
-        Assert.True(Journey.UpdateRecord(session, 7400));
+        session.StepRoad(7400);
         Assert.Equal(7400, session.BestDistanceMeters);
     }
 
@@ -59,7 +59,7 @@ public class JourneyTests
     public void RecordSurvivesSaveAndLoad()
     {
         var session = GameSession.NewGame();
-        Journey.UpdateRecord(session, 7400);
+        session.StepRoad(7400);
 
         var data = session.ToSave();
         Assert.Equal(7400, data.BestDistanceMeters);
