@@ -106,6 +106,15 @@ switch (WorldActions.TryRepairAtWorkbench(_car.Session, out var part))
   объявляет `global uniform vec3 world_origin;` и прибавляет его. Иначе узор
   перескакивает при сдвиге.
 
+### Взаимодействия (клавиша E)
+
+- Цель выбирает только `Main.SelectTarget()`; и действие (`Interact`), и подсказка
+  (`BuildPrompt`) берут её оттуда — разойтись не могут.
+- Правило выбора (взгляд, радиус, пешком / в машине / на ходу) — в ядре,
+  `Krntija.Core.Interaction.TargetSelector`, с тестами. Новая точка — строка в
+  таблице `Rules()` (приоритет, можно ли из машины), а не новый `if`.
+- `--selftest-interact` проверяет дверь, «сесть», «выйти», колонку и ход.
+
 ### `Variant` и результаты физических запросов
 
 - Поля результата `IntersectRay`/`IntersectShape` читать только через

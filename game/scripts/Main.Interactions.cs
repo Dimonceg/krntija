@@ -4,6 +4,7 @@ using System.Linq;
 using Godot;
 using Krntija.Core;
 using Krntija.Core.Economy;
+using Krntija.Core.Interaction;
 using Krntija.Core.Items;
 using Krntija.Core.Parts;
 using Krntija.Core.Vehicle;
@@ -43,80 +44,88 @@ public partial class Main
 
     private readonly List<InteractionPoint> _interactions = new();
 
+    /// <summary>Что сделает E: точка мира, сесть, выйти, «сначала остановись» или ничего.</summary>
+    private enum TargetKind
+    {
+        None,
+        Point,
+        EnterCar,
+        ExitCar,
+        StopFirst,
+    }
+
+    private readonly record struct InteractionTarget(TargetKind Kind, InteractionPoint? Point = null);
+
+    /// <summary>Id машины среди кандидатов: точки идут по индексу в <see cref="_interactions"/>.</summary>
+    private const int CarCandidate = -1;
+
+    /// <summary>Пешком ближе этого к машине — сесть можно и не глядя на неё.</summary>
+    private const float CarReach = 3.5f;
+
+    private readonly List<Candidate> _candidates = new();
+
+    /// <summary>
+    /// Приоритет точки и можно ли сделать это из машины. Новая точка — строка здесь;
+    /// правило выбора (взгляд, радиус, состояние) — в ядре, <see cref="TargetSelector"/>.
+    /// </summary>
+    private static (int Priority, bool FromCar) Rules(InteractionKind kind) => kind switch
+    {
+        InteractionKind.Pump or InteractionKind.Shop or InteractionKind.Gate or InteractionKind.SellAll => (1, true),
+        _ => (0, false),
+    };
+
+    /// <summary>Один выбор цели и для клавиши E, и для подсказки — разойтись они не могут.</summary>
+    private InteractionTarget SelectTarget()
+    {
+        if (_hud.Screen != HudScreen.None) return default;
+
+        bool onFoot = _onFoot && _player is not null;
+        Vector3 from = onFoot ? _player!.GlobalPosition : _car.GlobalPosition;
+        Vector3 eye = from + Vector3.Up * 1.5f;
+        Vector3? forward = GetViewport().GetCamera3D() is { } camera ? -camera.GlobalBasis.Z : null;
+
+        float AngleTo(Vector3 target) =>
+            forward is { } look ? Mathf.RadToDeg((target - eye).AngleTo(look)) : 180f;
+
+        _candidates.Clear();
+        for (int i = 0; i < _interactions.Count; i++)
+        {
+            var point = _interactions[i];
+            var (priority, fromCar) = Rules(point.Kind);
+            _candidates.Add(new Candidate(i, from.DistanceTo(point.Position), AngleTo(point.Position),
+                point.Radius, priority, fromCar));
+        }
+
+        if (onFoot)
+            _candidates.Add(new Candidate(CarCandidate, DistanceToCar(), AngleTo(_car.GlobalPosition + Vector3.Up * 0.8f),
+                CarReach, Priority: 1));
+
+        var stance = onFoot ? Stance.OnFoot : _car.SpeedMps < 2f ? Stance.InCarStopped : Stance.InCarMoving;
+        if (TargetSelector.Select(stance, _candidates) is { } chosen)
+            return chosen.Id == CarCandidate
+                ? new InteractionTarget(TargetKind.EnterCar)
+                : new InteractionTarget(TargetKind.Point, _interactions[chosen.Id]);
+
+        return stance switch
+        {
+            Stance.InCarStopped => new InteractionTarget(TargetKind.ExitCar),
+            Stance.InCarMoving => new InteractionTarget(TargetKind.StopFirst),
+            _ => default,
+        };
+    }
+
     private string BuildPrompt()
     {
-        if (_hud.Screen != HudScreen.None) return string.Empty;
-
-        var point = NearestInteraction();
-
-        if (_onFoot && _player is not null)
+        var target = SelectTarget();
+        return target.Kind switch
         {
-            // Смотрим прямо на машину — садимся; иначе решает взгляд на предмет.
-            if (CarInView(5f, 25f)) return "[E] сесть в машину";
-
-            var looked = LookedInteraction();
-            if (looked is not null) return PromptFor(looked);
-
-            if (point is not null && point.Position.DistanceTo(_player.GlobalPosition) < DistanceToCar() + 0.5f)
-                return PromptFor(point);
-
-            if (DistanceToCar() < 3.5f) return "[E] сесть в машину";
-            return "мышь — обзор, W/S — идти, A/D — шаг вбок, Shift — бежать";
-        }
-
-        // В машине: только то, что делается не выходя (колонка, лавка, шлагбаум, скупщик).
-        if (InCarAction(point)) return PromptFor(point!);
-
-        return _car.SpeedMps < 2f ? "[E] выйти из машины" : string.Empty;
-    }
-
-    /// <summary>Действия, доступные не выходя из машины.</summary>
-    private static bool InCarAction(InteractionPoint? point) => point is not null &&
-        point.Kind is InteractionKind.Pump or InteractionKind.Shop or InteractionKind.Gate
-            or InteractionKind.SellAll;
-
-    /// <summary>Куда смотрит игрок: ближайшая точка в конусе взгляда.</summary>
-    private InteractionPoint? LookedInteraction(float maxDistance = 6.5f, float maxAngle = 50f)
-    {
-        var camera = GetViewport().GetCamera3D();
-        if (camera is null) return null;
-
-        Vector3 eye = (_player?.GlobalPosition ?? _car.GlobalPosition) + Vector3.Up * 1.5f;
-        Vector3 forward = -camera.GlobalBasis.Z;
-
-        InteractionPoint? best = null;
-        float bestScore = float.MaxValue;
-
-        foreach (var point in _interactions)
-        {
-            Vector3 to = point.Position - eye;
-            float distance = to.Length();
-            if (distance > maxDistance) continue;
-
-            float angle = Mathf.RadToDeg(to.AngleTo(forward));
-            if (angle > maxAngle) continue;
-
-            float score = angle / maxAngle + distance / maxDistance;
-            if (score >= bestScore) continue;
-
-            bestScore = score;
-            best = point;
-        }
-
-        return best;
-    }
-
-    /// <summary>Машина в поле зрения и рядом: тогда E сажает за руль.</summary>
-    private bool CarInView(float maxDistance = 6f, float maxAngle = 45f)
-    {
-        var camera = GetViewport().GetCamera3D();
-        if (camera is null) return false;
-
-        Vector3 eye = (_player?.GlobalPosition ?? _car.GlobalPosition) + Vector3.Up * 1.5f;
-        Vector3 to = _car.GlobalPosition + Vector3.Up * 0.8f - eye;
-        if (to.Length() > maxDistance) return false;
-
-        return Mathf.RadToDeg(to.AngleTo(-camera.GlobalBasis.Z)) <= maxAngle;
+            TargetKind.Point => PromptFor(target.Point!),
+            TargetKind.EnterCar => "[E] сесть в машину",
+            TargetKind.ExitCar => "[E] выйти из машины",
+            TargetKind.None when _onFoot && _hud.Screen == HudScreen.None =>
+                "мышь — обзор, W/S — идти, A/D — шаг вбок, Shift — бежать",
+            _ => string.Empty,
+        };
     }
 
     private static string PromptFor(InteractionPoint point) => point.Kind switch
@@ -142,61 +151,29 @@ public partial class Main
     };
 
     private void Interact()
-    {        if (_hud.Screen != HudScreen.None)
+    {
+        if (_hud.Screen != HudScreen.None)
         {
             _hud.Screen = HudScreen.None;
             return;
         }
 
-        if (_onFoot)
+        var target = SelectTarget();
+        switch (target.Kind)
         {
-            // Сначала то, на что смотрим: дверь — открыть, машина — сесть.
-            var looked = LookedInteraction();
-            if (looked is not null)
-            {
-                Use(looked);
-                return;
-            }
-
-            if (CarInView())
-            {
+            case TargetKind.Point:
+                Use(target.Point!);
+                break;
+            case TargetKind.EnterCar:
                 EnterCar();
-                return;
-            }
-
-            var point = NearestInteraction();
-            if (point is not null && point.Position.DistanceTo(_player!.GlobalPosition) < DistanceToCar() + 0.5f)
-            {
-                Use(point);
-                return;
-            }
-
-            if (DistanceToCar() < 3.5f)
-            {
-                EnterCar();
-                return;
-            }
-
-            if (point is not null) Use(point);
-
-            return;
+                break;
+            case TargetKind.ExitCar:
+                ExitCar();
+                break;
+            case TargetKind.StopFirst:
+                _hud.Toast("Сначала остановись");
+                break;
         }
-
-        // В машине E либо делает дорожное действие, либо выпускает из машины.
-        var inCar = LookedInteraction(6f) ?? NearestInteraction();
-        if (_car.SpeedMps < 2f && InCarAction(inCar))
-        {
-            Use(inCar!);
-            return;
-        }
-
-        if (_car.SpeedMps >= 2f)
-        {
-            _hud.Toast("Сначала остановись");
-            return;
-        }
-
-        ExitCar();
     }
 
     private void Use(InteractionPoint point)
@@ -326,24 +303,6 @@ public partial class Main
     private float DistanceToCar() =>
         _player is null ? float.MaxValue : _player.GlobalPosition.DistanceTo(_car.GlobalPosition);
 
-    private InteractionPoint? NearestInteraction()
-    {
-        Vector3 from = _onFoot && _player is not null ? _player.GlobalPosition : _car.GlobalPosition;
-
-        InteractionPoint? best = null;
-        float bestDistance = float.MaxValue;
-
-        foreach (var point in _interactions)
-        {
-            float distance = from.DistanceTo(point.Position);
-            if (distance > point.Radius || distance >= bestDistance) continue;
-
-            best = point;
-            bestDistance = distance;
-        }
-
-        return best;
-    }
 
     private void RefuelAtPump()
     {
