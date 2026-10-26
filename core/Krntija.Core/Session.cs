@@ -51,6 +51,9 @@ public sealed class GameSession
 
     /// <summary>Установленные улучшения машины и дома.</summary>
     public HashSet<string> Upgrades { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Рекорд дальности от дома, метры. Часть прогресса, а не счётчик сессии.</summary>
+    public double BestDistanceMeters { get; set; }
     public GameClock Clock { get; }
     public Pcg32 Rng { get; }
     public Wallet Wallet { get; }
@@ -147,6 +150,7 @@ public sealed class GameSession
             .Select(i => new ItemSave { DefId = i.DefId, Count = i.Count, Condition = i.Condition, Liters = i.Liters })
             .ToList(),
         UpgradeIds = Upgrades.ToList(),
+        BestDistanceMeters = BestDistanceMeters,
         HomeItems = Home.Items
             .Select(i => new ItemSave { DefId = i.DefId, Count = i.Count, Condition = i.Condition, Liters = i.Liters })
             .ToList(),
@@ -207,6 +211,7 @@ public sealed class GameSession
 
         var session = new GameSession(vehicle, survival, inventory, clock, rng, new Wallet(data.Money), trunk, home);
         foreach (var upgrade in data.UpgradeIds) session.RememberUpgrade(upgrade);
+        session.BestDistanceMeters = data.BestDistanceMeters;
 
         if (Enum.TryParse<WeatherKind>(data.WeatherKind, out var kind))
             session.Weather.Restore(kind, data.Wetness, data.RainIntensity, data.WeatherTimer);
@@ -260,6 +265,9 @@ public sealed class SaveData
     public List<ItemSave> TrunkItems { get; set; } = new();
     public List<ItemSave> HomeItems { get; set; } = new();
     public List<string> UpgradeIds { get; set; } = new();
+
+    /// <summary>Рекорд дальности в метрах: переживает загрузку.</summary>
+    public double BestDistanceMeters { get; set; }
     public ulong RngState { get; set; }
     public List<string> WorldDone { get; set; } = new();
 }

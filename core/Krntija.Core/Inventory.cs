@@ -46,6 +46,10 @@ public static class ItemCatalog
             ["upgrade_tank"] = new("upgrade_tank", "Увеличенный бак", 4.0, false, 1, ItemCategory.Part, 40),
             ["upgrade_springs"] = new("upgrade_springs", "Усиленные рессоры", 6.0, false, 1, ItemCategory.Part, 35),
             ["upgrade_toolbox"] = new("upgrade_toolbox", "Ящик с инструментом", 3.0, false, 1, ItemCategory.Part, 30),
+        ["upgrade_headlights"] = new("upgrade_headlights", "Яркие фары", 4.0, false, 1, ItemCategory.Part, 45),
+        ["upgrade_bullbar"] = new("upgrade_bullbar", "Кенгурятник", 12.0, false, 1, ItemCategory.Part, 50),
+        ["upgrade_engine"] = new("upgrade_engine", "Форсированный двигатель", 20.0, false, 1, ItemCategory.Part, 70),
+        ["upgrade_roofrack"] = new("upgrade_roofrack", "Багажник на крышу", 9.0, false, 1, ItemCategory.Part, 55),
         };
 
     static ItemCatalog()
