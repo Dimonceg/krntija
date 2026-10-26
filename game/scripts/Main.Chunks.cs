@@ -115,7 +115,7 @@ public partial class Main
                 }
 
                 _interactions.Add(new InteractionPoint(root.ToGlobal(use.Local), mapped.Kind, mapped.Radius,
-                    Gate: use.Gate, Door: use.Door, Node: use.Prop, StateId: use.StateId, Chunk: index));
+                    Gate: use.Gate, Door: use.Door, Node: use.Prop, StateId: use.StateId, Chunk: index, Visual: use.Visual));
 
                 if (use.Gate is { } gate && use.StateId is { } id && world?.IsDone(id) == true) gate.Open();
             }

@@ -295,7 +295,7 @@ public static class PlayerHouse
     private static void BuildFurniture(Node3D parent)
     {
         // Кухня: столешница у западной стены, чтобы не перекрывать чёрный ход.
-        Slab(parent, new Vector3(0.65f, 0.85f, 2.2f), new Vector3(-5.12f, 0.42f, 2.9f), Furniture);
+        Usable(Slab(parent, new Vector3(0.65f, 0.85f, 2.2f), new Vector3(-5.12f, 0.42f, 2.9f), Furniture), "chest");
         Slab(parent, new Vector3(0.7f, 0.9f, 0.7f), new Vector3(-5.1f, 0.45f, 3.7f), new Color(0.25f, 0.25f, 0.26f));
         Slab(parent, new Vector3(0.55f, 0.06f, 0.55f), new Vector3(-5.1f, 0.93f, 2.5f), new Color(0.65f, 0.66f, 0.66f));
         Slab(parent, new Vector3(0.06f, 0.6f, 2.2f), new Vector3(-5.42f, 1.9f, 2.9f), Furniture, solid: false);
@@ -310,13 +310,28 @@ public static class PlayerHouse
         Slab(parent, new Vector3(2.4f, 0.6f, 0.25f), new Vector3(-4.0f, 0.55f, 0.1f), new Color(0.36f, 0.28f, 0.22f));
 
         // Гараж: верстак и пара ящиков.
-        Slab(parent, new Vector3(2.2f, 0.85f, 0.7f), new Vector3(4.3f, 0.42f, -0.55f), new Color(0.4f, 0.32f, 0.24f));
+        Usable(Slab(parent, new Vector3(2.2f, 0.85f, 0.7f), new Vector3(4.3f, 0.42f, -0.55f), new Color(0.4f, 0.32f, 0.24f)),
+            "workbench");
         Slab(parent, new Vector3(0.6f, 0.6f, 0.6f), new Vector3(5.0f, 0.3f, -3.4f), new Color(0.45f, 0.36f, 0.2f));
 
         // Чердак: кровать и сундук.
-        Slab(parent, new Vector3(1.9f, 0.35f, 0.9f), new Vector3(-3.6f, 2.95f, -1.8f), new Color(0.5f, 0.42f, 0.34f), solid: false);
+        Usable(Slab(parent, new Vector3(1.9f, 0.35f, 0.9f), new Vector3(-3.6f, 2.95f, -1.8f), new Color(0.5f, 0.42f, 0.34f),
+            solid: false), "bed");
         Slab(parent, new Vector3(0.9f, 0.5f, 0.6f), new Vector3(1.6f, 3.0f, -2.6f), Furniture, solid: false);
     }
+
+    /// <summary>
+    /// Мебель-точка (сундук — кухонный шкаф, верстак, кровать): своё имя, чтобы найти её
+    /// для обводки, и вне слияния, чтобы у неё остался свой меш.
+    /// </summary>
+    private static void Usable(MeshInstance3D slab, string use)
+    {
+        slab.Name = "Use_" + use;
+        slab.AddToGroup(StaticBatcher.SkipGroup);
+    }
+
+    /// <summary>Мебель-точка дома по имени из <see cref="Usable"/>; null — у этой планировки её нет.</summary>
+    public static Node3D? UseFurniture(Node3D house, string use) => house.FindChild("Use_" + use, true, false) as Node3D;
 
     private static void AddLight(Node3D parent, Vector3 position, float energy)
     {

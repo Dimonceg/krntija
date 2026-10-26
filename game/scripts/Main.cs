@@ -266,7 +266,7 @@ public partial class Main : Node3D
             _player.SpeedMultiplier = Core.Items.Encumbrance.SpeedFactor(bag.WeightKg, bag.MaxWeightKg);
         }
 
-        _hud.Prompt = BuildPrompt();
+        UpdateFocus();
 
         if (_mapUi is not null && _mapUi.IsOpen)
             _mapUi.UpdatePlayer(_car.GlobalPosition);

@@ -38,9 +38,14 @@ public partial class Main
 
     /// <param name="StateId">Id в <see cref="WorldState"/>, если действие меняет мир и сохраняется.</param>
     /// <param name="Chunk">Кусок мира, которому принадлежит точка: снимается при его выгрузке.</param>
+    /// <param name="Visual">Что обвести, когда точка выбрана, если это не <paramref name="Node"/> и не дверь.</param>
     private sealed record InteractionPoint(Vector3 Position, InteractionKind Kind, float Radius,
         CheckpointGate? Gate = null, Door? Door = null, string? LootId = null, Node3D? Node = null,
-        string? StateId = null, int Chunk = -1);
+        string? StateId = null, int Chunk = -1, Node3D? Visual = null)
+    {
+        /// <summary>Модель цели: её обводит подсветка, её коллизия не закрывает точку от взгляда.</summary>
+        public Node3D? Body => Visual ?? Node ?? Door;
+    }
 
     private readonly List<InteractionPoint> _interactions = new();
 
@@ -87,20 +92,30 @@ public partial class Main
         float AngleTo(Vector3 target) =>
             forward is { } look ? Mathf.RadToDeg((target - eye).AngleTo(look)) : 180f;
 
+        var stance = onFoot ? Stance.OnFoot : _car.SpeedMps < 2f ? Stance.InCarStopped : Stance.InCarMoving;
+
         _candidates.Clear();
         for (int i = 0; i < _interactions.Count; i++)
         {
             var point = _interactions[i];
             var (priority, fromCar) = Rules(point.Kind);
-            _candidates.Add(new Candidate(i, from.DistanceTo(point.Position), AngleTo(point.Position),
-                point.Radius, priority, fromCar));
+            float distance = from.DistanceTo(point.Position);
+
+            // Луч — только к тем, кого вообще можно выбрать: точек в мире сотни.
+            bool reachable = stance switch
+            {
+                Stance.OnFoot => distance <= Mathf.Max(point.Radius, (float)TargetSelector.LookDistance),
+                Stance.InCarStopped => fromCar && distance <= point.Radius,
+                _ => false,
+            };
+            _candidates.Add(new Candidate(i, distance, AngleTo(point.Position), point.Radius, priority, fromCar,
+                InSight: reachable && InSight(eye, point)));
         }
 
         if (onFoot)
             _candidates.Add(new Candidate(CarCandidate, DistanceToCar(), AngleTo(_car.GlobalPosition + Vector3.Up * 0.8f),
                 CarReach, Priority: 1));
 
-        var stance = onFoot ? Stance.OnFoot : _car.SpeedMps < 2f ? Stance.InCarStopped : Stance.InCarMoving;
         if (TargetSelector.Select(stance, _candidates) is { } chosen)
             return chosen.Id == CarCandidate
                 ? new InteractionTarget(TargetKind.EnterCar)
@@ -114,9 +129,10 @@ public partial class Main
         };
     }
 
-    private string BuildPrompt()
+    private string BuildPrompt() => BuildPrompt(SelectTarget());
+
+    private string BuildPrompt(InteractionTarget target)
     {
-        var target = SelectTarget();
         return target.Kind switch
         {
             TargetKind.Point => PromptFor(target.Point!),

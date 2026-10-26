@@ -21,8 +21,9 @@ public static class PlaceBuilder
     /// <summary>Точка взаимодействия места. <paramref name="Kind"/> — вид из <see cref="UsePlan.Kind"/>
     /// или служебный: <c>workbench</c>, <c>sleep_home</c>.</summary>
     /// <param name="Prop">Что убрать, когда действие сделано: завал, заграждение выезда.</param>
+    /// <param name="Visual">Что обвести, когда игрок выбрал точку: ящик, житель, верстак.</param>
     public sealed record Use(string Kind, Vector3 Local, string? StateId = null,
-        CheckpointGate? Gate = null, Door? Door = null, Node3D? Prop = null);
+        CheckpointGate? Gate = null, Door? Door = null, Node3D? Prop = null, Node3D? Visual = null);
 
     public sealed record Loot(string StateId, string ItemId, int Count, Vector3 Local);
 
@@ -110,7 +111,7 @@ public static class PlaceBuilder
 
         // Убираются завал и заграждение; пустой ящик остаётся стоять.
         built.Uses.Add(new Use(use.Kind, point + Vector3.Up * 0.8f, stateId,
-            Prop: use.Kind is "exit" or "collapse" ? prop : null));
+            Prop: use.Kind is "exit" or "collapse" ? prop : null, Visual: prop));
     }
 
     /// <summary>Точка в модели, к которой художник привязал действие: <c>PumpAnchor</c>, <c>SleepAnchor</c>.</summary>
@@ -225,9 +226,9 @@ public static class PlaceBuilder
 
         var house = root.GetNode<Node3D>("PlayerHouse");
         Vector3 At(float x, float y, float z) => chunkRoot.ToLocal(house.ToGlobal(new Vector3(x, y, z)));
-        built.Uses.Add(new Use("chest", At(-4.3f, 0.7f, 2.0f)));
-        built.Uses.Add(new Use("workbench", At(4.3f, 0.7f, -0.6f)));
-        built.Uses.Add(new Use("sleep_home", At(-3.6f, 3.0f, -1.8f)));
+        built.Uses.Add(new Use("chest", At(-4.3f, 0.7f, 2.0f), Visual: PlayerHouse.UseFurniture(house, "chest")));
+        built.Uses.Add(new Use("workbench", At(4.3f, 0.7f, -0.6f), Visual: PlayerHouse.UseFurniture(house, "workbench")));
+        built.Uses.Add(new Use("sleep_home", At(-3.6f, 3.0f, -1.8f), Visual: PlayerHouse.UseFurniture(house, "bed")));
         return true;
     }
 

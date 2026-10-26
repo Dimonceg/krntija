@@ -18,6 +18,7 @@ public static class StaticCaches
     public static void Release()
     {
         ChunkBuilder.ReleaseCaches();
+        InteractionHighlight.ReleaseCaches();
         LandscapeArt.ReleaseCaches();
         RoadMeshBuilder.ReleaseCaches();
         WorldVegetation.ReleaseCaches();

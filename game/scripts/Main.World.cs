@@ -154,7 +154,7 @@ public partial class Main
         {
             case RoadFeature.GasStation:
                 if (model is null) AddGasStation(position, heading);
-                else AddGasStationInteractions(model.Position, -model.Rotation.Y);
+                else AddGasStationInteractions(model.Position, -model.Rotation.Y, model);
                 break;
 
             case RoadFeature.Village:
@@ -372,11 +372,11 @@ public partial class Main
         if (GetNodeOrNull<Node3D>("PlayerHouse") is { } home)
         {
             _interactions.Add(new InteractionPoint(home.ToGlobal(new Vector3(-4.3f, 0.7f, 2.0f)),
-                InteractionKind.Chest, 3f));
+                InteractionKind.Chest, 3f, Visual: PlayerHouse.UseFurniture(home, "chest")));
             _interactions.Add(new InteractionPoint(home.ToGlobal(new Vector3(4.3f, 0.7f, -0.6f)),
-                InteractionKind.Workbench, 3f));
+                InteractionKind.Workbench, 3f, Visual: PlayerHouse.UseFurniture(home, "workbench")));
             _interactions.Add(new InteractionPoint(home.ToGlobal(new Vector3(-3.6f, 3.0f, -1.8f)),
-                InteractionKind.SleepHome, 3f));
+                InteractionKind.SleepHome, 3f, Visual: PlayerHouse.UseFurniture(home, "bed")));
         }
     }
 
