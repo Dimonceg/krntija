@@ -46,6 +46,15 @@ try {
         $LASTEXITCODE -eq 0
     }
 
+    # Скрипт без .uid в git: у каждого, кто импортирует проект, Godot создаёт свой
+    # .uid с другим id, и следующее слияние с ним падает («untracked would be overwritten»).
+    Step '.uid скриптов в git' {
+        $tracked = @(git ls-files 'game/scripts/*.cs.uid')
+        $missing = @(git ls-files 'game/scripts/*.cs' | Where-Object { $tracked -notcontains "$_.uid" })
+        $missing | ForEach-Object { Write-Host "  нет в git: $_.uid (закоммитьте вместе со скриптом)" }
+        $missing.Count -eq 0
+    }
+
     Step 'Тесты ядра' {
         $out = & $DotnetExe run --project core\Krntija.Core.Tests -c Debug 2>&1 | Out-String
         $code = $LASTEXITCODE
