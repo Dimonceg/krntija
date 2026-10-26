@@ -181,6 +181,18 @@ public partial class MenuUi : CanvasLayer
             GameSettings.Save();
         });
 
+        string[] busNames = { "Двигатель", "Мир вокруг", "Действия", "Интерфейс" };
+        for (int i = 0; i < GameSettings.Buses.Length; i++)
+        {
+            int bus = i;
+            AddSlider(busNames[i], 0f, 1f, 0.01f, GameSettings.BusVolumes[i], value =>
+            {
+                GameSettings.BusVolumes[bus] = value;
+                GameSettings.Apply();
+                GameSettings.Save();
+            });
+        }
+
         AddSlider("Чувствительность мыши", 0.2f, 3f, 0.05f, GameSettings.MouseSensitivity, value =>
         {
             GameSettings.MouseSensitivity = value;

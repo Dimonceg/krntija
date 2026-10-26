@@ -66,9 +66,8 @@
 
 ## Архитектор
 
-- [ ] **S1. Звуковая основа** (`docs/AUDIO.md`): шины и ползунки, `SoundLibrary`/
-  `Sfx` API с вариантами и пулом голосов, CC0-наборы Kenney (Impact Sounds,
-  RPG Audio) с `LICENSES.md` и проверкой, синтез фона природы.
+- [x] **S1. Звуковая основа** — 2026-10-26, `arch/audio-s1`: API `Sfx.Play`/`Step`/`Ambience`
+  готов для S3, id — `SoundIds`; 133 записи CC0, циклы birds/crickets/wind_trees.
 
 - [ ] **C4. Падения Godot при выходе:** у `--selftest-assembly` ≈ 2 из 20 (и на
   `master`, не регрессия), прежний фон ≈ 1 из 40. Найти причину (тела деталей,

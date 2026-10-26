@@ -109,6 +109,7 @@ public partial class Main
         _checkMenu = HasArg("--selftest-menu");
         _checkCarUpgrades = HasArg("--check-car-upgrades");
         _checkCarAssembly = HasArg("--check-car-assembly");
+        _checkAudio = HasArg("--check-audio");
         _checkZastavaDetail = HasArg("--check-zastava-detail");
         _selfTestAssembly = HasArg("--selftest-assembly");
         _selfTestUpgrades = HasArg("--selftest-upgrades");

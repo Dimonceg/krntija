@@ -4,8 +4,8 @@ using Godot;
 namespace Krntija.Game;
 
 /// <summary>
-/// Короткие звуки, синтезированные кодом: щелчок, хлопок двери, шаг,
-/// переливание из канистры, шум дождя. Ни одного файла в репозитории.
+/// Звуки, синтезированные кодом: щелчок, хлопок двери, шаг, переливание,
+/// циклы дождя, ветра, птиц, сверчков. Записи CC0 — <see cref="SoundLibrary"/>.
 /// </summary>
 public static class SoundBank
 {
@@ -72,6 +72,117 @@ public static class SoundBank
         }
 
         return FromSamples(samples, loop: true);
+    }
+
+    /// <summary>
+    /// Птицы днём (20 с, цикл): редкие трели нескольких «видов» — серии нот со
+    /// скольжением частоты 2–6 кГц, ближние громче, дальние тише. События не
+    /// пересекают конец цикла, поэтому стык не слышен.
+    /// </summary>
+    public static AudioStreamWav BirdsLoop()
+    {
+        const float seconds = 20f;
+        var rng = new Random(31);
+        var samples = new float[(int)(Rate * seconds)];
+
+        float t = 0.4f;
+        while (t < seconds - 2.5f)
+        {
+            float near = rng.NextSingle() < 0.25f ? 1f : 0.35f;
+            float baseHz = 2200 + rng.NextSingle() * 2800;
+            int notes = 2 + rng.Next(5);
+            float noteLength = 0.05f + rng.NextSingle() * 0.08f;
+            float sweep = (rng.NextSingle() - 0.4f) * 1600;
+
+            for (int n = 0; n < notes; n++)
+            {
+                float start = t + n * noteLength * 1.6f;
+                float hz = baseHz * (1 + 0.08f * MathF.Sin(n * 1.7f));
+                AddNote(samples, start, noteLength, hz, sweep, 0.16f * near);
+            }
+
+            t += notes * noteLength * 1.6f + 0.3f + rng.NextSingle() * 2.2f;
+        }
+
+        return FromSamples(samples, loop: true);
+    }
+
+    /// <summary>
+    /// Сверчки ночью (15 с, цикл): несколько сверчков на несущей 4–5 кГц, трель —
+    /// три импульса по 15 мс, у каждого свой ритм; плюс тихий дальний «хор».
+    /// </summary>
+    public static AudioStreamWav CricketsLoop()
+    {
+        const float seconds = 15f;
+        var rng = new Random(47);
+        int count = (int)(Rate * seconds);
+        var samples = new float[count];
+
+        for (int cricket = 0; cricket < 4; cricket++)
+        {
+            float hz = 4200 + rng.NextSingle() * 900;
+            float period = 0.45f + rng.NextSingle() * 0.4f;
+            float level = cricket == 0 ? 0.12f : 0.05f + rng.NextSingle() * 0.04f;
+
+            for (float chirp = rng.NextSingle() * period; chirp < seconds - 0.2f; chirp += period * (0.9f + 0.2f * rng.NextSingle()))
+                for (int pulse = 0; pulse < 3; pulse++)
+                    AddNote(samples, chirp + pulse * 0.03f, 0.015f, hz, 0, level);
+        }
+
+        // Дальний хор: узкий шум у 4,5 кГц, медленно дышит (период кратен циклу).
+        float low = 0, band = 0;
+        for (int i = 0; i < count; i++)
+        {
+            float noise = (float)(rng.NextDouble() * 2 - 1);
+            low += (noise - low) * 0.6f;
+            band += (low - band) * 0.35f;
+            float breath = 0.6f + 0.4f * MathF.Sin(Tau * 3 * i / count);
+            samples[i] += (low - band) * 0.03f * breath;
+        }
+
+        return FromSamples(samples, loop: true);
+    }
+
+    /// <summary>
+    /// Ветер в деревьях (12 с, цикл): шелест листвы — шум в средне-высокой полосе
+    /// с порывами; частоты порывов кратны длине цикла, стык не слышен.
+    /// </summary>
+    public static AudioStreamWav WindTreesLoop()
+    {
+        const float seconds = 12f;
+        var rng = new Random(59);
+        int count = (int)(Rate * seconds);
+        var samples = new float[count];
+        float fast = 0, slow = 0;
+
+        for (int i = 0; i < count; i++)
+        {
+            float noise = (float)(rng.NextDouble() * 2 - 1);
+            fast += (noise - fast) * 0.5f;
+            slow += (fast - slow) * 0.08f;
+            float phase = (float)i / count;
+            float gust = 0.45f + 0.3f * MathF.Sin(Tau * 2 * phase) + 0.2f * MathF.Sin(Tau * 5 * phase + 1.3f)
+                         + 0.05f * MathF.Sin(Tau * 11 * phase + 0.4f);
+            samples[i] = (fast - slow) * 0.5f * gust;
+        }
+
+        return FromSamples(samples, loop: true);
+    }
+
+    /// <summary>Нота птицы или сверчка: синус со скольжением частоты и мягкой огибающей.</summary>
+    private static void AddNote(float[] samples, float start, float length, float hz, float sweepHz, float level)
+    {
+        int from = (int)(start * Rate);
+        int to = Math.Min(samples.Length, (int)((start + length) * Rate));
+        float phase = 0;
+
+        for (int i = Math.Max(0, from); i < to; i++)
+        {
+            float k = (i - from) / (float)(to - from);
+            phase += Tau * (hz + sweepHz * k) / Rate;
+            float envelope = MathF.Sin(MathF.PI * k);
+            samples[i] += MathF.Sin(phase) * envelope * envelope * level;
+        }
     }
 
     private const float Tau = MathF.PI * 2;

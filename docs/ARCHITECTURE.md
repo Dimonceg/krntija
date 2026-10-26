@@ -74,6 +74,10 @@ switch (WorldActions.TryRepairAtWorkbench(_car.Session, out var part)) { case Ac
 `Socket_`/`Open_` из GLB; состояние берёт из ядра (`ICarAssemblyState`).
 Гнёзда — `Car.SocketGlobal(id)`, id — `PartSlotIds`. Навесы — `CarUpgradeVisuals`.
 
+**Звук** (`docs/AUDIO.md`). Короткие звуки — только `Sfx.Play(id, …)`/`Sfx.Step`,
+id — `SoundIds`; фон — `Sfx.Ambience`. Плеер — на своей шине (`Engine`, `World`,
+`Sfx`, `Ui`). Записи — только CC0, папка — в `game/assets/audio/LICENSES.md`.
+
 **Esc.** Ловит `MenuUi` → `Main.OnEscape`: сначала `CloseGameWindows`, потом
 пауза. Новое окно поверх игры — добавить в `CloseGameWindows`.
 

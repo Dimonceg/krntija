@@ -217,6 +217,12 @@ public partial class Main : Node3D
             return;
         }
 
+        if (_checkAudio)
+        {
+            RunAudioCheck();
+            return;
+        }
+
         if (_checkZastavaDetail)
         {
             RunZastavaDetailCheck();
