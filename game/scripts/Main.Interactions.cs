@@ -51,11 +51,11 @@ public partial class Main
 
         if (_onFoot && _player is not null)
         {
-            // Пешком решает взгляд: куда смотришь — то и делаешь.
+            // Смотрим прямо на машину — садимся; иначе решает взгляд на предмет.
+            if (CarInView(5f, 25f)) return "[E] сесть в машину";
+
             var looked = LookedInteraction();
             if (looked is not null) return PromptFor(looked);
-
-            if (CarInView()) return "[E] сесть в машину";
 
             if (point is not null && point.Position.DistanceTo(_player.GlobalPosition) < DistanceToCar() + 0.5f)
                 return PromptFor(point);
@@ -64,10 +64,16 @@ public partial class Main
             return "мышь — обзор, W/S — идти, A/D — шаг вбок, Shift — бежать";
         }
 
-        if (point is not null && _car.SpeedMps < 2f) return PromptFor(point);
+        // В машине: только то, что делается не выходя (колонка, лавка, шлагбаум, скупщик).
+        if (InCarAction(point)) return PromptFor(point!);
 
         return _car.SpeedMps < 2f ? "[E] выйти из машины" : string.Empty;
     }
+
+    /// <summary>Действия, доступные не выходя из машины.</summary>
+    private static bool InCarAction(InteractionPoint? point) => point is not null &&
+        point.Kind is InteractionKind.Pump or InteractionKind.Shop or InteractionKind.Gate
+            or InteractionKind.SellAll;
 
     /// <summary>Куда смотрит игрок: ближайшая точка в конусе взгляда.</summary>
     private InteractionPoint? LookedInteraction(float maxDistance = 6.5f, float maxAngle = 50f)
@@ -176,10 +182,11 @@ public partial class Main
             return;
         }
 
-        var inCar = NearestInteraction();
-        if (inCar is not null && _car.SpeedMps < 2f && inCar.Kind != InteractionKind.Shop)
+        // В машине E либо делает дорожное действие, либо выпускает из машины.
+        var inCar = LookedInteraction(6f) ?? NearestInteraction();
+        if (_car.SpeedMps < 2f && InCarAction(inCar))
         {
-            Use(inCar);
+            Use(inCar!);
             return;
         }
 
