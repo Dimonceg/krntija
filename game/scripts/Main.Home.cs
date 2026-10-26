@@ -71,10 +71,23 @@ public partial class Main
         Sfx.PlayUi();
     }
 
-    /// <summary>Верстак: починить самую изношенную деталь за плату и изоленту.</summary>
+    /// <summary>
+    /// Верстак: сначала поставить улучшение (если есть и машина рядом), потом
+    /// починить самую изношенную деталь. A9: установка не ждёт починки.
+    /// </summary>
     private void RepairAtWorkbench()
     {
-        switch (WorldActions.TryRepairAtWorkbench(_car.Session, out var part))
+        var session = _car.Session;
+
+        if (UpgradeInstall.Pending(session) is { } pending
+            && UpgradeInstall.CanInstall(session, pending, PlayerToCar()) == UpgradeInstallResult.Ok)
+        {
+            UpgradeInstall.Install(session, pending, PlayerToCar());
+            InstalledUpgrade(pending);
+            return;
+        }
+
+        switch (WorldActions.TryRepairAtWorkbench(session, out var part))
         {
             case ActionResult.NothingToDo:
                 InstallUpgradeFromBag();
@@ -92,18 +105,21 @@ public partial class Main
         }
     }
 
-    /// <summary>Чинить нечего — ставим улучшение, если оно есть в кармане.</summary>
+    /// <summary>Чинить нечего — ставим улучшение, если есть и машина рядом (A9).</summary>
     private void InstallUpgradeFromBag()
     {
         var session = _car.Session;
 
-        foreach (string id in UpgradeCatalog.All.Keys)
+        if (UpgradeInstall.Pending(session) is { } id)
         {
-            if (session.Upgrades.Contains(id) || session.Inventory.Count(id) < 1) continue;
+            if (UpgradeInstall.CanInstall(session, id, PlayerToCar()) != UpgradeInstallResult.Ok)
+            {
+                _hud.Toast("Улучшение ставится у машины: подгони её к дому");
+                return;
+            }
 
-            session.Inventory.Remove(id, 1);
-            _hud.Toast(session.ApplyUpgrade(id) ?? "Установлено");
-            Sfx.PlayDoor(_car.GlobalPosition);
+            UpgradeInstall.Install(session, id, PlayerToCar());
+            InstalledUpgrade(id);
             return;
         }
 
