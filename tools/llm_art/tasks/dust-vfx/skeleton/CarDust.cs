@@ -70,8 +70,8 @@ public partial class CarDust : Node3D
         //   halfBase = (float)spec.WheelbaseM / 2f
         //   halfTrack = (float)spec.TrackM / 2f
         //   radius = (float)spec.WheelRadiusM
-        //   позиция колеса = Target.ToGlobal(new Vector3(±halfTrack, 0, halfBase))
-        //                    - Vector3.Up * radius
+        //   side = -halfTrack для левого источника (i == 0), +halfTrack для правого;
+        //   позиция = Target.ToGlobal(new Vector3(side, 0, halfBase)) - Vector3.Up * radius
         // TODO: включить пыль, когда колёса на земле (Target.GroundedWheels >= 2)
         // и машина едет (Target.SpeedMps > 1), и выставить AmountRatio по скорости:
         //   Mathf.Clamp((Target.SpeedMps - 1f) / 12f, 0.05f, 1f)

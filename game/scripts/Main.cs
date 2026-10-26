@@ -83,6 +83,7 @@ public partial class Main : Node3D
         _car = Car.Build(session);
         AddChild(_car);
         SyncAssemblyState();
+        SyncDust();
         PlaceCarAtStart();
 
         _camera = new ChaseCamera
