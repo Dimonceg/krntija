@@ -73,8 +73,11 @@ public static class CarCatalog
         WheelRadiusM: 0.31,
         FinalDrive: 3.9,
         GearRatios: new[] { 3.67, 2.10, 1.36, 1.00 },
-        WheelbaseM: 0,
-        TrackM: 0);
+        // Геометрия Blender-модели: docs/VAZ_MODEL.md.
+        WheelbaseM: 2.424,
+        TrackM: 1.365,
+        BodyLengthM: 4.02,
+        BodyWidthM: 1.611);
 
     /// <summary>Заднемоторный, лёгкий и злой. Идеальная машина для плохой дороги.</summary>
     public static readonly CarSpec Zaz968 = new(

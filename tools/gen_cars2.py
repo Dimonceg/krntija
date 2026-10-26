@@ -223,7 +223,7 @@ def main():
     os.makedirs(OUT_DIR, exist_ok=True)
 
     for car_id, spec in SPECS.items():
-        if car_id in ("zastava_101", "golf_2"):
+        if car_id in ("zastava_101", "golf_2", "vaz_2106"):
             print(f"{car_id}: authored Blender model, skipping")
             continue
         meshes = build_body(spec)
