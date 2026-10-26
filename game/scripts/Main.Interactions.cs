@@ -442,7 +442,7 @@ public partial class Main
     private void TalkToResident(InteractionPoint point)
     {
         int index = int.TryParse(point.LootId, out int parsed) ? parsed : 0;
-        string line = MapLife.ResidentLines[Math.Abs(index) % MapLife.ResidentLines.Length];
+        string line = ResidentLines.All[Math.Abs(index) % ResidentLines.All.Length];
         _hud.Toast(line);
         Sfx.PlayUi();
     }
