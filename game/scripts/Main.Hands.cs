@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 using Krntija.Core;
+using Krntija.Core.Interaction;
 using Krntija.Core.Parts;
 using Krntija.Core.Vehicle;
 
@@ -54,6 +55,58 @@ public partial class Main
         : 1.0;
 
     private static string PartName(LoosePart loose) => loose.Definition?.Name ?? loose.DefId;
+
+    /// <summary>Деталь в мире берут в руки вплотную: радиус подсказки, метры.</summary>
+    private const float LooseReach = 1.6f;
+
+    /// <summary>Кандидаты-детали в мире: id = <c>LooseCandidate - индекс в _loosePartBodies</c>.</summary>
+    private const int LooseCandidate = -100;
+
+    /// <summary>Имя детали по её телу в мире (для подсказки «[E] взять …»).</summary>
+    private string? LooseName(RigidBody3D body)
+    {
+        string id = body.GetMeta("part_id").AsString();
+        var loose = _car.Session.LooseParts.Find(id);
+        return loose is null ? null : PartName(loose);
+    }
+
+    /// <summary>
+    /// Кандидат «машина»: у детали, на которую смотрит игрок, иначе у середины кузова.
+    /// Иначе при взгляде на моторный отсек цель уходит из конуса и проигрывает
+    /// далёкой двери дома (проверено --selftest-assembly).
+    /// </summary>
+    private Candidate CarCandidateTarget(Vector3 from, Func<Vector3, float> angleTo)
+    {
+        var aimed = AimedPart(from, angleTo);
+        Vector3 carAt = (aimed is { } slot ? AimedSocketPosition(slot) : null)
+                        ?? _car.GlobalPosition + Vector3.Up * 0.8f;
+
+        return new Candidate(CarCandidate, from.DistanceTo(carAt), angleTo(carAt),
+            CarReach, Priority: 1);
+    }
+
+    /// <summary>
+    /// Детали в мире (ADR 0003, п. 6): тела ездят и катятся, поэтому кандидаты
+    /// берутся из их позиций, а не из точек кусков.
+    /// </summary>
+    private void AddLooseCandidates(Vector3 from, Vector3 eye, Func<Vector3, float> angleTo)
+    {
+        var looseRules = Rules(InteractionKind.LoosePart);
+
+        for (int i = 0; i < _loosePartBodies.Count; i++)
+        {
+            var body = _loosePartBodies[i];
+            if (!IsInstanceValid(body)) continue;
+
+            Vector3 at = body.GlobalPosition;
+            float distance = from.DistanceTo(at);
+            bool reachable = distance <= LooseReach + 1f;
+            var probe = new InteractionPoint(at, InteractionKind.LoosePart, LooseReach, Node: body);
+
+            _candidates.Add(new Candidate(LooseCandidate - i, distance, angleTo(at), LooseReach,
+                looseRules.Priority, looseRules.FromCar, InSight: reachable && InSight(eye, probe)));
+        }
+    }
 
     /// <summary>Показать кузов по состоянию ядра: после сборки машины, новой игры и загрузки.</summary>
     private void SyncAssemblyState()

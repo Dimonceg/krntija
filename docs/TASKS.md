@@ -189,9 +189,14 @@
   `GameClock.NewGameStartMinutes = 08:00`, `Hour`/`Minute` и `ToString` →
   «День 1, 08:00» / «18:45»; `GameSession.NewGame` ставит часы на утро.
   Тесты `NewGame_StartsInTheMorning`, `Clock_PrintsHoursAndMinutes`.
-- [ ] **A8. Разделить `Main.Interactions.cs`** (722 строки, правило — делить
+- [x] **A8. Разделить `Main.Interactions.cs`** (722 строки, правило — делить
   после ~600): детали и руки — в `Main.Hands.cs`, остальное по смыслу. Без
   изменения поведения, `check.ps1` зелёный.
+  Сделано 2026-10-26, ветка `feat/a8-split-interactions` (`e3112fb`):
+  `Main.Interactions.cs` 720 → 351 строка (таблица точек, `Rules()`, выбор цели,
+  подсказки, `Interact`/`Use`), детали — в `Main.Hands.cs` (`CarCandidateTarget`,
+  `AddLooseCandidates`, `LooseReach`), лавка/скупщик/заправка/журнал —
+  `Main.Shop.cs` (160), дом и места — `Main.Home.cs` (202). Поведение то же.
 
 - [ ] **Правила из сцены — в ядро** (ROADMAP, M2): урон и угроза волков,
   награды за места, выбор лута у построек. После удаления старого мира часть
