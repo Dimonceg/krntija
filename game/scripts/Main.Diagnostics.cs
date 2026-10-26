@@ -103,6 +103,7 @@ public partial class Main
         _checkChunkPlaces = HasArg("--chunk-places");
         _checkInteract = HasArg("--selftest-interact");
         _checkMenu = HasArg("--selftest-menu");
+        _checkCarUpgrades = HasArg("--check-car-upgrades");
         if (_chunkRun) DisplayServer.WindowSetVsyncMode(DisplayServer.VSyncMode.Disabled);
 
         _openJournalInShot = HasArg("--shot-ui");
@@ -137,9 +138,34 @@ public partial class Main
         GD.Print($"[sound] частота микса: {AudioServer.GetMixRate()} Гц");
     }
 
+    /// <summary>Камера в три четверти (--view=side|front|rear|quarter): снимаем модель, а не дорогу.</summary>
+    private void ShotCarCamera()
+    {
+        _camera.ProcessMode = ProcessModeEnum.Disabled;
+        _hud.Visible = false;
+        Transform3D basis = _car.GlobalTransform;
+        string view = ArgValue("--view=") ?? "side";
+
+        Vector3 eye = view switch
+        {
+            "front" => basis * new Vector3(0.4f, 1.15f, -6.0f),
+            "rear" => basis * new Vector3(0.4f, 1.35f, 6.0f),
+            "quarter" => basis * new Vector3(-3.4f, 1.35f, -4.0f),
+            _ => basis * new Vector3(-4.4f, 1.15f, -0.7f),
+        };
+        _camera.LookAtFromPosition(eye, _car.GlobalPosition + new Vector3(0, 0.7f, 0));
+    }
+
     /// <summary>Снимок для документации: ставим машину, свет, камеру и нужный экран.</summary>
     private void SetupShot()
     {
+        // --upgrades=all: машина со всеми улучшениями (навесы на кузове).
+        if (ArgValue("--upgrades=") == "all")
+        {
+            foreach (string id in Krntija.Core.Items.UpgradeCatalog.All.Keys) _car.Session.ApplyUpgrade(id);
+            _car.BodyVisuals?.Sync(_car.Session.Upgrades);
+        }
+
         if (_streamer is not null)
         {
             // Мир кусками: --at — номер точки, как в старом мире (×4 м).
@@ -147,7 +173,8 @@ public partial class Main
             _streamer.BuildAround(s);
             PlaceCarOnChunkRoad(s);
             _camera.GlobalPosition = _car.GlobalPosition + _car.GlobalBasis.Z * 9f + Vector3.Up * 4f;
-            _car.Session.Clock.SetTotalMinutes((_shotDay ? 12.0 : 18.75) * 60);
+            _car.Session.Clock.SetTotalMinutes((_shotDay || _shotCar ? 12.0 : 18.75) * 60);
+            if (_shotCar) ShotCarCamera();
             return;
         }
 
@@ -169,23 +196,7 @@ public partial class Main
             _car.Session.Weather.Restore(WeatherKind.Rain, wetness: 1, rain: 1, minutesUntilChange: 30);
         }
 
-        if (_shotCar)
-        {
-            // Камера в три четверти: снимаем модель, а не дорогу.
-            _camera.ProcessMode = ProcessModeEnum.Disabled;
-            _hud.Visible = false;
-            Transform3D basis = _car.GlobalTransform;
-            string view = ArgValue("--view=") ?? "side";
-
-            Vector3 eye = view switch
-            {
-                "front" => basis * new Vector3(0.4f, 1.15f, -6.0f),
-                "rear" => basis * new Vector3(0.4f, 1.35f, 6.0f),
-                "quarter" => basis * new Vector3(-3.4f, 1.35f, -4.0f),
-                _ => basis * new Vector3(-4.4f, 1.15f, -0.7f),
-            };
-            _camera.LookAtFromPosition(eye, _car.GlobalPosition + new Vector3(0, 0.7f, 0));
-        }
+        if (_shotCar) ShotCarCamera();
 
         if (_shotLineup)
             BuildLineup(road, index);

@@ -1,3 +1,4 @@
+using System.Linq;
 using Godot;
 using Krntija.Core;
 using Krntija.Core.Vehicle;
@@ -28,6 +29,15 @@ public partial class Car : RigidBody3D
 
     private readonly Node3D[] _wheels = new Node3D[4];
     private readonly Node3D[] _wheelVisuals = new Node3D[4];
+
+    /// <summary>Корень кузова с навесами улучшений; null — процедурная заглушка.</summary>
+    private CarUpgradeVisuals? _body;
+
+    /// <summary>Навесы на кузове: для проверок.</summary>
+    public CarUpgradeVisuals? BodyVisuals => _body;
+
+    /// <summary>Колёса не под корнем кузова: рессоры их не поднимают. Для проверок.</summary>
+    public bool WheelsOutsideBody => _body is null || _wheelVisuals.All(wheel => !_body.IsAncestorOf(wheel));
     private bool _modelBody;
 
     public GameSession Session { get; private set; } = null!;
@@ -141,7 +151,11 @@ public partial class Car : RigidBody3D
         var model = ModelLibrary.CarBody(ModelOverride ?? Session.Vehicle.Spec.Id);
         if (model is not null)
         {
-            AddChild(model);
+            // Кузов — под корнем навесов: рессоры поднимают его вместе с ними, колёса — нет.
+            _body = CarUpgradeVisuals.Create(ModelOverride is null ? Session.Vehicle.Spec.Id : string.Empty);
+            AddChild(_body);
+            _body.AddChild(model);
+            _body.Sync(Session.Upgrades);
             if (PropFactory.Measure(model) is { } bounds)
                 GD.Print($"[car] кузов {bounds.Size.X:F2} × {bounds.Size.Y:F2} × {bounds.Size.Z:F2} м, низ {bounds.Position.Y:F2}");
         }
@@ -345,6 +359,7 @@ public partial class Car : RigidBody3D
 
         Session.Step(dt, sample, input, reversing);
         UpdateHeadlights();
+        _body?.Sync(Session.Upgrades);
 
         if (_audio is not null)
         {
