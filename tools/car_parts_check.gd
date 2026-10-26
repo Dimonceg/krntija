@@ -9,6 +9,8 @@ func check(ok:bool,label:String):
     print("[car-parts] ","OK " if ok else "FAIL ",label)
     if not ok:failures+=1
 func _initialize():
+    call_deferred("run_checks")
+func run_checks():
     for id in PARTS:
         var path="res://assets/models/parts/part_"+id+".glb"
         var scene=load(path) as PackedScene
@@ -32,5 +34,44 @@ func _initialize():
             check(bounds.size.x<=size.x and bounds.size.y<=size.y and bounds.size.z<=size.z,id+" fits its socket "+str(bounds.size))
         check(model.find_children("*","CollisionObject3D",true,false).is_empty(),id+" no collision")
         model.free()
+    check_modular_car()
     print("[car-parts] failures=",failures)
     quit(0 if failures==0 else 1)
+
+func check_modular_car():
+    var prefix="res://assets/models/cars/zastava_101_"
+    var shell=load(prefix+"shell.glb").instantiate() as Node3D
+    root.add_child(shell)
+    var ids=["engine","radiator","battery","wheel_fl","wheel_fr","wheel_rl","wheel_rr",
+        "door_fl","door_fr","door_rl","door_rr","hood","trunk"]
+    var total=0
+    for visual in shell.find_children("*","MeshInstance3D",true,false):
+        total+=visual.mesh.get_faces().size()/3
+    check(total<=3100,"shell triangle budget: "+str(total))
+    for id in ids:
+        var socket=shell.find_child("Socket_"+id,true,false) as Node3D
+        check(socket!=null,id+" socket")
+        if socket==null or not (id.begins_with("door") or id in ["hood","trunk"]):continue
+        var opened=shell.find_child("Open_"+id,true,false) as Node3D
+        check(opened!=null,id+" open transform")
+        if opened==null:continue
+        check(socket.position.distance_to(opened.position)<.0001,id+" stationary hinge")
+        var angle=rad_to_deg(socket.basis.get_rotation_quaternion().angle_to(opened.basis.get_rotation_quaternion()))
+        check(angle>=59 and angle<=76,id+" opening angle: "+str(angle))
+        var panel=load(prefix+id+".glb").instantiate() as Node3D
+        shell.add_child(panel)
+        check(panel.transform.is_equal_approx(Transform3D.IDENTITY),id+" exported root at hinge zero")
+        panel.transform=socket.transform
+        check(panel.global_position.distance_to(socket.global_position)<.0001,id+" mounted origin matches socket")
+        var tris=0
+        for visual in panel.find_children("*","MeshInstance3D",true,false):
+            check(visual.transform.is_equal_approx(Transform3D.IDENTITY),id+" baked mesh transform")
+            tris+=visual.mesh.get_faces().size()/3
+            # Hinge must touch the panel geometry, not sit at a far-away chassis origin.
+            var bounds=visual.get_aabb().grow(.12)
+            check(bounds.has_point(Vector3.ZERO),id+" hinge lies on panel edge")
+        check(tris>0 and tris<=600,id+" triangle budget: "+str(tris));total+=tris
+        panel.free()
+    check(total<=5000,"assembled shell and panels budget: "+str(total))
+    check(shell.find_children("*","CollisionObject3D",true,false).is_empty(),"shell no collisions")
+    shell.free()

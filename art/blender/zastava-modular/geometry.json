@@ -1,0 +1,65 @@
+{
+  "shell": {
+    "triangles": 3008,
+    "socket": [
+      0,
+      0,
+      0
+    ],
+    "budget": 3100
+  },
+  "door_fl": {
+    "triangles": 444,
+    "socket": [
+      -0.74,
+      -0.03,
+      -0.85
+    ],
+    "budget": 600
+  },
+  "door_fr": {
+    "triangles": 444,
+    "socket": [
+      0.74,
+      -0.03,
+      -0.85
+    ],
+    "budget": 600
+  },
+  "door_rl": {
+    "triangles": 405,
+    "socket": [
+      -0.74,
+      -0.03,
+      0.19
+    ],
+    "budget": 600
+  },
+  "door_rr": {
+    "triangles": 405,
+    "socket": [
+      0.74,
+      -0.03,
+      0.19
+    ],
+    "budget": 600
+  },
+  "hood": {
+    "triangles": 36,
+    "socket": [
+      0,
+      0.342,
+      -0.93
+    ],
+    "budget": 600
+  },
+  "trunk": {
+    "triangles": 174,
+    "socket": [
+      0,
+      0.785,
+      0.9
+    ],
+    "budget": 600
+  }
+}
