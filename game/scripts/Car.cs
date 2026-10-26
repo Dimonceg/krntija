@@ -292,8 +292,22 @@ public partial class Car : RigidBody3D
     private void UpdateHeadlights()
     {
         float energy = Session.Clock.IsNight ? 8f : 0f;
-        if (_headlightLeft is not null) _headlightLeft.LightEnergy = energy;
-        if (_headlightRight is not null) _headlightRight.LightEnergy = energy;
+
+        // Дальность света — число из ядра: фары ставятся у верстака.
+        bool upgraded = Session.Upgrades.Contains(Krntija.Core.Items.UpgradeCatalog.Headlights);
+        float range = (float)Krntija.Core.UpgradeEffects.LightsRange(upgraded);
+
+        if (_headlightLeft is not null)
+        {
+            _headlightLeft.LightEnergy = energy;
+            _headlightLeft.SpotRange = range;
+        }
+
+        if (_headlightRight is not null)
+        {
+            _headlightRight.LightEnergy = energy;
+            _headlightRight.SpotRange = range;
+        }
     }
 
     public override void _PhysicsProcess(double delta)
