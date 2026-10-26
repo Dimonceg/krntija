@@ -91,7 +91,6 @@ public partial class Main
         ResetWorldState();
 
         _objectiveDone = false;
-        _assemblyMissingShown = -1;
         _hud.Objective = string.Empty;
 
         ResumeGame();
@@ -186,7 +185,6 @@ public partial class Main
         SyncWorldState();
         // Детали из сейва: тела ставятся по сохранённым мировым координатам.
         SpawnLooseParts();
-        _assemblyMissingShown = -1;
         _hud.Toast(samePlace ? "Загружено" : "Загружено: сейв из другого мира, машина на старте");
         GD.Print($"[load] мир {data.World}, сид {data.WorldSeed}, место {(samePlace ? "из сейва" : "старт")}");
     }

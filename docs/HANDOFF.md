@@ -102,6 +102,7 @@ godot --path game
 # проверки без окна
 godot --headless --path game -- --selftest
 godot --headless --path game -- --selftest-cars
+godot --headless --path game -- --selftest-assembly   # руки: взять, поставить, снять, собрать и уехать
 godot --headless --path game -- --smoke
 godot --headless --path game -- --smoke --car=golf_2
 

@@ -48,12 +48,14 @@ public static class StartScenario
         },
         new[]
         {
-            new PartPlacement(PartSlot.Engine, "engine_1_6", 1.9, 0.45, -2.5, 0.35),
-            new PartPlacement(PartSlot.Battery, "battery_std", -1.8, 0.25, -2.3, -0.6),
-            new PartPlacement(PartSlot.Radiator, "radiator_std", 1.9, 0.20, 2.2, 1.1),
-            new PartPlacement(PartSlot.Hood, "hood_101", -1.9, 0.15, 2.4, 0.15),
-            new PartPlacement(PartSlot.TrunkLid, "trunk_101", 2.6, 0.15, 0.2, -1.25),
-            new PartPlacement(PartSlot.DoorFrontLeft, "door_fl_101", -2.5, 0.15, 0.2, 1.4),
+            // Спереди и по бокам от машины, во дворе: к дверям дома детали не кладём,
+            // иначе подсказка у них спорит с дверью дома (проверено --selftest-assembly).
+            new PartPlacement(PartSlot.Engine, "engine_1_6", 2.0, 0.45, -7.6, 0.35),
+            new PartPlacement(PartSlot.Battery, "battery_std", 6.0, 0.25, -7.4, -0.6),
+            new PartPlacement(PartSlot.Radiator, "radiator_std", 2.2, 0.20, -5.2, 1.1),
+            new PartPlacement(PartSlot.Hood, "hood_101", 5.2, 0.15, -8.7, 0.15),
+            new PartPlacement(PartSlot.TrunkLid, "trunk_101", 6.3, 0.15, -5.4, -1.25),
+            new PartPlacement(PartSlot.DoorFrontLeft, "door_fl_101", 1.5, 0.15, -6.6, 1.4),
         });
 
     /// <summary>План старта для машины; null — раскладки нет, старт как раньше.</summary>
