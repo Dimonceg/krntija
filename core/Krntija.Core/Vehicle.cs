@@ -262,6 +262,14 @@ public sealed class VehicleSystems
 
     public void Repair(PartSlot slot, double amount) => State.Get(slot)?.Repair(amount);
 
+    /// <summary>Удар: износ кузова по потере скорости, с учётом кенгурятника.</summary>
+    public double Impact(double speedDropMps)
+    {
+        double wear = CrashRules.BodyWear(speedDropMps, State.CrashDamageFactor);
+        if (wear > 0) Wear(PartSlot.Body, wear);
+        return wear;
+    }
+
     private void Wear(PartSlot slot, double amount)
     {
         if (amount <= 0) return;
