@@ -28,6 +28,21 @@
 7. Статические ресурсы Godot (`StandardMaterial3D`, меши) в статических полях
    класса — только с методом `ReleaseCaches()` (как в проекте). Лучше без них.
 
+## Godot 4: где что лежит (частая путаница)
+
+- `GpuParticles3D` (узел): `Amount`, `Lifetime`, `Emitting`, `AmountRatio`,
+  `ProcessMaterial`, `DrawPass1`, `VisibilityAabb`.
+- `ParticleProcessMaterial` (материал): `Direction`, `Spread`,
+  `InitialVelocityMin/Max`, `Gravity`, `ScaleMin/Max`, `EmissionShape`,
+  `EmissionBoxExtents`, `EmissionSphereRadius`. У него **нет** `Lifetime`,
+  `Amount`, `Emitting` и `EmissionPoint` — это свойства узла.
+- Базис: `Basis.Identity`, `new Basis(Vector3 axis, float angle)`,
+  `Basis.FromEuler(...)`, `Transform3D`. Конструктора «из 16 чисел» нет.
+- Материал частицы: `StandardMaterial3D` с `AlbedoColor`, `ShadingMode`,
+  `Transparency`, `BillboardMode`, `CullMode`; меш — `QuadMesh` с `Size`.
+- В коде только ASCII-символы: `±`, `→`, `−`, `…` в C# недопустимы — пиши
+  `+`/`-`, `Mathf.Sign`, `-1f * x`.
+
 ## Формат ответа
 
 Ответ — только файлы, каждый отдельной строкой-маркером:
