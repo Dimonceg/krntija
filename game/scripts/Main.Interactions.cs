@@ -51,8 +51,15 @@ public partial class Main
 
         if (_onFoot && _player is not null)
         {
+            // Пешком решает взгляд: куда смотришь — то и делаешь.
+            var looked = LookedInteraction();
+            if (looked is not null) return PromptFor(looked);
+
+            if (CarInView()) return "[E] сесть в машину";
+
             if (point is not null && point.Position.DistanceTo(_player.GlobalPosition) < DistanceToCar() + 0.5f)
                 return PromptFor(point);
+
             if (DistanceToCar() < 3.5f) return "[E] сесть в машину";
             return "мышь — обзор, W/S — идти, A/D — шаг вбок, Shift — бежать";
         }
@@ -60,6 +67,50 @@ public partial class Main
         if (point is not null && _car.SpeedMps < 2f) return PromptFor(point);
 
         return _car.SpeedMps < 2f ? "[E] выйти из машины" : string.Empty;
+    }
+
+    /// <summary>Куда смотрит игрок: ближайшая точка в конусе взгляда.</summary>
+    private InteractionPoint? LookedInteraction(float maxDistance = 6.5f, float maxAngle = 50f)
+    {
+        var camera = GetViewport().GetCamera3D();
+        if (camera is null) return null;
+
+        Vector3 eye = (_player?.GlobalPosition ?? _car.GlobalPosition) + Vector3.Up * 1.5f;
+        Vector3 forward = -camera.GlobalBasis.Z;
+
+        InteractionPoint? best = null;
+        float bestScore = float.MaxValue;
+
+        foreach (var point in _interactions)
+        {
+            Vector3 to = point.Position - eye;
+            float distance = to.Length();
+            if (distance > maxDistance) continue;
+
+            float angle = Mathf.RadToDeg(to.AngleTo(forward));
+            if (angle > maxAngle) continue;
+
+            float score = angle / maxAngle + distance / maxDistance;
+            if (score >= bestScore) continue;
+
+            bestScore = score;
+            best = point;
+        }
+
+        return best;
+    }
+
+    /// <summary>Машина в поле зрения и рядом: тогда E сажает за руль.</summary>
+    private bool CarInView(float maxDistance = 6f, float maxAngle = 45f)
+    {
+        var camera = GetViewport().GetCamera3D();
+        if (camera is null) return false;
+
+        Vector3 eye = (_player?.GlobalPosition ?? _car.GlobalPosition) + Vector3.Up * 1.5f;
+        Vector3 to = _car.GlobalPosition + Vector3.Up * 0.8f - eye;
+        if (to.Length() > maxDistance) return false;
+
+        return Mathf.RadToDeg(to.AngleTo(-camera.GlobalBasis.Z)) <= maxAngle;
     }
 
     private static string PromptFor(InteractionPoint point) => point.Kind switch
@@ -85,8 +136,7 @@ public partial class Main
     };
 
     private void Interact()
-    {
-        if (_hud.Screen != HudScreen.None)
+    {        if (_hud.Screen != HudScreen.None)
         {
             _hud.Screen = HudScreen.None;
             return;
@@ -94,7 +144,20 @@ public partial class Main
 
         if (_onFoot)
         {
-            // Сначала ближайшее действие: у дома E не должно сажать обратно за руль.
+            // Сначала то, на что смотрим: дверь — открыть, машина — сесть.
+            var looked = LookedInteraction();
+            if (looked is not null)
+            {
+                Use(looked);
+                return;
+            }
+
+            if (CarInView())
+            {
+                EnterCar();
+                return;
+            }
+
             var point = NearestInteraction();
             if (point is not null && point.Position.DistanceTo(_player!.GlobalPosition) < DistanceToCar() + 0.5f)
             {
