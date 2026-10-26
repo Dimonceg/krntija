@@ -6,6 +6,15 @@
 в `core/Krntija.Core/Upgrades.cs`: `upgrade_headlights`, `upgrade_bullbar`,
 `upgrade_roofrack`. Для скрытого под капотом `upgrade_engine` навеса нет.
 
+## Подключение (архитектор, 2026-10-26)
+
+`game/scripts/CarUpgradeVisuals.cs` — корень кузова `Body` в `Car`: кузов и навесы
+его дети, навес `<spec>_<upgrade>.glb` появляется, как только улучшение
+установлено (и после загрузки сейва); `lift` из JSON рессор поднимает корень,
+колёса — отдельно. Новый навес для другой машины — просто положить GLB с тем же
+именем, код менять не нужно. Проверка — `--check-car-upgrades` в `check.ps1`;
+снимок — `--shot-car --view=quarter --upgrades=all --car=<spec>`.
+
 ## Файлы для подключения
 
 Все файлы лежат в `game/assets/models/cars/`.
