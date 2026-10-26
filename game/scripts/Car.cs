@@ -69,6 +69,7 @@ public partial class Car : RigidBody3D
     public bool DebugForces { get; set; }
 
     private int _physicsFrames;
+    private float _lastSpeed;
     private SpotLight3D? _headlightLeft;
     private SpotLight3D? _headlightRight;
     private EngineAudio? _audio;
@@ -325,7 +326,14 @@ public partial class Car : RigidBody3D
         // Ручник — переключатель: нажал и стоит, нажал ещё раз — отпустил.
         input = input with { Handbrake = input.Handbrake || _handbrakeOn };
 
-        var sample = new VehicleSample(LinearVelocity.Length(), AmbientC: 20);
+        // Удар: резкая потеря скорости за кадр — это износ кузова, а не торможение.
+        float speedNow = LinearVelocity.Length();
+        float speedDrop = _lastSpeed - speedNow;
+        _lastSpeed = speedNow;
+        if (speedDrop > Krntija.Core.CrashRules.ThresholdMps)
+            Session.Systems.Impact(speedDrop);
+
+        var sample = new VehicleSample(speedNow, AmbientC: 20);
 
         float forwardSpeed = LinearVelocity.Dot(-GlobalBasis.Z);
         HandbrakeActive = input.Handbrake;
