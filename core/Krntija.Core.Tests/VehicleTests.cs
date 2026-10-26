@@ -25,9 +25,18 @@ public class VehicleTests
     {
         var car = VehicleState.CreateDefault();
 
-        Assert.Equal(PartCatalog.StandardBuild.Count, car.Parts.Count);
-        foreach (var slot in Enum.GetValues<PartSlot>())
-            Assert.True(car.Parts.ContainsKey(slot), $"Слот {slot} пустой");
+        // «С завода» машина полная: слоты базового набора плюс гнёзда раскладки
+        // (двери, капот, крышка багажника — ADR 0003).
+        foreach (var (id, slot) in PartCatalog.StandardBuild)
+            Assert.True(car.Parts.ContainsKey(slot), $"Слот {slot} пустой ({id})");
+        foreach (var socket in CarLayout.Zastava101.Slots)
+            Assert.True(car.Parts.ContainsKey(socket.Slot), $"Гнездо {socket.Slot} пустое");
+
+        int expected = PartCatalog.StandardBuild.Select(p => p.Slot)
+            .Concat(CarLayout.Zastava101.Slots.Select(s => s.Slot))
+            .Distinct()
+            .Count();
+        Assert.Equal(expected, car.Parts.Count);
     }
 
     [Fact]
