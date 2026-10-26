@@ -110,6 +110,19 @@ public partial class Car : RigidBody3D
     public float Kmh => LinearVelocity.Length() * 3.6f;
     public float SpeedMps => LinearVelocity.Length();
 
+    /// <summary>Габарит кузова в осях машины: низ — порог, верх — крыша.</summary>
+    public Aabb BodyBounds { get; private set; } = new(new Vector3(-1f, -0.5f, -2f), new Vector3(2f, 1.4f, 4f));
+
+    /// <summary>
+    /// Глаз водителя в осях машины: слева (у нас левый руль), на уровне глаз,
+    /// чуть впереди середины салона. Считается от кузова, поэтому подходит любой
+    /// машине с моделью, а не только Zastava.
+    /// </summary>
+    public Vector3 DriverEyeLocal => new(
+        -BodyBounds.Size.X * 0.18f,
+        BodyBounds.Position.Y + BodyBounds.Size.Y * 0.83f,
+        -BodyBounds.Size.Z * 0.03f);
+
     public string GearLabel
     {
         get
@@ -186,6 +199,7 @@ public partial class Car : RigidBody3D
             _body.Sync(Session.Upgrades);
             if (PropFactory.Measure(model) is { } bounds)
             {
+                BodyBounds = bounds;
                 GD.Print($"[car] кузов {bounds.Size.X:F2} × {bounds.Size.Y:F2} × {bounds.Size.Z:F2} м, низ {bounds.Position.Y:F2}");
                 if (assembled) _assembly = CarAssemblyVisual.Build(_body, specId, shell, bounds);
             }
