@@ -166,29 +166,18 @@ public partial class Main
             _car.BodyVisuals?.Sync(_car.Session.Upgrades);
         }
 
-        if (_streamer is not null)
-        {
-            // Мир кусками: --at — номер точки, как в старом мире (×4 м).
-            double s = ArgValue("--at=") is { } point ? int.Parse(point) * 4.0 : 320;
-            _streamer.BuildAround(s);
-            PlaceCarOnChunkRoad(s);
-            _camera.GlobalPosition = _car.GlobalPosition + _car.GlobalBasis.Z * 9f + Vector3.Up * 4f;
-            _car.Session.Clock.SetTotalMinutes((_shotDay || _shotCar ? 12.0 : 18.75) * 60);
-            if (_shotCar) ShotCarCamera();
-            return;
-        }
+        if (_streamer is null) return;
 
-        if (_road is not { Centerline.Count: > 90 }) return;
-
-        var road = _road;
-        int index = ArgValue("--at=") is { } at
-            ? Mathf.Clamp(int.Parse(at), 1, road.Centerline.Count - 2)
-            : 80;
-
-        _car.GlobalPosition = road.Centerline[index] + Vector3.Up * 0.6f;
-        _car.Rotation = new Vector3(0, -road.Headings[index] + 0.35f, 0);
+        // --at — номер точки дороги (×4 м), как было в старом мире.
+        double s = ArgValue("--at=") is { } point ? int.Parse(point) * 4.0 : 320;
+        _streamer.BuildAround(s);
+        PlaceCarOnChunkRoad(s);
         _camera.GlobalPosition = _car.GlobalPosition + _car.GlobalBasis.Z * 9f + Vector3.Up * 4f;
         _car.Session.Clock.SetTotalMinutes((_shotDay || _shotCar ? 12.0 : 18.75) * 60);
+
+        // Место для превью — дорога под машиной: центр и направление.
+        Vector3 center = _car.GlobalPosition with { Y = _car.GlobalPosition.Y - 0.6f };
+        float heading = -_car.GlobalRotation.Y;
 
         if (_shotRain)
         {
@@ -199,7 +188,7 @@ public partial class Main
         if (_shotCar) ShotCarCamera();
 
         if (_shotLineup)
-            BuildLineup(road, index);
+            BuildLineup(center, heading);
 
         if (_shotBackpack)
         {
@@ -215,7 +204,7 @@ public partial class Main
 
         if (_shotMap)
         {
-            Vector3 middle = road.Centerline[road.Centerline.Count / 2];
+            Vector3 middle = center;
             _car.Visible = false;
             _hud.Visible = false;
             _camera.ProcessMode = ProcessModeEnum.Disabled;
@@ -224,19 +213,17 @@ public partial class Main
         }
 
         if (_shotProp is not null)
-            BuildPropPreview(road, index, _shotProp);
+            BuildPropPreview(center, heading, _shotProp);
     }
 
     /// <summary>Превью пропа: ставим модель у дороги и снимаем её в три четверти.</summary>
-    private void BuildPropPreview(RoadBuildResult road, int index, string id)
+    private void BuildPropPreview(Vector3 center, float heading, string id)
     {
         _car.Visible = false;
         _car.ProcessMode = ProcessModeEnum.Disabled;
         _hud.Visible = false;
         _camera.ProcessMode = ProcessModeEnum.Disabled;
 
-        Vector3 center = road.Centerline[index];
-        float heading = road.Headings[index];
         var right = new Vector3(Mathf.Cos(heading), 0, Mathf.Sin(heading));
         var forward = new Vector3(Mathf.Sin(heading), 0, -Mathf.Cos(heading));
 
@@ -272,14 +259,12 @@ public partial class Main
     }
 
     /// <summary>Три варианта кузова рядом — для сравнения силуэта.</summary>
-    private void BuildLineup(RoadBuildResult road, int index)
+    private void BuildLineup(Vector3 center, float heading)
     {
         _car.Visible = false;
         _car.ProcessMode = ProcessModeEnum.Disabled;
         _hud.Visible = false;
 
-        Vector3 center = road.Centerline[index];
-        float heading = road.Headings[index];
         var right = new Vector3(Mathf.Cos(heading), 0, Mathf.Sin(heading));
         var forward = new Vector3(Mathf.Sin(heading), 0, -Mathf.Cos(heading));
 

@@ -134,7 +134,7 @@ Godot импортирует GLB напрямую, и файл остаётся 
 
 ```powershell
 godot --headless --path game -- --check-props      # габариты, центровка, масштаб
-godot --path game -- --shot-prop=village_a         # посмотреть проп у дороги
+godot --path game -- --shot-prop=barn              # посмотреть проп у дороги
 ```
 
 `--check-props` печатает строку на каждый файл: размеры, центр, признаки

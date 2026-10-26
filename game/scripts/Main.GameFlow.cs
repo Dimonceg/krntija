@@ -213,17 +213,6 @@ public partial class Main
     /// <param name="rebuild">Мир кусками: собрать куски заново по плану и состоянию новой сессии.</param>
     private void PlaceCarAtStart(bool rebuild = false)
     {
-        if (_streamer is not null)
-        {
-            PlaceCarOnChunkRoad(StartStation, rebuild);
-            return;
-        }
-
-        // Не на самом краю полотна, иначе половина машины висит в воздухе.
-        Vector3 start = _road is { Centerline.Count: > 4 } ? _road.Centerline[4] : new Vector3(0, 0.6f, 0);
-        _car.GlobalPosition = start + Vector3.Up * 0.62f;
-        _car.LinearVelocity = Vector3.Zero;
-        _car.AngularVelocity = Vector3.Zero;
-        _car.Path = _road?.Centerline;
+        if (_streamer is not null) PlaceCarOnChunkRoad(StartStation, rebuild);
     }
 }

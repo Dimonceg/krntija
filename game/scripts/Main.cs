@@ -34,7 +34,6 @@ public partial class Main : Node3D
     private MapUi _mapUi = null!;
     private MapUi _miniMap = null!;
     private float _miniMapTimer;
-    private RoadBuildResult? _road;
     private MenuUi _menu = null!;
     private RainFx _rain = null!;
     private DirectionalLight3D? _sun;
@@ -115,10 +114,6 @@ public partial class Main : Node3D
         _miniMap.OffsetBottom = 170;
         _miniMap.Visible = true;
         RefreshChunkMap();
-
-        // Дом игрока у старта: слева от дороги, со своими дверями и чердаком.
-        BuildPlayerHouse();
-        SpawnLoot();
 
         _rain = new RainFx();
         AddChild(_rain);
@@ -358,7 +353,7 @@ public partial class Main : Node3D
 
         _car.GripScale = (float)weather.GripFactor;
 
-        if ((_road?.RoadMaterial ?? _streamer?.RoadMaterial) is { } material)
+        if (_streamer?.RoadMaterial is { } material)
         {
             material.Roughness = Mathf.Lerp(0.95f, 0.55f, wet);
             material.Metallic = Mathf.Lerp(0f, 0.08f, wet);
