@@ -89,11 +89,16 @@ public sealed class GameSession
         inventory.TryAdd(ItemIds.Water, 2);
         inventory.TryAdd(ItemIds.JerryCan, 1, liters: 15);
 
+        // Новая игра начинается утром, а не в полночь: в темноте не видно ни машины,
+        // ни деталей в боксе.
+        var clock = new GameClock();
+        clock.SetTotalMinutes(GameClock.NewGameStartMinutes);
+
         return new GameSession(
             VehicleState.CreateDefault(car),
             new SurvivalState(),
             inventory,
-            new GameClock(),
+            clock,
             new Pcg32(seed),
             new Wallet(120));
     }

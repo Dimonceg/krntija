@@ -21,6 +21,12 @@ public sealed class GameClock
 {
     public const double MinutesPerDay = 1440;
 
+    /// <summary>
+    /// Новая игра начинается утром: 08:00. Раньше было 00:00 — игрок стартовал
+    /// в темноте и не видел ни машины, ни деталей в боксе.
+    /// </summary>
+    public const double NewGameStartMinutes = 8 * 60;
+
     /// <summary>Сколько игровых секунд проходит за одну реальную.</summary>
     public double TimeScale { get; init; } = 60;
 
@@ -29,6 +35,12 @@ public sealed class GameClock
     public int Day => (int)(TotalMinutes / MinutesPerDay) + 1;
 
     public double HourOfDay => TotalMinutes % MinutesPerDay / 60.0;
+
+    /// <summary>Целые часы суток: 0…23. Для показа «ЧЧ:ММ».</summary>
+    public int Hour => (int)(TotalMinutes % MinutesPerDay) / 60;
+
+    /// <summary>Минуты часа: 0…59.</summary>
+    public int Minute => (int)(TotalMinutes % 60);
 
     public bool IsNight => HourOfDay < 6.5 || HourOfDay >= 18.5;
 
@@ -41,7 +53,7 @@ public sealed class GameClock
     public void SetTotalMinutes(double minutes) => TotalMinutes = Math.Max(0, minutes);
 
     public override string ToString() =>
-        $"День {Day}, {HourOfDay:00.0}:00";
+        $"День {Day}, {Hour:00}:{Minute:00}";
 }
 
 /// <summary>
