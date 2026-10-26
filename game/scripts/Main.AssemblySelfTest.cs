@@ -94,7 +94,7 @@ public partial class Main
 
         bool PutPart(PartSlot slot)
         {
-            if (SocketPosition(slot) is not { } at) return false;
+            if (_held is null || SnapPoint(slot, _held) is not { } at) return false;
 
             Stand(at, awayFromCar: true);
             if (_snapSlot != slot) return false;
