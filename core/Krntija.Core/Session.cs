@@ -246,6 +246,10 @@ public sealed class GameSession
             vehicle.Install(created);
         }
 
+        // До v4 отсутствующий слот значил «слот не сохраняется», а не «детали нет»
+        // (ADR 0003, п. 4): старый сейв читается как полностью собранная машина.
+        if (data.Version < 4) vehicle.CompleteBuild();
+
         var survival = new SurvivalState
         {
             Health = data.Health,

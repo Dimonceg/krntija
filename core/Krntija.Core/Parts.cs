@@ -17,16 +17,29 @@ public enum PartSlot
     WheelRearLeft,
     WheelRearRight,
     Body,
+
+    // Снимаемые панели кузова (ADR 0003): у машины без раскладки их нет.
+    DoorFrontLeft,
+    DoorFrontRight,
+    DoorRearLeft,
+    DoorRearRight,
+    Hood,
+    TrunkLid,
 }
 
-/// <summary>Описание типа детали: то, что не меняется от экземпляра к экземпляру.</summary>
+/// <summary>
+/// Описание типа детали: то, что не меняется от экземпляра к экземпляру.
+/// <paramref name="SpecId"/> — деталь только этой машины (панели кузова);
+/// null — подходит любой.
+/// </summary>
 public sealed record PartDefinition(
     string Id,
     PartSlot Slot,
     string Name,
     double MassKg,
     double Price,
-    double WearPerHour);
+    double WearPerHour,
+    string? SpecId = null);
 
 /// <summary>Установленная деталь с её состоянием.</summary>
 public sealed class Part
@@ -85,7 +98,31 @@ public static class PartCatalog
             ["susp_rear"] = new("susp_rear", PartSlot.SuspensionRear, "Подвеска (зад)", 25, 130, 0.05),
             ["wheel_steel"] = new("wheel_steel", PartSlot.WheelFrontLeft, "Колесо (сталь)", 12, 40, 0.03),
             ["body_panel"] = new("body_panel", PartSlot.Body, "Кузов", 60, 200, 0.01),
+
+            // Панели кузова Zastava 101 (ADR 0003, п. 1). Числа — прикидка модели фич,
+            // архитектор подтверждает: 12 кг капот, 10 кг крышка, 18 кг дверь.
+            ["hood_101"] = new("hood_101", PartSlot.Hood, "Капот", 12, 40, 0.02, "zastava_101"),
+            ["trunk_101"] = new("trunk_101", PartSlot.TrunkLid, "Крышка багажника", 10, 35, 0.02, "zastava_101"),
+            ["door_fl_101"] = new("door_fl_101", PartSlot.DoorFrontLeft, "Дверь передняя левая", 18, 45, 0.02, "zastava_101"),
+            ["door_fr_101"] = new("door_fr_101", PartSlot.DoorFrontRight, "Дверь передняя правая", 18, 45, 0.02, "zastava_101"),
+            ["door_rl_101"] = new("door_rl_101", PartSlot.DoorRearLeft, "Дверь задняя левая", 18, 45, 0.02, "zastava_101"),
+            ["door_rr_101"] = new("door_rr_101", PartSlot.DoorRearRight, "Дверь задняя правая", 18, 45, 0.02, "zastava_101"),
         };
+
+    /// <summary>
+    /// Деталь панели для гнезда конкретной машины (капот, крышка багажника, дверь).
+    /// null — у этой машины такой панели нет; её и не должно быть в гнезде.
+    /// </summary>
+    public static PartDefinition? PanelFor(string specId, PartSlot slot)
+    {
+        foreach (var def in All.Values)
+        {
+            if (def.SpecId is null || def.Slot != slot) continue;
+            if (string.Equals(def.SpecId, specId, StringComparison.OrdinalIgnoreCase)) return def;
+        }
+
+        return null;
+    }
 
     /// <summary>Базовый набор деталей «как сошла с завода»: слот задаётся явно.</summary>
     public static readonly IReadOnlyList<(string Id, PartSlot Slot)> StandardBuild = new[]

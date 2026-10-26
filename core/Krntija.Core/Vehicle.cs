@@ -82,6 +82,9 @@ public sealed class VehicleState
     /// <summary>Множитель износа от дороги и погоды.</summary>
     public double WearMultiplier { get; set; } = 1;
 
+    /// <summary>Открытые панели кузова: капот, крышка багажника, двери.</summary>
+    public HashSet<PartSlot> OpenSlots { get; } = new();
+
     /// <summary>Улучшение «двигатель»: множитель мощности.</summary>
     public double EnginePowerFactor { get; set; } = 1;
 
@@ -108,10 +111,32 @@ public sealed class VehicleState
             Fuel = new FuelTank(spec.FuelCapacityL, spec.FuelStartL),
         };
 
-        foreach (var (id, slot) in PartCatalog.StandardBuild)
-            state.Install(PartCatalog.Create(id, slot));
-
+        state.CompleteBuild();
         return state;
+    }
+
+    /// <summary>
+    /// Доставить всё, чего в машине нет: «машина собрана целиком». Так выглядит
+    /// новая машина «с завода» и старый сейв до v4, где «нет слота» значило
+    /// «слот не сохраняется» (ADR 0003, п. 4). Панели кузова — только у машины
+    /// с раскладкой гнёзд.
+    /// </summary>
+    public void CompleteBuild()
+    {
+        foreach (var (id, slot) in PartCatalog.StandardBuild)
+        {
+            if (Parts.ContainsKey(slot)) continue;
+            Install(PartCatalog.Create(id, slot));
+        }
+
+        if (CarLayout.For(Spec.Id) is not { } layout) return;
+
+        foreach (var slotSpec in layout.Slots)
+        {
+            if (Parts.ContainsKey(slotSpec.Slot)) continue;
+            var def = PartCatalog.PanelFor(Spec.Id, slotSpec.Slot);
+            if (def is not null) Install(new Part(def));
+        }
     }
 
     public void Install(Part part) => Parts[part.Slot] = part;
@@ -181,10 +206,8 @@ public sealed class VehicleSystems
         double radiatorCondition = st.Condition(PartSlot.Radiator);
 
         // --- зажигание ---
-        bool canStart = st.Fuel.Liters > 0.05
-                        && st.BatteryCharge > 0.08
-                        && engineCondition > 0.02
-                        && st.Condition(PartSlot.Alternator) > 0.02;
+        // Без двигателя или аккумулятора не заводится: правило — в AssemblyRules.
+        bool canStart = AssemblyRules.CanStart(st) && st.Condition(PartSlot.Alternator) > 0.02;
 
         if (input.Ignition && !st.EngineRunning && canStart)
             st.EngineRunning = true;
@@ -219,7 +242,8 @@ public sealed class VehicleSystems
         double thermostat = Math.Max(0, st.EngineTempC - 85) * 0.03;
         double coolingPerMinute = radiatorFactor * (0.7 + 0.010 * speedKmh + thermostat) * Math.Max(0, delta);
         double heatPerMinute = st.EngineRunning
-            ? _tuning.IdleHeatPerMinute + _tuning.LoadHeatPerMinute * throttle * (0.25 + 0.75 * throttle)
+            ? (_tuning.IdleHeatPerMinute + _tuning.LoadHeatPerMinute * throttle * (0.25 + 0.75 * throttle))
+              * AssemblyRules.OverheatFactor(st)
             : 0;
 
         st.EngineTempC = Math.Clamp(
