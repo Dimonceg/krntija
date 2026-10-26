@@ -74,8 +74,14 @@ public partial class Main
     /// <summary>Id машины среди кандидатов: точки идут по индексу в <see cref="_interactions"/>.</summary>
     private const int CarCandidate = -1;
 
-    /// <summary>Пешком ближе этого к машине — сесть можно и не глядя на неё.</summary>
+    /// <summary>Пешком ближе этого к машине видно подсказку про машину, метры.</summary>
     private const float CarReach = 3.5f;
+
+    /// <summary>
+    /// Радиус «можно и не глядя»: у машины он почти выключен — сесть и открыть
+    /// панель можно только глядя на машину, а не стоя рядом спиной.
+    /// </summary>
+    private const float CarNoLookRadius = 0.4f;
 
     private readonly List<Candidate> _candidates = new();
 
@@ -135,10 +141,31 @@ public partial class Main
         {
             if (chosen.Id == CarCandidate)
             {
-                // Смотрим на деталь машины — E открывает панель, R снимает (ADR 0003, п. 6).
-                return AimedPart(from, AngleTo) is { } slot
-                    ? new InteractionTarget(TargetKind.CarPart, Slot: slot)
-                    : new InteractionTarget(TargetKind.EnterCar);
+                // Дверь водителя: пока она закрыта, E у машины открывает именно её,
+                // а не заднюю — иначе «путь внутрь» неочевиден.
+                double door = from.DistanceTo(_car.ToGlobal(_car.DriverDoorLocal));
+                bool canEnter = _car.CanEnter(door);
+                bool nearDoor = door <= CarReach;
+
+                if (AimedPart(from, AngleTo) is { } slot)
+                {
+                    // Левые двери не мешают сесть: прицел на сиденье часто цепляет
+                    // заднюю дверь, а открыта водительская — игрок уже у проёма.
+                    bool leftDoor = slot is PartSlot.DoorFrontLeft or PartSlot.DoorRearLeft;
+
+                    if (leftDoor && canEnter) return new InteractionTarget(TargetKind.EnterCar);
+                    if (leftDoor && nearDoor) return new InteractionTarget(TargetKind.CarPart, Slot: PartSlot.DoorFrontLeft);
+
+                    return new InteractionTarget(TargetKind.CarPart, Slot: slot);
+                }
+
+                // Открытая водительская дверь и взгляд внутрь — сесть.
+                if (canEnter) return new InteractionTarget(TargetKind.EnterCar);
+
+                // Закрытая: E на двери её и открывает — это и есть «путь внутрь».
+                if (nearDoor) return new InteractionTarget(TargetKind.CarPart, Slot: PartSlot.DoorFrontLeft);
+
+                return default;
             }
 
             if (chosen.Id <= LooseCandidate)

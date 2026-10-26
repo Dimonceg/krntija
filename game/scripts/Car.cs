@@ -106,6 +106,11 @@ public partial class Car : RigidBody3D
     private SpotLight3D? _headlightLeft;
     private SpotLight3D? _headlightRight;
     private EngineAudio? _audio;
+    private Node3D? _steeringWheel;
+    private Node3D? _needleSpeed;
+    private Node3D? _needleTacho;
+    private OmniLight3D? _dashLight;
+    private float _steerInput;
 
     public float Kmh => LinearVelocity.Length() * 3.6f;
     public float SpeedMps => LinearVelocity.Length();
@@ -122,6 +127,15 @@ public partial class Car : RigidBody3D
         -BodyBounds.Size.X * 0.18f,
         BodyBounds.Position.Y + BodyBounds.Size.Y * 0.83f,
         -BodyBounds.Size.Z * 0.03f);
+
+    /// <summary>Проём водительской двери в осях машины: от него считается посадка.</summary>
+    public Vector3 DriverDoorLocal => new(
+        -BodyBounds.Size.X * 0.5f - 0.08f,
+        BodyBounds.Position.Y + BodyBounds.Size.Y * 0.5f,
+        BodyBounds.Position.Z + BodyBounds.Size.Z * 0.36f);
+
+    /// <summary>Можно ли сесть за руль (дверь открыта, игрок у проёма) — правило ядра.</summary>
+    public bool CanEnter(double distanceToDoor) => AssemblyRules.CanEnter(Session.Vehicle, distanceToDoor);
 
     public string GearLabel
     {
@@ -203,15 +217,50 @@ public partial class Car : RigidBody3D
                 GD.Print($"[car] кузов {bounds.Size.X:F2} × {bounds.Size.Y:F2} × {bounds.Size.Z:F2} м, низ {bounds.Position.Y:F2}");
                 if (assembled) _assembly = CarAssemblyVisual.Build(_body, specId, shell, bounds);
             }
+
+            BindInstruments(model);
         }
         else BuildProceduralShell();
 
         BuildWheels();
 
         AddHeadlights();
+        AddDashLight();
 
         _audio = new EngineAudio();
         AddChild(_audio);
+    }
+
+    /// <summary>
+    /// Приборы в салоне: узлы арта <c>SteeringWheel</c>, <c>NeedleSpeed</c>,
+    /// <c>NeedleTacho</c> (см. docs/TASKS.md, B6). Нет узлов — приборы просто
+    /// не двигаются, сборка и игра от этого не ломаются.
+    /// </summary>
+    private void BindInstruments(Node model)
+    {
+        _steeringWheel = model.FindChild("SteeringWheel", true, false) as Node3D;
+        _needleSpeed = model.FindChild("NeedleSpeed", true, false) as Node3D;
+        _needleTacho = model.FindChild("NeedleTacho", true, false) as Node3D;
+
+        if (_steeringWheel is null)
+            GD.Print("[car] в модели нет узла SteeringWheel — руль и шкалы статичные (арт: TASKS B6)");
+    }
+
+    /// <summary>Лампочка над приборкой: ночью шкалы читаются, днём погашена.</summary>
+    private void AddDashLight()
+    {
+        _dashLight = new OmniLight3D
+        {
+            Name = "DashLight",
+            LightColor = new Color(1f, 0.9f, 0.75f),
+            LightEnergy = 0.32f,
+            OmniRange = 0.7f,
+            ShadowEnabled = false,
+            Position = DriverEyeLocal + new Vector3(0.1f, -0.12f, -0.55f),
+            Visible = false,
+        };
+
+        AddChild(_dashLight);
     }
 
     /// <summary>Процедурный кузов: работает, пока модели нет.</summary>
@@ -370,6 +419,39 @@ public partial class Car : RigidBody3D
         }
     }
 
+    /// <summary>
+    /// Приборы в салоне: руль поворачивается вместе с вводом, стрелки скорости и
+    /// оборотов идут по шкале, ночью включается подсветка приборки. Двигается
+    /// только то, что арт отдал отдельными узлами (docs/TASKS.md, B6).
+    /// </summary>
+    private void UpdateInstruments()
+    {
+        if (_steeringWheel is not null)
+        {
+            // Полный ход руля около 400 градусов: ввод -1..1.
+            _steeringWheel.Rotation = new Vector3(0f, 0f, -_steerInput * 7f);
+        }
+
+        if (_needleSpeed is not null)
+            _needleSpeed.Rotation = new Vector3(0f, 0f, NeedleRadians(Kmh, 160f));
+
+        if (_needleTacho is not null)
+            _needleTacho.Rotation = new Vector3(0f, 0f, NeedleRadians(Session.DriveTrain.Rpm, 8000f));
+
+        if (_dashLight is not null)
+        {
+            bool lit = Session.Clock.IsNight && (Driven || Session.Vehicle.EngineRunning);
+            if (_dashLight.Visible != lit) _dashLight.Visible = lit;
+        }
+    }
+
+    /// <summary>Угол стрелки: шкала 270 градусов, ноль слева-снизу, максимум справа-снизу.</summary>
+    private static float NeedleRadians(double value, double max)
+    {
+        float t = Mathf.Clamp((float)(value / max), 0f, 1f);
+        return Mathf.DegToRad(-135f + t * 270f);
+    }
+
     public override void _PhysicsProcess(double delta)
     {
         if (Session is null) return;
@@ -406,6 +488,8 @@ public partial class Car : RigidBody3D
         UpdateHeadlights();
         _body?.Sync(Session.Upgrades);
         _assembly?.Sync();
+        _steerInput = (float)input.Steer;
+        UpdateInstruments();
 
         if (_audio is not null)
         {

@@ -71,18 +71,19 @@ public partial class Main
     }
 
     /// <summary>
-    /// Кандидат «машина»: у детали, на которую смотрит игрок, иначе у середины кузова.
-    /// Иначе при взгляде на моторный отсек цель уходит из конуса и проигрывает
-    /// далёкой двери дома (проверено --selftest-assembly).
+    /// Кандидат «машина»: у детали, на которую смотрит игрок, иначе у проёма
+    /// водительской двери — чтобы сесть можно было, только глядя в машину,
+    /// а не в крышу и не «просто стоя рядом».
     /// </summary>
     private Candidate CarCandidateTarget(Vector3 from, Func<Vector3, float> angleTo)
     {
         var aimed = AimedPart(from, angleTo);
         Vector3 carAt = (aimed is { } slot ? AimedSocketPosition(slot) : null)
-                        ?? _car.GlobalPosition + Vector3.Up * 0.8f;
+                        ?? _car.ToGlobal(_car.DriverDoorLocal);
 
+        // Radius — «можно и не глядя»: для машины это выключено (0.4 м).
         return new Candidate(CarCandidate, from.DistanceTo(carAt), angleTo(carAt),
-            CarReach, Priority: 1);
+            CarNoLookRadius, Priority: 1);
     }
 
     /// <summary>
