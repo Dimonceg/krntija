@@ -175,23 +175,6 @@ public partial class Main
         point.Node.QueueFree();
     }
 
-    /// <summary>Разложить лут у точек интереса и внутри дома.</summary>
-    private void SpawnLoot()
-    {
-        if (_road is null) return;
-
-        int placed = 0;
-        foreach (var (position, itemId, count) in LootSpawner.PlanLandmarks(_road.Points))
-            AddLoot(WorldState.Loot("poi", placed++), position, itemId, count);
-
-        int inHouse = 0;
-        if (GetNodeOrNull<Node3D>("PlayerHouse") is { } house)
-            foreach (var (position, itemId, count) in LootSpawner.PlanHouse(house))
-                AddLoot(WorldState.Loot("house", inHouse++), position, itemId, count);
-
-        GD.Print($"[loot] предметов: {placed} у мест, {inHouse} в доме");
-    }
-
     /// <summary>
     /// Записать место лута и положить предмет. Мир строится до машины и сессии,
     /// поэтому уже подобранное убирает <see cref="SyncWorldState"/>, а не этот метод.

@@ -289,25 +289,7 @@ public partial class Main
     }
 
     /// <summary>За первое посещение каждого места — деньги: есть смысл ехать дальше.</summary>
-    private void RewardNewPlaces()
-    {
-        if (_streamer is not null)
-        {
-            RewardChunkPlaces();
-            return;
-        }
-
-        if (_road is null) return;
-
-        for (int i = 0; i < _road.Points.Count; i++)
-        {
-            var point = _road.Points[i];
-            if (_car.GlobalPosition.DistanceTo(point.Position) > 25f) continue;
-
-            if (!WorldActions.TryRewardPlace(_car.Session, i)) continue;
-            _hud.Toast($"{point.Segment.Title}: +{Krntija.Core.Economy.Money.Format(WorldActions.PlaceReward)}");
-        }
-    }
+    private void RewardNewPlaces() => RewardChunkPlaces();
 
     private void TrySleep()
     {
