@@ -114,6 +114,18 @@ public sealed class GameSession
             case UpgradeCatalog.Toolbox:
                 Inventory.RaiseCapacity(10);
                 break;
+            case UpgradeCatalog.RoofRack:
+                Trunk.RaiseCapacity(25);
+                break;
+            case UpgradeCatalog.Engine:
+                Vehicle.EnginePowerFactor *= UpgradeEffects.EnginePower;
+                break;
+            case UpgradeCatalog.Bullbar:
+                Vehicle.CrashDamageFactor *= UpgradeEffects.CrashDamage;
+                break;
+            case UpgradeCatalog.Headlights:
+                // Дальность света читает сцена; число живёт в ядре.
+                break;
         }
 
         Upgrades.Add(id);
@@ -122,6 +134,38 @@ public sealed class GameSession
 
     /// <summary>Вспомнить уже установленное улучшение при загрузке: эффекты в сейве.</summary>
     public void RememberUpgrade(string id) => Upgrades.Add(id);
+
+    /// <summary>
+    /// После загрузки сейва вернуть эффекты: в сейве лежат только id улучшений,
+    /// а прибавки к баку, багажнику, мощности и броне надо применить снова.
+    /// </summary>
+    public void ReapplyUpgrades()
+    {
+        var installed = Upgrades.ToList();
+
+        foreach (string id in installed)
+        {
+            switch (id)
+            {
+                // Бак приходит из сейва вместе с вместимостью: второй раз не прибавляем.
+                case UpgradeCatalog.Springs:
+                    Trunk.RaiseCapacity(15);
+                    break;
+                case UpgradeCatalog.Toolbox:
+                    Inventory.RaiseCapacity(10);
+                    break;
+                case UpgradeCatalog.RoofRack:
+                    Trunk.RaiseCapacity(25);
+                    break;
+                case UpgradeCatalog.Engine:
+                    Vehicle.EnginePowerFactor *= UpgradeEffects.EnginePower;
+                    break;
+                case UpgradeCatalog.Bullbar:
+                    Vehicle.CrashDamageFactor *= UpgradeEffects.CrashDamage;
+                    break;
+            }
+        }
+    }
 
     public void Step(double dt, in VehicleSample sample, in DriveInput input, bool reversing = false)
     {
@@ -230,6 +274,7 @@ public sealed class GameSession
 
         var session = new GameSession(vehicle, survival, inventory, clock, rng, new Wallet(data.Money), trunk, home);
         foreach (var upgrade in data.UpgradeIds) session.RememberUpgrade(upgrade);
+        session.ReapplyUpgrades();
         session.BestDistanceMeters = data.BestDistanceMeters;
 
         if (Enum.TryParse<WeatherKind>(data.WeatherKind, out var kind))
