@@ -169,12 +169,12 @@ public partial class Main
             StartNewGame(Krntija.Core.Vehicle.CarCatalog.Zastava101);
             _car.Session.Clock.SetTotalMinutes(12 * 60);
 
-            // Камера спереди машины, спиной к дому: видно и машину, и детали, и ворота.
+            // Камера внутри бокса, за машиной: видно машину, детали на местах и ворота.
             _camera.ProcessMode = ProcessModeEnum.Disabled;
             Transform3D basis = _car.GlobalTransform;
             _camera.LookAtFromPosition(
-                basis * new Vector3(-6.5f, 4.0f, -9.0f),
-                _car.GlobalPosition + new Vector3(0, 1.6f, 0));
+                basis * new Vector3(-2.6f, 2.3f, 3.2f),
+                _car.GlobalPosition + new Vector3(0, 0.9f, -1.5f));
 
             GD.Print($"[shot] гараж: машина {_car.GlobalPosition}, дом {HouseNode()?.GlobalPosition.ToString() ?? "нет"}, "
                      + $"деталей {_car.Session.LooseParts.Count}");
