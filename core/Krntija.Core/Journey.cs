@@ -53,7 +53,7 @@ public static class Journey
     {
         if (s <= session.BestDistanceMeters) return false;
 
-        session.BestDistanceMeters = s;
+        session.StepRoad(s);
         return true;
     }
 }
