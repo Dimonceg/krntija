@@ -36,6 +36,7 @@ public static partial class WorldGenerator
         Kind = 3,
         Loot = 4,
         Decor = 5,
+        Hazard = 6,
     }
 
     /// <summary>Номер «места» для решений уровня куска (сколько мест в нём).</summary>
@@ -199,11 +200,21 @@ public static partial class WorldGenerator
         var result = new List<LootPlan>();
         var rolled = LootRoll.Roll(table, rng);
 
-        // Дальше от дома — щедрее: на высоких тирах добавляется ещё один заход.
+        // Дальше от дома — щедрее: на высоких тирах добавляется ещё один заход
+        // и шанс на редкое улучшение, которого у дома не найти.
         if (tier >= 3)
         {
             var extra = LootRoll.Roll(table, rng);
             rolled.AddRange(extra);
+
+            if (rng.Chance(0.35))
+            {
+                string[] rare =
+                {
+                    "upgrade_headlights", "upgrade_bullbar", "upgrade_engine", "upgrade_roofrack",
+                };
+                rolled.Add(new ItemStack(rare[rng.NextInt(rare.Length)], 1));
+            }
         }
 
         for (int i = 0; i < rolled.Count; i++)
@@ -291,7 +302,7 @@ public static partial class WorldGenerator
         PlaceKind kind, int tier)
     {
         var result = new List<HazardPlan>();
-        var rng = new Pcg32(Hash.Mix(worldSeed, chunkIndex, placeIndex + 23));
+        var rng = Rng(worldSeed, chunkIndex, placeIndex, Stream.Hazard);
 
         if (!rng.Chance(ThreatRules.DangerChance(tier))) return result;
 
