@@ -143,7 +143,7 @@ public partial class Main
 
         // Деталь не должна оказаться в земле: высота из плана может быть ниже двора.
         Vector3 scene = WorldOrigin.ToScene(loose.X, loose.Y, loose.Z);
-        Vector3 size = LoosePartLook.Size(loose.Definition?.Slot ?? PartSlot.Body);
+        Vector3 size = LooseSize(loose);
         float ground = SurfaceUnder(scene, body);
         float y = Mathf.Max(scene.Y, ground + size.Y * 0.5f + 0.05f);
 
@@ -184,21 +184,68 @@ public partial class Main
         };
         body.SetMeta("part_id", loose.Id);
 
-        body.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = LoosePartLook.Size(slot) } });
+        body.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = LooseSize(loose) } });
         body.AddChild(LoosePartVisual(loose));
         return body;
     }
 
-    /// <summary>Видимая деталь: модель арта (ADR 0003, п. 8), иначе коробка-заглушка.</summary>
-    private static Node3D LoosePartVisual(LoosePart loose)
+    /// <summary>
+    /// Модель детали от арта (ADR 0003, п. 8): общая деталь — <c>parts/part_&lt;defId&gt;.glb</c>,
+    /// панель своей машины — <c>cars/&lt;spec&gt;_&lt;slot id&gt;.glb</c>. Null — модели нет.
+    /// </summary>
+    private static Node3D? PartModel(PartDefinition def) =>
+        ModelLibrary.Instantiate($"res://assets/models/parts/part_{def.Id}.glb")
+        ?? (def.SpecId is { } spec
+            ? ModelLibrary.Instantiate($"res://assets/models/cars/{spec}_{PartSlotIds.Of(def.Slot)}.glb")
+            : null);
+
+    /// <summary>Габарит модели детали: центр от точки крепления и размер; по id детали.</summary>
+    private static readonly Dictionary<string, Aabb?> PartBounds = new();
+
+    private static Aabb? Bounds(LoosePart loose)
+    {
+        if (loose.Definition is not { } def) return null;
+        if (PartBounds.TryGetValue(def.Id, out var cached)) return cached;
+
+        Aabb? bounds = null;
+        if (PartModel(def) is { } model)
+        {
+            bounds = PropFactory.Measure(model);
+            model.Free();
+        }
+
+        PartBounds[def.Id] = bounds;
+        return bounds;
+    }
+
+    /// <summary>
+    /// Центр модели от точки крепления: у агрегата крепление внизу, у панели — в
+    /// петле. На полу и в руках деталь держат за центр, иначе она «прыгает».
+    /// </summary>
+    private static Vector3 PartCenter(LoosePart loose) => Bounds(loose)?.GetCenter() ?? Vector3.Zero;
+
+    /// <summary>Размер тела детали: по модели, а без неё — заглушка по слоту.</summary>
+    private static Vector3 LooseSize(LoosePart loose) =>
+        Bounds(loose)?.Size ?? LoosePartLook.Size(loose.Definition?.Slot ?? PartSlot.Body);
+
+    /// <summary>
+    /// Видимая деталь: модель арта, иначе коробка-заглушка. <paramref name="centered"/> —
+    /// центр модели в начале узла (на полу, в руках); иначе начало — точка крепления
+    /// (призрак у гнезда).
+    /// </summary>
+    private static Node3D LoosePartVisual(LoosePart loose, bool centered = true)
     {
         var slot = loose.Definition?.Slot ?? PartSlot.Body;
 
-        var model = loose.Definition is { } def
-            ? ModelLibrary.Instantiate($"res://assets/models/parts/part_{def.Id}.glb")
-            : null;
+        if (loose.Definition is { } def && PartModel(def) is { } model)
+        {
+            if (!centered) return model;
 
-        if (model is not null) return model;
+            var root = new Node3D();
+            model.Position = -PartCenter(loose);
+            root.AddChild(model);
+            return root;
+        }
 
         return new MeshInstance3D
         {
@@ -210,7 +257,7 @@ public partial class Main
     /// <summary>Тот же вид детали, но полупрозрачный — магнит показывает, куда она встанет.</summary>
     private static Node3D GhostVisual(LoosePart loose)
     {
-        var ghost = LoosePartVisual(loose);
+        var ghost = LoosePartVisual(loose, centered: false);
         PaintGhost(ghost);
         return ghost;
     }
